@@ -1,0 +1,62 @@
+%YAML 1.2
+---
+algorithm: cgsv
+
+defaults:
+  - base_config
+  - server/algorithm: cgsv
+  - _self_
+
+simulator:
+  exp_prefix: default_
+  seed: 42
+  data_path: data/
+  result_path: result/
+  use_tensorboard: true
+  num_clients: 5
+  eval_type: both
+  eval_fraction: 1.0
+  eval_every: 1
+
+client:
+  epochs: 5
+  device: cuda
+  batch_size: 32
+  optimizer: SGD
+  criterion: CrossEntropyLoss
+  lr: 0.01
+  lr_decay: null
+  no_shuffle: true
+
+dataset:
+  name: MNIST
+  resize: 28
+  split_type: iid
+
+server:
+  _target_: src.server.${algorithm}
+  sampling_fraction: 1.0
+  rounds: 10
+  
+metrics:
+  eval_metrics: ['acc1', 'mse']
+  fairness_metrics: ['rho']
+
+model:
+  name: TwoCNN
+  init_type: xavier
+  init_gain: 1.0
+  dropout: 0.0
+  # model_spec:           # Optional model spec provided for quick tuning
+  #   num_layers: 2
+  #   layer1:
+  #     dim: 512
+  #   embedding:
+  #     dim: 10
+
+
+
+
+
+
+...

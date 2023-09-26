@@ -1,0 +1,4 @@
+defaults:
+  - algorithm/cgsv
+
+sampling_fraction: 1.0
