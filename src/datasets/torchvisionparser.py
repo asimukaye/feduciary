@@ -1,10 +1,8 @@
 import torch
 import logging
 import torchvision
-
+from src.config import ModelSpecConfig
 logger = logging.getLogger(__name__)
-
-
 
 # dataset wrapper module
 class VisionClassificationDataset(torch.utils.data.Dataset): 
@@ -25,7 +23,7 @@ class VisionClassificationDataset(torch.utils.data.Dataset):
         return f'[{self.dataset_name}] {self.suffix}'
 
 # helper method to fetch dataset from `torchvision.datasets`
-def fetch_torchvision_dataset(args, dataset_name, root, transforms):
+def fetch_torchvision_dataset(dataset_name:str, root, args:ModelSpecConfig, transforms):
     logger.info(f'[LOAD] [{dataset_name.upper()}] Fetching dataset!')
     
     # default arguments

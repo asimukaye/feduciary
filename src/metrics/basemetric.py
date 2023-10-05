@@ -1,5 +1,14 @@
 from abc import ABC, abstractmethod
 from torch import Tensor
+from dataclasses import dataclass
+
+
+# @dataclass
+# class MetricConfig:
+#     eval_metrics: list
+#     fairness_metrics: list
+
+
 
 class BaseMetric(ABC):
     def __init__(self):
@@ -13,4 +22,6 @@ class BaseMetric(ABC):
 
     @abstractmethod
     def summarize(self):
-        raise NotImplementedError
+        pass
+
+

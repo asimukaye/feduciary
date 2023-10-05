@@ -46,7 +46,7 @@ class FedavgOptimizer(BaseOptimizer, torch.optim.Optimizer):
                 else:
                     server_param.grad.add_(server_param.data.sub(local_param.data).mul(mixing_coefficient))
     
-class FedavgServer(BaseServer):
+class VaraggServer(BaseServer):
     name:str = 'FedAvgServer'
     def __init__(self, cfg:FedavgConfig, *args, **kwargs):
 

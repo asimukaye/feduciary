@@ -1,12 +1,12 @@
 import logging
 import numpy as np
 
-from src.utils.utils import TqdmToLogger
-
+from src.utils  import TqdmToLogger
+from src.config import DatasetConfig
 logger = logging.getLogger(__name__)
 
 
-def simulate_split(args, dataset):
+def simulate_split(args:DatasetConfig, dataset):
     """Split data indices using labels.
     
     Args:

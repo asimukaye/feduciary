@@ -1,17 +1,15 @@
 defaults:
   - base_server
-  - cfg: base_cgsv
+  - cfg: base_fedavg
   - _self_
 
-_target_: src.server.cgsvserver.CgsvServer
+_target_: src.server.fedavgserver.FedavgServer
 _partial_: true
 cfg:
   sampling_fraction: 1.0
-  rounds: 1
+  rounds: ${simulator.num_rounds}
   eval_type: both
   eval_fraction: 1.0
   eval_every: 1
-  beta: 1.5
-  alpha: 0.95
-  gamma: 1.5
+  momentum: 0.0
 client_cfg: ${client.cfg}

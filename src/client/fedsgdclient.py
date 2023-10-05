@@ -1,5 +1,5 @@
 from .fedavgclient import FedavgClient
-from src import MetricManager
+from src.utils import MetricManager
 
 
 

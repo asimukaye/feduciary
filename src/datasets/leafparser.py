@@ -9,7 +9,7 @@ import concurrent.futures
 
 from abc import abstractmethod
 
-from src import TqdmToLogger
+from src.utils import TqdmToLogger
 from src.datasets.leaf import *
 
 logger = logging.getLogger(__name__)

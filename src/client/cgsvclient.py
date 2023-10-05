@@ -1,7 +1,7 @@
 import copy
 
 from .fedavgclient import FedavgClient
-from src import MetricManager
+from src.utils import MetricManager
 
 
 class CgsvClient(FedavgClient):

@@ -6,10 +6,9 @@ import torch
 import logging
 import torchtext
 
-from src import TqdmToLogger
+from src.utils import TqdmToLogger
 
 logger = logging.getLogger(__name__)
-
 
 
 # dataset wrapper module
