@@ -1,9 +1,10 @@
 %YAML 1.2
 ---
-algorithm: fedavg
+mode: debug
+
 defaults:
   - base_config
-  - server: fedavg
+  - server: cgsv
   - _self_
 
 simulator:
@@ -39,8 +40,14 @@ dataset:
   test_fraction: 0.2
   split_type: iid
   K: ${simulator.num_clients}
+  subsample: 1.0
   transforms:
-    resize: 28
+    resize:
+      _target_: torchvision.transforms.Resize
+      size: 
+        - 28
+        - 28
+
 
 
 model:
@@ -57,7 +64,7 @@ model:
 
 hydra:
   job:
-    name: ${algorithm}_${dataset.name}
+    name: ${mode}_${dataset.name}
     chdir: true
     env_set:
       HYDRA_FULL_ERROR: 1
@@ -66,5 +73,23 @@ hydra:
   sweep:
     dir: outputs/${now:%Y-%m-%d}_${hydra.job.name}/${now:%H-%M-%S}
     subdir: ${hydra.job.override_dirname}
+  job_logging:
+    version: 1
+    formatters:
+      simple:
+        format: '[%(levelname)s] - %(message)s'
+      stamped:
+        format: '%(asctime)s | %(name)s: [%(levelname)s] - %(message)s'
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: simple
+        stream: ext://sys.stdout
+      file:
+        class: logging.FileHandler
+        formatter: stamped
+    root:
+      handlers: [console, file]
+
 
 ...

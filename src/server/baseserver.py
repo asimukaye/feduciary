@@ -8,15 +8,18 @@ import gc
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
 from torch.nn import Module
+import torch.multiprocessing as torch_mp
+from torch.multiprocessing import get_context
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.tensorboard import SummaryWriter
+
+
 from hydra.utils import instantiate
 from src.client.baseclient import BaseClient, model_eval_helper
 
 from src.utils  import TqdmToLogger, log_instance
 from src.metrics.metricmanager import MetricManager, ResultManager, ClientResult
 
-from importlib import import_module
 # from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.config import *
@@ -24,12 +27,13 @@ from src.config import *
 # TODO: Long term todo: the server should probably eventually be tied directly to server algorithm
 logger = logging.getLogger(__name__)
 
+def update_client(client:BaseClient):
+    # getter function for client update
+    update_result = client.update()
+    return (client.id, update_result)
 
-class BaseOptimizer(ABC):
+class BaseOptimizer(torch.optim.Optimizer, ABC):
     # FIXME: LR is a required parameter as per current implementation
-    @abstractmethod
-    def step(self, closure=None):
-        raise NotImplementedError
      
     @abstractmethod
     def accumulate(self, **kwargs):
@@ -47,6 +51,7 @@ class BaseServer(ABC):
         self.writer = writer
         self.cfg = cfg
         self.client_cfg = client_cfg
+        self.server_optimizer:BaseOptimizer
 
         self.result_manager = ResultManager(logger=logger, writer=writer)
         # global holdout set
@@ -102,18 +107,28 @@ class BaseServer(ABC):
     
 
     def _update_request(self, ids:list[str]) -> ClientResult:
-        def __update_clients(client:BaseClient):
+        def __update_client(client:BaseClient):
             # getter function for client update
-            if self.lr_scheduler:
-                client.cfg.lr = self.lr_scheduler.get_last_lr()[-1]
             update_result = client.update()
             return (client.id, update_result)
         
         results_list = []
-        for idx in TqdmToLogger(ids, logger=logger, desc=f'[{self.name}] [Round: {self.round:03}] ...receiving updates... ', total=len(ids)):
-            self.clients[idx].cfg.lr = self.lr_scheduler.get_last_lr()[-1]
-            results_list.append(__update_clients(self.clients[idx]))
+        # for idx in TqdmToLogger(ids, logger=logger, desc=f'[{self.name}] [Round: {self.round:03}] ...receiving updates... ', total=len(ids)):
+        #     self.clients[idx].cfg.lr = self.lr_scheduler.get_last_lr()[-1]
+        #     results_list.append(__update_clients(self.clients[idx]))
+
+        if self.lr_scheduler:
+            current_lr = self.lr_scheduler.get_last_lr()[-1]
+            [client.set_lr(current_lr) for client in self.clients.values()]
+
+        ctx = torch_mp.get_context('spawn')
+        # method = get_start_method()
+        # print(method)
+        with torch_mp.Pool(len(ids),) as pool:
+            print(get_context())
+            results_list = pool.map(update_client, [self.clients[idx] for idx in ids])
     
+        print(results_list)
         results_dict = dict(results_list)
         update_result = self.result_manager.log_client_train_result(results_dict)
 
@@ -198,13 +213,36 @@ class BaseServer(ABC):
         torch.save(self.model.state_dict(), f'final_model.pt')
         
    
-
-    # Every server needs to implement these uniquely
-
-    @abstractmethod
-    def _aggregate(self, indices, update_sizes):
-        raise NotImplementedError
-
-    @abstractmethod
+    # @abstractmethod
     def update(self):
+        """Update the global model through federated learning.
+        """
+        # randomly select clients
+        selected_ids = self._sample_random_clients()
+        # broadcast the current model at the server to selected clients
+        self._broadcast_models(selected_ids)
+
+        # request update to selected clients
+        train_results = self._update_request(selected_ids)
+        # request evaluation to selected clients
+        eval_result = self._eval_request(selected_ids)
+        self.result_manager.log_client_eval_pre_result(eval_result)
+
+        # receive updates and aggregate into a new weights
+        self.server_optimizer.zero_grad() # empty out buffer
+        self._aggregate(selected_ids, train_results) # aggregate local updates
+        
+        self.server_optimizer.step() # update global model with the aggregated update
+        self.lr_scheduler.step() # update learning rate
+
+        # remove model copy in clients
+        self._cleanup(selected_ids)
+
+        return selected_ids
+
+
+            # Every server needs to implement these uniquely
+
+    @abstractmethod
+    def _aggregate(self, indices:int, train_results:ClientResult):
         raise NotImplementedError

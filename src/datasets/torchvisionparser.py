@@ -2,10 +2,11 @@ import torch
 import logging
 import torchvision
 from src.config import ModelSpecConfig
+from torch.utils import data
 logger = logging.getLogger(__name__)
 
 # dataset wrapper module
-class VisionClassificationDataset(torch.utils.data.Dataset): 
+class VisionClassificationDataset(data.Dataset): 
     def __init__(self, dataset, dataset_name, suffix):
         self.dataset = dataset
         self.dataset_name = dataset_name
@@ -23,7 +24,7 @@ class VisionClassificationDataset(torch.utils.data.Dataset):
         return f'[{self.dataset_name}] {self.suffix}'
 
 # helper method to fetch dataset from `torchvision.datasets`
-def fetch_torchvision_dataset(dataset_name:str, root, args:ModelSpecConfig, transforms):
+def fetch_torchvision_dataset(dataset_name:str, root, model_cfg:ModelSpecConfig, transforms):
     logger.info(f'[LOAD] [{dataset_name.upper()}] Fetching dataset!')
     
     # default arguments
@@ -61,9 +62,9 @@ def fetch_torchvision_dataset(dataset_name:str, root, args:ModelSpecConfig, tran
 
         # adjust arguments
         if 'CIFAR' in dataset_name:
-            args.in_channels = 3
+            model_cfg.in_channels = 3
         else:
-            args.in_channels = 1
+            model_cfg.in_channels = 1
             
     elif dataset_name in [
         'Country211',\
@@ -99,9 +100,9 @@ def fetch_torchvision_dataset(dataset_name:str, root, args:ModelSpecConfig, tran
         
         # adjust arguments
         if 'RenderedSST2' in dataset_name:
-            args.in_channels = 1
+            model_cfg.in_channels = 1
         else:
-            args.in_channels = 3
+            model_cfg.in_channels = 3
             
     elif dataset_name in ['Places365', 'INaturalist', 'OxfordIIITPet', 'Omniglot']:
         # configure arguments for training/test dataset
@@ -148,9 +149,9 @@ def fetch_torchvision_dataset(dataset_name:str, root, args:ModelSpecConfig, tran
         
         # adjust arguments
         if 'Omniglot' in dataset_name:
-            args.in_channels = 1
+            model_cfg.in_channels = 1
         else:
-            args.in_channels = 3
+            model_cfg.in_channels = 3
             
     elif dataset_name in ['Caltech256', 'SEMEION', 'SUN397']:
         # configure arguments for training dataset
@@ -163,7 +164,7 @@ def fetch_torchvision_dataset(dataset_name:str, root, args:ModelSpecConfig, tran
         raw_train = torchvision.datasets.__dict__[dataset_name](**train_args)
         raw_train = VisionClassificationDataset(raw_train, dataset_name.upper(), 'CLIENT')
 
-        # no holdout set
+        # no holdout set. Wut, why
         raw_test = None
             
         # for compatibility, create attribute `targets` 
@@ -176,14 +177,14 @@ def fetch_torchvision_dataset(dataset_name:str, root, args:ModelSpecConfig, tran
             
         # adjust arguments
         if 'SEMEION' in dataset_name:
-            args.in_channels = 1
+            model_cfg.in_channels = 1
         else:
-            args.in_channels = 3
+            model_cfg.in_channels = 3
     else:
         err = f'[LOAD] Dataset `{dataset_name}` is not supported!'
         logger.exception(err)
         raise Exception(err)
 
-    args.num_classes = len(torch.unique(torch.as_tensor(raw_train.dataset.targets)))  
+    model_cfg.num_classes = len(torch.unique(torch.as_tensor(raw_train.dataset.targets)))  
     logger.info(f'[LOAD] [{dataset_name.upper()}] ...fetched dataset!')
-    return raw_train, raw_test, args
+    return raw_train, raw_test, model_cfg

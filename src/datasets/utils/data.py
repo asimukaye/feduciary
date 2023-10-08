@@ -1,31 +1,24 @@
 import os
 import gc
-import torch
+import numpy as np
 import logging
 import torchtext
 import torchvision
 import transformers
 from torch.utils import data
 import concurrent.futures
-from dataclasses import dataclass
+from hydra.utils import instantiate
+
 from src.utils  import TqdmToLogger
 from src.datasets import *
 from src.datasets.utils.split import simulate_split
-from torchvision import transforms as tvt
+import torchvision.transforms as tvt
 from typing import Optional
 logger = logging.getLogger(__name__)
 from src.config import DatasetConfig, TransformsConfig, ModelSpecConfig
 
-# @dataclass
-# class DatasetConfig:
-#     name: str
-#     test_fraction: float
-#     split_type: str
-#     resize: int
-#     # transforms: Optional(list)
-
-class SubsetWrapper(data.Dataset):
-    # TODO: Validate the utility of this
+class SubsetWrapper(data.Subset):
+    # NOTE: looks like this is just a 
     """Wrapper of `torch.utils.data.Subset` module for applying individual transform.
     """
     def __init__(self, subset:data.Subset,  suffix:str):
@@ -42,11 +35,6 @@ class SubsetWrapper(data.Dataset):
     def __repr__(self):
         return f'{repr(self.subset.dataset)} {self.suffix}'
 
-@dataclass
-class RefinedDatasetConfig(DatasetConfig):
-    num_classes:int
-
-
 def get_transform(cfg:TransformsConfig, train=False):
     transform = tvt.Compose(
         [
@@ -61,8 +49,26 @@ def get_transform(cfg:TransformsConfig, train=False):
     )
     return transform
 
+def get_train_transform(cfg:TransformsConfig):
+    train_list:list = instantiate(cfg.train_cfg)
+    train_list.append(tvt.ToTensor())
+    if cfg.normalize:
+        train_list.append(instantiate(cfg.normalize))
 
-def construct_dataset(raw_train, test_fraction, idx, sample_indices) ->(SubsetWrapper, SubsetWrapper):
+    transform = tvt.Compose(train_list)
+    return transform
+
+def get_test_transform(cfg:TransformsConfig):
+    tf_list =[]
+    if cfg.resize:
+        tf_list.append(instantiate(cfg.resize))
+    tf_list.append(tvt.ToTensor())
+    if cfg.normalize:
+        tf_list.append(instantiate(cfg.normalize))
+    transform = tvt.Compose(tf_list)
+    return transform
+
+def construct_client_dataset(raw_train, test_fraction, idx, sample_indices) ->(SubsetWrapper, SubsetWrapper):
         subset = data.Subset(raw_train, sample_indices)
         test_size = int(len(subset) * test_fraction)
         training_set, test_set = data.random_split(subset, [len(subset) - test_size, test_size])
@@ -72,9 +78,17 @@ def construct_dataset(raw_train, test_fraction, idx, sample_indices) ->(SubsetWr
     
 def load_vision_dataset(cfg: DatasetConfig, model_cfg:ModelSpecConfig):
        
-    transforms = [get_transform(cfg.transforms, train=True), get_transform(cfg.transforms, train=False)]
-    raw_train, raw_test, model_cfg= fetch_torchvision_dataset(args=model_cfg, dataset_name=cfg.name, root=cfg.data_path, transforms= transforms)
-        ############
+    transforms = [get_train_transform(cfg.transforms), get_test_transform(cfg.transforms)]
+    raw_train, raw_test, model_cfg = fetch_torchvision_dataset(dataset_name=cfg.name, root=cfg.data_path, transforms= transforms, model_cfg=model_cfg)
+
+    if cfg.subsample:
+        get_subset = lambda set, fraction: data.Subset(set, np.random.randint(0, len(set)-1, int(fraction * len(set))))
+        raw_train = get_subset(raw_train, cfg.subsample)
+        raw_test = get_subset(raw_test, cfg.subsample)
+
+    print(f'test len: {len(raw_test)}')
+
+    ############
     # finalize #
     ############
     # adjust the number of classes in binary case
@@ -99,13 +113,14 @@ def load_vision_dataset(cfg: DatasetConfig, model_cfg:ModelSpecConfig):
         desc=f'[SIMULATE] ...creating client datasets... ',
         total=len(split_map)
         ):
-        client_datasets.append(construct_dataset(raw_train, cfg.test_fraction, idx, sample_indices))
+        client_datasets.append(construct_client_dataset(raw_train, cfg.test_fraction, idx, sample_indices))
     logger.info(f'[SIMULATE] ...successfully created client datasets!')
-    print(model_cfg)
+    # print(model_cfg)
+
     return raw_test, client_datasets
 
 
-
+# FIXME: Broken usage as of now
 def load_dataset(cfg:DatasetConfig):
     # FIXME: This can be split into multiple functions
     """Fetch and split requested datasets.

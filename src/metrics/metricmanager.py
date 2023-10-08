@@ -101,6 +101,7 @@ class ClientResult:
 @dataclass
 class AllResults:
     # This might need a default factory
+    round: int = 0
     participants: dict[str] = field(default_factory=dict)
     clients_train: ClientResult = field(default_factory=ClientResult)
     clients_eval: ClientResult = field(default_factory=ClientResult)
@@ -110,7 +111,7 @@ class AllResults:
 
 class ResultManager:
     '''Accumulate and process the results'''
-    full_results: dict[dict] =defaultdict(dict)
+    full_results: list[dict] = []
     _round: int = 0
 
     def __init__(self, logger: Logger, writer:SummaryWriter) -> None:
@@ -185,11 +186,11 @@ class ResultManager:
     
     def update_round_and_flush(self, rnd:int):
         # print((self.result))
-
-        self.full_results[rnd]= asdict(self.result)
+        self.result.round = self._round
+        self.full_results.append(asdict(self.result))
         self.result = AllResults()
         self.writer.flush()
-        print(pd.json_normalize(self.full_results))
+        # print(pd.json_normalize(self.full_results))
         # print((self.full_results))
         self._round = rnd+1  # setup for the next round
 
@@ -201,10 +202,6 @@ class ResultManager:
         self.logger.info(f'[RESULTS] [Round: {self._round:03}] Save results and the global model checkpoint!')
         df = pd.json_normalize(self.full_results)
         df.to_csv('results.csv')
-
-        # with open(f'results.json', 'w', encoding='utf8') as result_file:
-        #     results = {key: value for key, value in self.results.items()}
-        #     json.dump(results, result_file, indent=4)
 
         self.writer.close()
 

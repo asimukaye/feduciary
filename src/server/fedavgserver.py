@@ -6,11 +6,11 @@ from .baseserver import BaseServer, BaseOptimizer
 from src.config import FedavgConfig
 # from hydra.utils import instantiate
 from torch.optim.lr_scheduler import LRScheduler
-
+from src.metrics.metricmanager import ClientResult
 logger = logging.getLogger(__name__)
 
 # FIXME: rewrite more efficiently
-class FedavgOptimizer(BaseOptimizer, torch.optim.Optimizer):
+class FedavgOptimizer(BaseOptimizer):
 
     def __init__(self, params:Tensor, **kwargs):
         self.lr = kwargs.get('lr')
@@ -63,7 +63,8 @@ class FedavgServer(BaseServer):
         self.lr_scheduler = self.client_cfg.lr_scheduler(optimizer=self.server_optimizer)
  
         
-    def _aggregate(self, ids, updated_sizes:dict[int]):
+    def _aggregate(self, ids, train_results:ClientResult):
+        updated_sizes = train_results.sizes
         # Calls client upload and server accumulate
         logger.info(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
 
@@ -78,28 +79,28 @@ class FedavgServer(BaseServer):
 
         logger.info(f'[{self.name}] [Round: {self.round:03}] ...successfully aggregated into a new global model!')
 
-    def update(self):
-        """Update the global model through federated learning.
-        """
-        # randomly select clients
-        selected_ids = self._sample_random_clients()
-        # broadcast the current model at the server to selected clients
-        self._broadcast_models(selected_ids)
+    # def update(self):
+    #     """Update the global model through federated learning.
+    #     """
+    #     # randomly select clients
+    #     selected_ids = self._sample_random_clients()
+    #     # broadcast the current model at the server to selected clients
+    #     self._broadcast_models(selected_ids)
 
-        # request update to selected clients
-        train_results = self._update_request(selected_ids)
-        # request evaluation to selected clients
-        eval_result = self._eval_request(selected_ids)
-        self.result_manager.log_client_eval_pre_result(eval_result)
+    #     # request update to selected clients
+    #     train_results = self._update_request(selected_ids)
+    #     # request evaluation to selected clients
+    #     eval_result = self._eval_request(selected_ids)
+    #     self.result_manager.log_client_eval_pre_result(eval_result)
 
-        # receive updates and aggregate into a new weights
-        self.server_optimizer.zero_grad() # empty out buffer
-        self._aggregate(selected_ids, train_results.sizes) # aggregate local updates
+    #     # receive updates and aggregate into a new weights
+    #     self.server_optimizer.zero_grad() # empty out buffer
+    #     self._aggregate(selected_ids, train_results) # aggregate local updates
         
-        self.server_optimizer.step() # update global model with the aggregated update
-        self.lr_scheduler.step() # update learning rate
+    #     self.server_optimizer.step() # update global model with the aggregated update
+    #     self.lr_scheduler.step() # update learning rate
 
-        # remove model copy in clients
-        self._cleanup(selected_ids)
+    #     # remove model copy in clients
+    #     self._cleanup(selected_ids)
 
-        return selected_ids
+    #     return selected_ids

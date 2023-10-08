@@ -9,12 +9,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def run_feduciary(cfg):
     cfg_obj: Config = OmegaConf.to_object(cfg)
-    # print(type(cfg_obj))
-    # print(cfg_obj)
-
     logger.info((OmegaConf.to_yaml(cfg_obj)))
 
     # exit(0)

@@ -1,6 +1,6 @@
 
 import os
-from importlib import import_module
+from collections import defaultdict
 
 import logging
 import random
@@ -32,17 +32,19 @@ class Simulator:
         self.cfg:SimConfig = cfg.simulator
 
         self.num_clients = cfg.simulator.num_clients
+
+        self.set_seed(cfg.simulator.seed)
         # self.algo = cfg.server.algorithm.name
 
         server_partial = instantiate(cfg.server)
-        self.clients: dict(str, BaseClient) = {}
+        self.clients: dict[str, BaseClient] = defaultdict(BaseClient)
         # print(server_partial)
 
+
+        # NOTE: THe model spec is being modified in place here.
         server_dataset, client_datasets= load_vision_dataset(cfg.dataset, cfg.model.model_spec)
 
         # print(cfg.model.model_spec)
-        self.set_seed(cfg.simulator.seed)
-
         # model_instance, model_args = load_model(cfg.model)
 
         model_instance = instantiate(cfg.model.model_spec)
@@ -106,29 +108,8 @@ class Simulator:
 
         return clients
 
-
-    # def evaluate(self, excluded_ids):
-        """Evaluate the global model located at the server.
-        """
-        # randomly select all remaining clients not participated in current round
-        # selected_ids = self._sample_selected_clients(exclude=excluded_ids)
-        # self._broadcast_models(selected_ids)
-
-        # # request evaluation 
-        # ## `local`: evaluate on selected clients' holdout set
-        # ## `global`: evaluate on the server's global holdout set 
-        # ## `both`: conduct both `local` and `global` evaluations
-        # if self.args.eval_type == 'local':
-        #     self._request(selected_ids, eval=True, participated=False)
-        # elif self.args.eval_type == 'global':
-        #     self._central_evaluate()
-        # elif self.args.eval_type == 'both':
-        #     self._request(selected_ids, eval=True, participated=False)
-        #     self._central_evaluate()
-
-        # remove model copy in clients
-        # self._cleanup(selected_ids)
-
        
     def finalize(self):
-        raise NotImplementedError
+        del self.clients
+        del self.server
+        logger.info('Closing Feduciary')

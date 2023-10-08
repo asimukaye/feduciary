@@ -7,6 +7,12 @@ from hydra.core.config_store import ConfigStore
 from torch import cuda
 from hydra.utils import to_absolute_path
 from src.utils import Range
+from torch import cuda
+from torch.backends import mps
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 ########## Simulator Configurations ##########
 @dataclass
@@ -36,9 +42,18 @@ class ClientConfig:
     eval_metrics: list
     
     def __post_init__(self):
-        if self.device =='cuda':
-            assert cuda.is_available(), 'Please check if your GPU is available !' 
+        # if self.device =='cuda':
+        #     assert cuda.is_available(), 'Please check if your GPU is available !' 
         assert self.batch_size >= 1
+
+        if cuda.is_available():
+            self.device = 'cuda'
+        elif mps.is_available():
+            self.device = 'mps'
+        else:
+            self.device = 'cpu'
+
+        logger.info(f'Auto Configured device to: {self.device}')
 
 @dataclass
 class ClientSchema:
@@ -102,13 +117,20 @@ class ServerSchema:
 
 @dataclass
 class TransformsConfig:
-    resize: int = 28
-    randrot: bool = False
-    randhf: bool = False
-    randjit: bool = False
-    randvf: bool = False
-    imnorm: bool = False
+    resize: Optional[dict] = field(default_factory=dict)
+    normalize:Optional[dict] = field(default_factory=dict)
+    train_cfg:Optional[list] = field(default_factory=list)
 
+    def __post_init__(self):
+        train_tf = []
+        for key, val in self.__dict__.items():
+            if key == 'normalize':
+                continue
+            else:
+                if val:
+                    train_tf.append(val)
+        self.train_cfg = train_tf  
+    # construct
 
 @dataclass
 class DatasetConfig:
@@ -118,6 +140,7 @@ class DatasetConfig:
     test_fraction: float
     K: int  # num_clients
     transforms: Optional[TransformsConfig]
+    subsample: float = 0.0  # subsample the dataset with the given fraction
     # rawsmpl: Optional[int]
     # use_model_tokenizer: Optional[bool]
     # use_pt_model: Optional[bool]
@@ -150,10 +173,12 @@ class ModelConfig:
 #     eval_metrics: list
 #     fairness_metrics: list
 
+# modes 
+#  possible enum debug
 ########## Master Configurations ##########
 @dataclass
 class Config():
-    algorithm: str = field()
+    mode: str = field()
     simulator: SimConfig = field(default=SimConfig)
     server: ServerSchema = field(default=ServerSchema)
     client: ClientSchema = field(default=ClientSchema)
@@ -161,9 +186,31 @@ class Config():
     model: ModelConfig = field(default=ModelConfig)
     # metrics: MetricConfig = field(default=MetricConfig)
 
-    # def __post_init__(self):
-    #     if self.dataset.use_model_tokenizer or self.dataset.use_pt_model:
-    #         assert self.model.name in ['DistilBert', 'SqueezeBert', 'MobileBert'], 'Please specify a proper model!'
+    def __post_init__(self):
+        # if self.dataset.use_model_tokenizer or self.dataset.use_pt_model:
+        #     assert self.model.name in ['DistilBert', 'SqueezeBert', 'MobileBert'], 'Please specify a proper model!'
+        if self.mode == 'debug':
+            set_debug_mode(self)
+
+
+
+def set_debug_mode(cfg: Config):
+    # if cuda.is_available():
+    #     cfg.client.cfg.device = 'cuda'
+    # elif mps.is_available():
+    #     cfg.client.cfg.device = 'mps'
+    # else:
+    #     cfg.client.cfg.device = 'cpu'
+    
+    logger.setLevel(logging.DEBUG)
+    logger.debug(f'Setting device to: {cfg.client.cfg.device}')
+
+    cfg.simulator.num_rounds = 2
+    logger.debug(f'Setting rounds to: {cfg.simulator.num_rounds}')
+
+    cfg.dataset.subsample = 0.2
+
+
 
 def register_configs():
     cs = ConfigStore.instance()

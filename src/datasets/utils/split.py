@@ -1,12 +1,14 @@
 import logging
 import numpy as np
+from torch.utils import data
 
 from src.utils  import TqdmToLogger
 from src.config import DatasetConfig
+
 logger = logging.getLogger(__name__)
 
-
-def simulate_split(args:DatasetConfig, dataset):
+# FIXME: Rewrite this for clarity
+def simulate_split(args:DatasetConfig, dataset: data.Dataset):
     """Split data indices using labels.
     
     Args:

@@ -4,14 +4,17 @@ from typing import Optional
 from torch.utils.data import DataLoader
 from torch.nn import Module
 from torch.optim import Optimizer
-from src.metrics.metricmanager import MetricManager, Result
 import inspect
 import copy
 import torch
+from torch import Tensor
+import logging
+from src.metrics.metricmanager import MetricManager, Result
+
 from src.config import ClientConfig
 
-from torch import Tensor
 
+logger = logging.getLogger(__name__)
 
 
 def model_eval_helper(model: Module, dataloader:DataLoader, cfg: ClientConfig, caller:str, round:int)->Result:
@@ -58,6 +61,9 @@ class BaseClient:
     def model(self)->Module:
         return self.__model
     
+    def set_lr(self, lr:float) -> None:
+        self.cfg.lr = lr
+
     @property
     def round(self)->int:
         return self._round
@@ -84,6 +90,11 @@ class BaseClient:
         # Upload the model back to the server
         self.__model.to('cpu')
         return self.__model.named_parameters()
+    
+    # def upload_gradients(self):
+    #     # Upload the model back to the server
+    #     self.__model.to('cpu')
+    #     return self.__model.parameters()
         
     def _refine_optim_args(self, args):
         # adding additional args
@@ -103,6 +114,7 @@ class BaseClient:
 
     def update(self):
         # Run an round on the client
+        logger.info(f'CLIENT {self.id} Starting update')
         mm = MetricManager(self.cfg.eval_metrics, self._round, caller=self.__identifier)
         self.__model.train()
         self.__model.to(self.cfg.device)
@@ -128,13 +140,12 @@ class BaseClient:
                 loss.backward()
                 optimizer.step()
 
-                # print(outputs.size(), targets.size())
                 # accumulate metrics
                 mm.track(loss.item(), outputs, targets)
             else:
-                # NOTE: This else is against a for loop. Seeing this for the first time here
                 mm.aggregate(len(self.training_set), self._epoch)
-                
+
+        logger.info(f'CLIENT {self.id} Completed update')
         return mm.result
 
     @torch.inference_mode()

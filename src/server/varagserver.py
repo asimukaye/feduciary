@@ -12,7 +12,7 @@ from .baseserver import BaseServer
 logger = logging.getLogger(__name__)
 
 
-class CgsvOptimizer(FedavgOptimizer):
+class VaragOptimizer(FedavgOptimizer):
     def __init__(self, params, client_ids, **kwargs):
         super(CgsvOptimizer, self).__init__(params=params, **kwargs)
         self.gamma = kwargs.get('gamma')
@@ -84,7 +84,7 @@ class CgsvOptimizer(FedavgOptimizer):
         # NOTE: Currently supporting only one param group
         self._server_params = self.param_groups[0]['params']
 
-        local_params = [param.data.float() for _, param in local_params_itr]
+        local_params = [param.data.float() for param in local_params_itr]
 
         local_grads = []
         server_grads = []
@@ -116,11 +116,11 @@ class CgsvOptimizer(FedavgOptimizer):
 
         self._update_coefficients(client_id, cgsv)
 
-class CgsvServer(BaseServer):
+class VaragServer(BaseServer):
     name:str = 'CgsvServer'
 
     def __init__(self, cfg:CGSVConfig, *args, **kwargs):
-        super(CgsvServer, self).__init__(cfg, *args, **kwargs)
+        super(VaragServer, self).__init__(cfg, *args, **kwargs)
         
         # self.server_optimizer = self._get_algorithm(self.model, lr=self.args.lr, gamma=self.args.gamma)
         self.round = 0
@@ -128,66 +128,20 @@ class CgsvServer(BaseServer):
 
         self.importance_coefficients = dict.fromkeys(self.clients, 0.0)
 
-        self.server_optimizer = CgsvOptimizer(params=self.model.parameters(), client_ids=self.clients.keys(), lr=self.client_cfg.lr, gamma=self.cfg.gamma, alpha=self.cfg.alpha)
+        self.server_optimizer = VaragOptimizer(params=self.model.parameters(), client_ids=self.clients.keys(), lr=self.client_cfg.lr, gamma=self.cfg.gamma, alpha=self.cfg.alpha)
 
         # lr scheduler
         self.lr_scheduler = self.client_cfg.lr_scheduler(optimizer=self.server_optimizer)
-
-        # self._init_coefficients()
-
- 
-    # def _update_coefficients(self, id, cgsv):
-    #     self.importance_coefficients[id] = self.alpha * self.importance_coefficients[id] + (1 - self.alpha)* cgsv
 
 
     def _aggregate(self, ids, train_results:ClientResult):
         # Calls client upload and server accumulate
         logger.info(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
 
-        # calculate importance coefficients according to sample sizes
-        # coefficients = {identifier: float(coefficient / sum(updated_sizes.values())) for identifier, coefficient in updated_sizes.items()}
-
-        # coefficients = self._update_coefficients(ids, cgsv)
-        
         # accumulate weights
         for identifier in ids:
             local_weights_itr = self.clients[identifier].upload()
             
-            # Compute Gradient
-            # cgsv = self.server_optimizer._compute_cgsv(identifier)
-            # self._update_coefficients(identifier, cgsv)
-            # Accumulate weights
             self.server_optimizer.accumulate(local_weights_itr, identifier)
 
         logger.info(f'[{self.name}] [Round: {self.round:03}] ...successfully aggregated into a new global model!')
-
-    # def update(self):
-    #     """Update the global model through federated learning.
-    #     """
-    #     # randomly select clients
-    #     selected_ids = self._sample_random_clients()
-
-    #     #TODO: Sparsify gradients here
-    #     # self._sparsify_gradients(selected_ids)
-
-    #     # broadcast the current model at the server to selected clients
-    #     self._broadcast_models(selected_ids)
-        
-    #     # request update to selected clients
-    #     train_results = self._update_request(selected_ids)
-
-    #     # request evaluation to selected clients
-    #     eval_results = self._eval_request(selected_ids)
-
-    #     # receive updates and aggregate into a new weights
-    #     self.server_optimizer.zero_grad() # empty out buffer
-
-    #     self._aggregate(selected_ids, train_results) # aggregate local updates
-        
-    #     self.server_optimizer.step() # update global model with the aggregated update
-    #     self.lr_scheduler.step() # update learning rate
-
-    #     # remove model copy in clients
-    #     self._cleanup(selected_ids)
-
-    #     return selected_ids
