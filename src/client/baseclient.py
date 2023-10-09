@@ -9,8 +9,10 @@ import copy
 import torch
 from torch import Tensor
 import logging
-from src.metrics.metricmanager import MetricManager, Result
+from tqdm.contrib.logging import tqdm_logging_redirect
 
+from src.metrics.metricmanager import MetricManager, Result
+from src.utils import TqdmToLogger, logging_tqdm
 from src.config import ClientConfig
 
 
@@ -21,15 +23,15 @@ def model_eval_helper(model: Module, dataloader:DataLoader, cfg: ClientConfig, c
     mm = MetricManager(cfg.eval_metrics, round, caller)
     model.eval()
     model.to(cfg.device)
+    criterion = torch.nn.__dict__[cfg.criterion]
 
     for inputs, targets in dataloader:
         inputs, targets = inputs.to(cfg.device), targets.to(cfg.device)
         outputs = model(inputs)
-        loss = torch.nn.__dict__[cfg.criterion]()(outputs, targets)
+        loss = criterion()(outputs, targets)
         mm.track(loss.item(), outputs, targets)
     else:
         mm.aggregate(len(dataloader), -1)
-
     # log result
     return mm.result
 
@@ -52,6 +54,7 @@ class BaseClient:
 
         self.train_loader = self._create_dataloader(self.training_set, shuffle=cfg.shuffle)
         self.test_loader = self._create_dataloader(self.test_set, shuffle=False)
+        self._debug_param: Tensor = None
 
     @property
     def id(self)->str:
@@ -60,6 +63,14 @@ class BaseClient:
     @property
     def model(self)->Module:
         return self.__model
+    
+    # @model.setter
+    def set_model(self, model:Module):
+        self.__model = model
+    
+    @property
+    def debug_param(self)->Tensor:
+        return self._debug_param
     
     def set_lr(self, lr:float) -> None:
         self.cfg.lr = lr
@@ -85,6 +96,7 @@ class BaseClient:
         # Copy the model from the server
         self._round = round
         self.__model = copy.deepcopy(model)
+        # print(f'Client {self.id} model: {id(self.__model)}')
 
     def upload(self):
         # Upload the model back to the server
@@ -114,7 +126,7 @@ class BaseClient:
 
     def update(self):
         # Run an round on the client
-        logger.info(f'CLIENT {self.id} Starting update')
+        # logger.info(f'CLIENT {self.id} Starting update')
         mm = MetricManager(self.cfg.eval_metrics, self._round, caller=self.__identifier)
         self.__model.train()
         self.__model.to(self.cfg.device)
@@ -122,10 +134,15 @@ class BaseClient:
         # set optimizer parameters
         optimizer:Optimizer = self.optim(self.__model.parameters(), **self._refine_optim_args(self.cfg))
 
+        pre = next(self.__model.parameters())
+
+        # print(f'Client {self.id} before: {pre.norm()}')
         # iterate over epochs and then on the batches
-        for self._epoch in range(self.cfg.epochs):
+        for self._epoch in logging_tqdm(range(self.cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):
             for inputs, targets in self.train_loader:
                 inputs, targets = inputs.to(self.cfg.device), targets.to(self.cfg.device)
+
+                self.__model.zero_grad(set_to_none=True)
 
                 outputs:Tensor = self.__model(inputs)
                 loss:Tensor = self.criterion()(outputs, targets)
@@ -133,7 +150,7 @@ class BaseClient:
                 # NOTE: Is zeroing out the gradient necessary?
                 # https://pytorch.org/tutorials/recipes/recipes/zeroing_out_gradients.html#:~:text=It%20is%20beneficial%20to%20zero,backward()%20is%20called.
 
-                self.__model.zero_grad(set_to_none=True)
+                # self.__model.zero_grad(set_to_none=True)
                 # for param in self.__model.parameters():
                 #     param.grad = None
 
@@ -145,8 +162,16 @@ class BaseClient:
             else:
                 mm.aggregate(len(self.training_set), self._epoch)
 
+        # post = next(self.__model.parameters())
+        # self._debug_param= post
+        # print(f'Client {self.id} after: {post.norm()}')
+        # # print(f'Client param size {post.size()}')
+        # print(f'Client {self.id} delta: {pre.norm() - post.norm()}')
+
+
         logger.info(f'CLIENT {self.id} Completed update')
-        return mm.result
+        return mm.result, self.__model.to('cpu')
+
 
     @torch.inference_mode()
     def evaluate(self):

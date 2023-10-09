@@ -7,6 +7,7 @@ import numpy as np
 import functools
 import inspect
 from tqdm import tqdm
+
 from importlib import import_module
 from collections import defaultdict
 from multiprocessing import Process
@@ -122,75 +123,6 @@ class TqdmToLogger(tqdm):
 
 
 #####################
-# Arguments checker #
-#####################
-# TODO: Incorporate this into config checks later
-def check_args(args):
-    # check optimizer wrt torch optimizers
-    if args.optimizer not in torch.optim.__dict__.keys():
-        err = f'`{args.optimizer}` is not a submodule of `torch.optim`... please check!'
-        logger.exception(err)
-        raise AssertionError(err)
-    
-    # check criterion wrt torch nn criterions
-    if args.criterion not in torch.nn.__dict__.keys():
-        err = f'`{args.criterion}` is not a submodule of `torch.nn`... please check!'
-        logger.exception(err)
-        raise AssertionError(err)
-
-    # TODO: this is an algo specific check
-    # check algorithm, only for fedsgd
-    if args.algorithm == 'fedsgd':
-        args.E = 1
-        args.B = 0
-
-    # check lr step
-    if args.lr_decay_step >= args.R:
-        err = f'step size for learning rate decay (`{args.lr_decay_step}`) should be smaller than total round (`{args.R}`)... please check!'
-        logger.exception(err)
-        raise AssertionError(err)
-
-    # check train only mode
-    if args.test_fraction == 0:
-        args._train_only = True
-    else:
-        args._train_only = False
-
-    # check compatibility of evaluation metrics
-    if hasattr(args, 'num_classes'):
-        # Classification metrics check
-
-        if args.num_classes > 2:
-            if ('auprc' or 'youdenj') in args.eval_metrics:
-                err = f'some metrics (`auprc`, `youdenj`) are not compatible with multi-class setting... please check!'
-                logger.exception(err)
-                raise AssertionError(err)
-        else:
-            if 'acc5' in args.eval_metrics:
-                err = f'Top5 accruacy (`acc5`) is not compatible with binary-class setting... please check!'
-                logger.exception(err)
-                raise AssertionError(err)
-
-        if ('mse' or 'mae' or 'mape' or 'rmse' or 'r2' or 'd2') in args.eval_metrics:
-            err = f'selected dataset (`{args.dataset}`) is for a classification task... please check evaluation metrics!'
-            logger.exception(err)
-            raise AssertionError(err)
-    else:
-        # Regression metrics check
-        if ('acc1' or 'acc5' or 'auroc' or 'auprc' or 'youdenj' or 'f1' or 'precision' or 'recall' or 'seqacc') in args.eval_metrics:
-            err = f'selected dataset (`{args.dataset}`) is for a regression task... please check evaluation metrics!'
-            logger.exception(err)
-            raise AssertionError(err)
-
-    # print welcome message
-    logger.info('[CONFIG] List up configurations...')
-    for arg in vars(args):
-        logger.info(f'[CONFIG] - {str(arg).upper()}: {getattr(args, arg)}')
-    else:
-        print('')
-    return args
-
-#####################
 # BCEWithLogitsLoss #
 #####################
 class NoPainBCEWithLogitsLoss(torch.nn.BCEWithLogitsLoss):
@@ -207,3 +139,95 @@ class NoPainBCEWithLogitsLoss(torch.nn.BCEWithLogitsLoss):
 
 # NOTE: overriding a torch class implementation
 torch.nn.BCEWithLogitsLoss = NoPainBCEWithLogitsLoss
+
+
+"""
+Helper functionality for interoperability with stdlib `logging`.
+"""
+
+
+from tqdm.std import tqdm as std_tqdm
+
+LOGGER = logging.getLogger(__name__)
+
+
+class logging_tqdm(std_tqdm):  # pylint: disable=invalid-name
+    """
+    A version of tqdm that outputs the progress bar
+    to Python logging instead of the console.
+    The progress will be logged with the info level.
+
+    Parameters
+    ----------
+    logger   : logging.Logger, optional
+      Which logger to output to (default: logger.getLogger('tqdm.contrib.logging')).
+
+    All other parameters are passed on to regular tqdm,
+    with the following changed default:
+
+    mininterval: 1
+    bar_format: '{desc}{percentage:3.0f}%{r_bar}'
+    desc: 'progress: '
+
+
+    Example
+    -------
+    ```python
+    import logging
+    from time import sleep
+    from tqdm.contrib.logging import logging_tqdm
+
+    LOG = logging.getLogger(__name__)
+
+    if __name__ == '__main__':
+        logging.basicConfig(level=logging.INFO)
+        for _ in logging_tqdm(range(10), mininterval=1, logger=LOG):
+            sleep(0.3)  # assume processing one item takes less than mininterval
+    ```
+    """
+    def __init__(
+            self,
+            *args,
+            # logger=None,  # type: logging.Logger
+            # mininterval=1,  # type: float
+            # bar_format='{desc}{percentage:3.0f}%{r_bar}',  # type: str
+            # desc='progress: ',  # type: str
+            **kwargs):
+        if len(args) >= 2:
+            # Note: Due to Python 2 compatibility, we can't declare additional
+            #   keyword arguments in the signature.
+            #   As a result, we could get (due to the defaults below):
+            #     TypeError: __init__() got multiple values for argument 'desc'
+            #   This will raise a more descriptive error message.
+            #   Calling dummy init to avoid attribute errors when __del__ is called
+            super(logging_tqdm, self).__init__([], disable=True)
+            raise ValueError('only iterable may be used as a positional argument')
+        tqdm_kwargs = kwargs.copy()
+        self._logger = tqdm_kwargs.pop('logger', None)
+        tqdm_kwargs.setdefault('mininterval', 1)
+        tqdm_kwargs.setdefault('bar_format', '{desc:<}{percentage:3.0f}% |{bar:20}| [{n_fmt:6s}/{total_fmt}]')
+        tqdm_kwargs.setdefault('desc', 'progress: ')
+        self._last_log_n = -1
+        super(logging_tqdm, self).__init__(*args, **tqdm_kwargs)
+
+    def _get_logger(self):
+        if self._logger is not None:
+            return self._logger
+        return LOGGER
+
+    def display(self, msg=None, pos=None):
+        if not self.n:
+            # skip progress bar before having processed anything
+            LOGGER.debug('ignoring message before any progress: %r', self.n)
+            return
+        if self.n == self._last_log_n:
+            # avoid logging for the same progress multiple times
+            LOGGER.debug('ignoring log message with same n: %r', self.n)
+            return
+        self._last_log_n = self.n
+        if msg is None:
+            msg = self.__str__()
+        if not msg:
+            LOGGER.debug('ignoring empty message: %r', msg)
+            return
+        self._get_logger().info('%s', msg)

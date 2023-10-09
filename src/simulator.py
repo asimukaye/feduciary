@@ -101,8 +101,7 @@ class Simulator:
 
         clients = {}
         # think of a better way to id the clients
-        for idx, datasets in TqdmToLogger(enumerate(client_datasets), logger=logger,
-        desc=f'[Round: {self.round:03}] ...creating clients...'):
+        for idx, datasets in TqdmToLogger(enumerate(client_datasets), logger=logger, desc=f'[Round: {self.round:03}] creating clients '):
             client_id, client = __create_client(idx, datasets)
             clients[client_id] = client       
 

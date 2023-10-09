@@ -86,7 +86,7 @@ def load_vision_dataset(cfg: DatasetConfig, model_cfg:ModelSpecConfig):
         raw_train = get_subset(raw_train, cfg.subsample)
         raw_test = get_subset(raw_test, cfg.subsample)
 
-    print(f'test len: {len(raw_test)}')
+    # print(f'test len: {len(raw_test)}')
 
     ############
     # finalize #

@@ -208,7 +208,7 @@ def set_debug_mode(cfg: Config):
     cfg.simulator.num_rounds = 2
     logger.debug(f'Setting rounds to: {cfg.simulator.num_rounds}')
 
-    cfg.dataset.subsample = 0.2
+    cfg.dataset.subsample = 0.05
 
 
 

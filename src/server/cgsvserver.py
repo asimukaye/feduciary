@@ -8,15 +8,18 @@ from .fedavgserver import FedavgOptimizer
 from src.config import ClientConfig, CGSVConfig
 # from .fedavgserver import FedavgServer
 from src.metrics.metricmanager import ClientResult
-from .baseserver import BaseServer
+from .baseserver import BaseServer, BaseOptimizer
 logger = logging.getLogger(__name__)
 
 
-class CgsvOptimizer(FedavgOptimizer):
+class CgsvOptimizer(BaseOptimizer):
     def __init__(self, params, client_ids, **kwargs):
-        super(CgsvOptimizer, self).__init__(params=params, **kwargs)
         self.gamma = kwargs.get('gamma')
         self.lr = kwargs.get('lr')
+
+        defaults = dict(lr=self.lr)
+        super(CgsvOptimizer, self).__init__(params=params, defaults=defaults)
+
         self.alpha = kwargs.get('alpha')
         self.local_grad_norm = None
         self.server_grad_norm = None
@@ -41,7 +44,7 @@ class CgsvOptimizer(FedavgOptimizer):
 
         
     def _sparsify_gradients(self, client_ids):
-        # Implement gradient sparsification for reward 
+        # TODO: Implement gradient sparsification for reward 
         pass
 
     def step(self, closure=None):
@@ -50,7 +53,6 @@ class CgsvOptimizer(FedavgOptimizer):
         if closure is not None:
             loss = closure()
 
-        # print(self.param_groups)
         # TODO: what to do if param groups are multiple
         
         for group in self.param_groups:
@@ -81,11 +83,18 @@ class CgsvOptimizer(FedavgOptimizer):
         # TODO: Rewrite this function to match gradient aggregate step
         # NOTE: Note that accumulate is called before step
 
+        # print(f'Client ID as recvd: {client_id}')
         # NOTE: Currently supporting only one param group
         self._server_params = self.param_groups[0]['params']
 
         local_params = [param.data.float() for _, param in local_params_itr]
+        assert len(self._server_params) == len(local_params), f'Mismatch in parameter lengths'
 
+        # print(local_params[0])
+        # print(self._server_params[0].size())
+        # print(self._server_params[0].norm())
+
+        # exit(0)
         local_grads = []
         server_grads = []
         i = 0
@@ -134,6 +143,8 @@ class CgsvServer(BaseServer):
         self.lr_scheduler = self.client_cfg.lr_scheduler(optimizer=self.server_optimizer)
 
         # self._init_coefficients()
+        # print(f'server model: {id(self.model)}')
+
 
  
     # def _update_coefficients(self, id, cgsv):
@@ -144,50 +155,15 @@ class CgsvServer(BaseServer):
         # Calls client upload and server accumulate
         logger.info(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
 
-        # calculate importance coefficients according to sample sizes
-        # coefficients = {identifier: float(coefficient / sum(updated_sizes.values())) for identifier, coefficient in updated_sizes.items()}
-
-        # coefficients = self._update_coefficients(ids, cgsv)
-        
         # accumulate weights
         for identifier in ids:
             local_weights_itr = self.clients[identifier].upload()
+            # print(f'client dictionary: {self.clients[identifier].__dict__}')
+            # print(f'client debug param: {self.clients[identifier].debug_param}')
+
+
+            # print(f'client debug norm: {self.clients[identifier].debug_param.norm()}')
             
-            # Compute Gradient
-            # cgsv = self.server_optimizer._compute_cgsv(identifier)
-            # self._update_coefficients(identifier, cgsv)
-            # Accumulate weights
             self.server_optimizer.accumulate(local_weights_itr, identifier)
 
         logger.info(f'[{self.name}] [Round: {self.round:03}] ...successfully aggregated into a new global model!')
-
-    # def update(self):
-    #     """Update the global model through federated learning.
-    #     """
-    #     # randomly select clients
-    #     selected_ids = self._sample_random_clients()
-
-    #     #TODO: Sparsify gradients here
-    #     # self._sparsify_gradients(selected_ids)
-
-    #     # broadcast the current model at the server to selected clients
-    #     self._broadcast_models(selected_ids)
-        
-    #     # request update to selected clients
-    #     train_results = self._update_request(selected_ids)
-
-    #     # request evaluation to selected clients
-    #     eval_results = self._eval_request(selected_ids)
-
-    #     # receive updates and aggregate into a new weights
-    #     self.server_optimizer.zero_grad() # empty out buffer
-
-    #     self._aggregate(selected_ids, train_results) # aggregate local updates
-        
-    #     self.server_optimizer.step() # update global model with the aggregated update
-    #     self.lr_scheduler.step() # update learning rate
-
-    #     # remove model copy in clients
-    #     self._cleanup(selected_ids)
-
-    #     return selected_ids

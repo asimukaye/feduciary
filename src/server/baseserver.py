@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Tuple
 import logging
 import json
 import torch
@@ -9,15 +9,15 @@ import numpy as np
 from torch.utils.data import DataLoader, Dataset
 from torch.nn import Module
 import torch.multiprocessing as torch_mp
-from torch.multiprocessing import get_context
+from torch.multiprocessing import Queue
+from logging.handlers import  QueueListener, QueueHandler
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.tensorboard import SummaryWriter
-
 
 from hydra.utils import instantiate
 from src.client.baseclient import BaseClient, model_eval_helper
 
-from src.utils  import TqdmToLogger, log_instance
+from src.utils  import logging_tqdm, log_instance
 from src.metrics.metricmanager import MetricManager, ResultManager, ClientResult
 
 # from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,10 +27,23 @@ from src.config import *
 # TODO: Long term todo: the server should probably eventually be tied directly to server algorithm
 logger = logging.getLogger(__name__)
 
-def update_client(client:BaseClient):
+def worker_init(q):
+    # all records from worker processes go to qh and then into q
+    qh = QueueHandler(q)
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(qh)
+
+def add_logger_queue()-> Tuple[Queue, QueueListener]:
+    q = Queue(1000)
+    ql = QueueListener(q, logger.root.handlers[0], logger.root.handlers[1])
+    ql.start()
+    return q, ql
+
+def update_client(client: BaseClient):
     # getter function for client update
-    update_result = client.update()
-    return (client.id, update_result)
+    update_result, model = client.update()
+    return {'id':client.id, 'result':update_result, 'model':model}
 
 class BaseOptimizer(torch.optim.Optimizer, ABC):
     # FIXME: LR is a required parameter as per current implementation
@@ -72,10 +85,13 @@ class BaseServer(ABC):
         
         self.model.to('cpu')
 
-        for identifier in TqdmToLogger(
-            ids, logger=logger, desc=f'[{self.name}] [Round: {self.round:03}] ...broadcasting server model... ',total=len(ids)):
-            __broadcast_model(self.clients[identifier])
-      
+
+            # for identifier in TqdmToLogger(
+            #     ids, logger=logger, desc=f'[{self.name}] [Round: {self.round:03}] ...broadcasting server model... ',total=len(ids)):
+            #     __broadcast_model(self.clients[identifier])
+        for idx in logging_tqdm(ids, desc=f'broadcasting models: ', logger=logger):
+            __broadcast_model(self.clients[idx])
+
 
 
     @log_instance(attrs=['round'], m_logger=logger)
@@ -113,23 +129,34 @@ class BaseServer(ABC):
             return (client.id, update_result)
         
         results_list = []
+
+        # model_ids = [id(self.clients[idx].model) for idx in ids]
+        # print(f'model order before: {model_ids}')
         # for idx in TqdmToLogger(ids, logger=logger, desc=f'[{self.name}] [Round: {self.round:03}] ...receiving updates... ', total=len(ids)):
         #     self.clients[idx].cfg.lr = self.lr_scheduler.get_last_lr()[-1]
         #     results_list.append(__update_clients(self.clients[idx]))
 
+        # TODO: does lr scheduling need to be done for select ids ??
         if self.lr_scheduler:
             current_lr = self.lr_scheduler.get_last_lr()[-1]
             [client.set_lr(current_lr) for client in self.clients.values()]
 
-        ctx = torch_mp.get_context('spawn')
-        # method = get_start_method()
-        # print(method)
-        with torch_mp.Pool(len(ids),) as pool:
-            print(get_context())
-            results_list = pool.map(update_client, [self.clients[idx] for idx in ids])
-    
-        print(results_list)
-        results_dict = dict(results_list)
+
+        q, ql = add_logger_queue()
+        with torch_mp.Pool(len(ids), worker_init, [q]) as pool:
+            results_list = pool.map(update_client, [self.clients[idx]  for idx in ids])
+        ql.stop()
+        q.close()
+
+        # model_ids = [id(item['model']) for item in results_list]
+        # print(f'model order after: {model_ids}')
+
+        [self.clients[item['id']].set_model(item['model']) for 
+         item in results_list]
+        
+
+        # results_dict = dict(results_list)
+        results_dict = {item['id']: item['result'] for item in results_list}
         update_result = self.result_manager.log_client_train_result(results_dict)
 
         logger.info(f'[{self.name}] [Round: {self.round:03}] ...completed updates of {"all" if ids is None else len(ids)} clients!')
@@ -145,11 +172,7 @@ class BaseServer(ABC):
 
         # if self.args._train_only: return
         results = []
-        for idx in TqdmToLogger(
-            ids, logger=logger, 
-            desc=f'[{self.name}] [Round: {self.round:03}] ...evaluate clients... ',
-            total=len(ids)
-            ):
+        for idx in logging_tqdm(ids, desc='eval clients: ', logger=logger):
             results.append(__evaluate_clients(self.clients[idx]))
 
         eval_results = dict(results)
@@ -229,7 +252,7 @@ class BaseServer(ABC):
         self.result_manager.log_client_eval_pre_result(eval_result)
 
         # receive updates and aggregate into a new weights
-        self.server_optimizer.zero_grad() # empty out buffer
+        self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
         self._aggregate(selected_ids, train_results) # aggregate local updates
         
         self.server_optimizer.step() # update global model with the aggregated update
