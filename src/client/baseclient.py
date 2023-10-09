@@ -169,7 +169,7 @@ class BaseClient:
         # print(f'Client {self.id} delta: {pre.norm() - post.norm()}')
 
 
-        logger.info(f'CLIENT {self.id} Completed update')
+        # logger.info(f'CLIENT {self.id} Completed update')
         return mm.result, self.__model.to('cpu')
 
 

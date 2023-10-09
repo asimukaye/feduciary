@@ -166,4 +166,5 @@ class CgsvServer(BaseServer):
             
             self.server_optimizer.accumulate(local_weights_itr, identifier)
 
+        self.server_optimizer.normalize_coefficients()
         logger.info(f'[{self.name}] [Round: {self.round:03}] ...successfully aggregated into a new global model!')

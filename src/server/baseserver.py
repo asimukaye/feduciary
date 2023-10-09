@@ -31,7 +31,7 @@ def worker_init(q):
     # all records from worker processes go to qh and then into q
     qh = QueueHandler(q)
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     logger.addHandler(qh)
 
 def add_logger_queue()-> Tuple[Queue, QueueListener]:
@@ -71,8 +71,7 @@ class BaseServer(ABC):
         # if self.cfg.eval_type != 'local':
         self.server_dataset = dataset
         self.lr_scheduler:LRScheduler 
-        # print(self.client_cfg.lr_scheduler)
-        # print(type(self.client_cfg.lr_scheduler))
+
     
     # @log_instance(attrs=['round'], m_logger=logger)
     def _broadcast_models(self, ids:list[str]):
@@ -91,7 +90,6 @@ class BaseServer(ABC):
             #     __broadcast_model(self.clients[identifier])
         for idx in logging_tqdm(ids, desc=f'broadcasting models: ', logger=logger):
             __broadcast_model(self.clients[idx])
-
 
 
     @log_instance(attrs=['round'], m_logger=logger)
@@ -140,8 +138,7 @@ class BaseServer(ABC):
         if self.lr_scheduler:
             current_lr = self.lr_scheduler.get_last_lr()[-1]
             [client.set_lr(current_lr) for client in self.clients.values()]
-
-
+        # ctx = torch_mp.get_context('spawn')
         q, ql = add_logger_queue()
         with torch_mp.Pool(len(ids), worker_init, [q]) as pool:
             results_list = pool.map(update_client, [self.clients[idx]  for idx in ids])
