@@ -1,12 +1,9 @@
 import logging
-import torch
 # from torch.optim.lr_scheduler import ExponentialLR
 from torch.nn import CosineSimilarity
 from torch.nn.utils import parameters_to_vector
 
-from .fedavgserver import FedavgOptimizer
 from src.config import ClientConfig, CGSVConfig
-# from .fedavgserver import FedavgServer
 from src.metrics.metricmanager import ClientResult
 from .baseserver import BaseServer, BaseOptimizer
 logger = logging.getLogger(__name__)
@@ -75,9 +72,7 @@ class CgsvOptimizer(BaseOptimizer):
         for key, val in self._importance_coefficients.items():
             self._importance_coefficients[key] = val/total
 
-        print(self._importance_coefficients)
         
-
     def accumulate(self, local_params_itr, client_id):
         # THis function is called per client. i.e. n clients means n calls
         # TODO: Rewrite this function to match gradient aggregate step
@@ -137,23 +132,16 @@ class CgsvServer(BaseServer):
 
         self.importance_coefficients = dict.fromkeys(self.clients, 0.0)
 
-        self.server_optimizer = CgsvOptimizer(params=self.model.parameters(), client_ids=self.clients.keys(), lr=self.client_cfg.lr, gamma=self.cfg.gamma, alpha=self.cfg.alpha)
+        self.server_optimizer: CgsvOptimizer = CgsvOptimizer(params=self.model.parameters(), client_ids=self.clients.keys(), lr=self.client_cfg.lr, gamma=self.cfg.gamma, alpha=self.cfg.alpha)
 
         # lr scheduler
         self.lr_scheduler = self.client_cfg.lr_scheduler(optimizer=self.server_optimizer)
 
-        # self._init_coefficients()
-        # print(f'server model: {id(self.model)}')
-
-
  
-    # def _update_coefficients(self, id, cgsv):
-    #     self.importance_coefficients[id] = self.alpha * self.importance_coefficients[id] + (1 - self.alpha)* cgsv
-
 
     def _aggregate(self, ids, train_results:ClientResult):
         # Calls client upload and server accumulate
-        logger.info(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
+        logger.debug(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
 
         # accumulate weights
         for identifier in ids:
@@ -167,4 +155,4 @@ class CgsvServer(BaseServer):
             self.server_optimizer.accumulate(local_weights_itr, identifier)
 
         self.server_optimizer.normalize_coefficients()
-        logger.info(f'[{self.name}] [Round: {self.round:03}] ...successfully aggregated into a new global model!')
+        logger.debug(f'[{self.name}] [Round: {self.round:03}] ...successfully aggregated into a new global model!')

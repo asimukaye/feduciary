@@ -7,6 +7,7 @@ import torch
 from torch import Tensor
 import logging
 
+from torch.optim.lr_scheduler import ExponentialLR
 from src.metrics.metricmanager import MetricManager, Result
 from src.utils import logging_tqdm
 from src.config import ClientConfig
@@ -35,7 +36,7 @@ def model_eval_helper(model: Module, dataloader:DataLoader, cfg: ClientConfig, c
 class BaseClient:
     """Class for client object having its own (private) data and resources to train a model.
     """
-    def __init__(self, id_seed: int, cfg: ClientConfig, dataset: tuple):
+    def __init__(self, cfg: ClientConfig, id_seed: int, dataset: tuple):
         self.__identifier:str = f'{id_seed:04}' # potential to convert to hash
         self.__model: Module = None
         
@@ -45,12 +46,13 @@ class BaseClient:
         self.training_set = dataset[0]
         self.test_set = dataset[1]
         
-        self.optim:Optimizer = torch.optim.__dict__[self.cfg.optimizer]
+        self.optim: Optimizer = torch.optim.__dict__[self.cfg.optimizer]
         self.criterion = torch.nn.__dict__[self.cfg.criterion]
 
         self.train_loader = self._create_dataloader(self.training_set, shuffle=cfg.shuffle)
         self.test_loader = self._create_dataloader(self.test_set, shuffle=False)
-        self._debug_param: Tensor = None
+        # self._debug_param: Tensor = None
+    
 
     @property
     def id(self)->str:
@@ -130,9 +132,7 @@ class BaseClient:
         # set optimizer parameters
         optimizer:Optimizer = self.optim(self.__model.parameters(), **self._refine_optim_args(self.cfg))
 
-        pre = next(self.__model.parameters())
-
-        # print(f'Client {self.id} before: {pre.norm()}')
+   
         # iterate over epochs and then on the batches
         for self._epoch in logging_tqdm(range(self.cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):
             for inputs, targets in self.train_loader:

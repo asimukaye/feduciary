@@ -10,18 +10,18 @@ from datetime import datetime
 @dataclass
 class FinalResults:
     timestamp: str = field(default='')
-    clients: dict[str, Stats] = field(default_factory=dict)
-    server : dict[str, float] = field(default_factory=dict)
-    correlation: float = field(default=float('nan'))
+    mode: str = field(default='')
+    server_id: str = field(default='')
+    client_id: str = field(default='')
     dataset: str = field(default='')
     split: str = field(default='')
-    rounds: int = field(default=-1)
     n_clients: int = field(default=-1)
+    rounds: int = field(default=-1)
     steps: int = field(default=-1)
-    mode: str = field(default='')
-    server: str = field(default='')
-    client: str = field(default='')
     opt_cfg: list = field(default_factory=list)
+    clients: dict[str, Stats] = field(default_factory=dict)
+    server: dict[str, float] = field(default_factory=dict)
+    correlation: float = field(default=float('nan'))
 
 
 def _finditem(obj:dict, key):
@@ -47,12 +47,12 @@ def post_process(cfg: Config, result:AllResults):
     final.rounds = cfg.simulator.num_rounds
     final.steps = cfg.simulator.num_rounds * cfg.client.cfg.epochs
     final.mode = cfg.mode
-    final.server = cfg.server._target_.split('.')[-1].removesuffix('Server').lower()
-    final.client = cfg.client._target_.split('.')[-1].removesuffix('Client').lower()
+    final.server_id = cfg.server._target_.split('.')[-1].removesuffix('Server').lower()
+    final.client_id = cfg.client._target_.split('.')[-1].removesuffix('Client').lower()
 
     if cfg.log_conf:
         flat_cfg = pd.json_normalize(asdict(cfg))
-        final.opt_cfg = [f'{key}:{flat_cfg.get(key).values}' for key in cfg.log_conf]        
+        final.opt_cfg = [f'{key}:{flat_cfg.get(key).values[0]}' for key in cfg.log_conf]        
 
     df = pd.json_normalize(asdict(final))
 

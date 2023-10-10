@@ -74,7 +74,7 @@ def log_metric(key:str, rnd:int, metrics:dict, logger: Logger, writer:SummaryWri
     for metric, stat in metrics.items():
         log_string += f'| {metric}: {stat:.4f} '
     
-    logger.info(log_string)
+    logger.debug(log_string)
     writer.add_scalars(key, metrics, rnd)
 
 
@@ -212,7 +212,7 @@ class ResultManager:
         # TODO:
         """Save results.
         """
-        self.logger.info(f'[RESULTS] [Round: {self._round:03}] Save results and the global model checkpoint!')
+        self.logger.debug(f'[RESULTS] [Round: {self._round:03}] Save results and the global model checkpoint!')
         # df = pd.json_normalize(self.full_results)
         # df.to_csv('results.csv')
 

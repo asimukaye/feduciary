@@ -26,9 +26,9 @@ def log_instance(attrs:list=[], m_logger=logger):
             #         print(args)
             for attr in attrs:
                 params[attr]= getattr(self, attr)
-            m_logger.info(f'[{func.__name__}] Args: {argvals} | Attribs: {params} started')
+            m_logger.debug(f'[{func.__name__}] Args: {argvals} | Attribs: {params} started')
             result = func(self, *args, **kwargs)
-            m_logger.info(f'[{func.__name__}] Completed!')
+            m_logger.debug(f'[{func.__name__}] Completed!')
             return result
         return wrapper
     return decorator

@@ -63,7 +63,7 @@ class BaseServer(ABC):
         self.writer = writer
         self.cfg = cfg
         self.client_cfg = client_cfg
-        self.server_optimizer:BaseOptimizer
+        self.server_optimizer:BaseOptimizer = None
 
         self.result_manager = ResultManager(logger=logger, writer=writer)
         # global holdout set
@@ -101,7 +101,7 @@ class BaseServer(ABC):
         num_sampled_clients = max(int(self.cfg.sampling_fraction * self.num_clients), 1)
         sampled_client_ids = sorted(random.sample([cid for cid in self.clients.keys()], num_sampled_clients))
 
-        logger.info(f'[{self.name}] [Round: {self.round:03}] {num_sampled_clients} clients are randomly selected')
+        logger.debug(f'[{self.name}] [Round: {self.round:03}] {num_sampled_clients} clients are randomly selected')
         return sampled_client_ids
 
     
@@ -115,7 +115,7 @@ class BaseServer(ABC):
             num_sampled_clients = max(int(self.cfg.eval_fraction * num_unparticipated_clients), 1)
             sampled_client_ids = sorted(random.sample([identifier for identifier in self.clients.keys() if identifier not in exclude], num_sampled_clients))
        
-        logger.info(f'[{self.name}] [Round: {self.round:03}] {num_sampled_clients} clients are selected')
+        logger.debug(f'[{self.name}] [Round: {self.round:03}] {num_sampled_clients} clients are selected')
         return sampled_client_ids
     
 
@@ -136,11 +136,12 @@ class BaseServer(ABC):
             current_lr = self.lr_scheduler.get_last_lr()[-1]
             [client.set_lr(current_lr) for client in self.clients.values()]
         # ctx = torch_mp.get_context('spawn')
-        q, ql = add_logger_queue()
-        with torch_mp.Pool(len(ids), worker_init, [q]) as pool:
+        # q, ql = add_logger_queue()
+        # with torch_mp.Pool(len(ids), worker_init, [q]) as pool:
+        with torch_mp.Pool(len(ids)) as pool:
             results_list = pool.map(update_client, [self.clients[idx]  for idx in ids])
-        ql.stop()
-        q.close()
+        # ql.stop()
+        # q.close()
 
         # model_ids = [id(item['model']) for item in results_list]
         # print(f'model order after: {model_ids}')
@@ -171,12 +172,12 @@ class BaseServer(ABC):
 
         eval_results = dict(results)
         
-        logger.info(f'[{self.name}] [Round: {self.round:03}] ...completed evaluation of {"all" if ids is None else len(ids)} clients!')
+        logger.debug(f'[{self.name}] [Round: {self.round:03}] ...completed evaluation of {"all" if ids is None else len(ids)} clients!')
 
         return eval_results
 
     def _cleanup(self, indices):
-        logger.info(f'[{self.name}] [Round: {self.round:03}] Clean up!')
+        logger.debug(f'[{self.name}] [Round: {self.round:03}] Clean up!')
 
         for identifier in indices:
             if self.clients[identifier].model is not None:
@@ -185,7 +186,7 @@ class BaseServer(ABC):
                 err = f'why clients ({identifier}) has no model? please check!'
                 logger.exception(err)
                 raise AssertionError(err)
-        logger.info(f'[{self.name}] [Round: {self.round:03}] ...successfully cleaned up!')
+        logger.debug(f'[{self.name}] [Round: {self.round:03}] ...successfully cleaned up!')
         gc.collect()
 
     @torch.inference_mode()

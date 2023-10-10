@@ -1,0 +1,26 @@
+defaults:
+  - clien_schema
+  - cfg: base_client
+  - _self_
+
+client:
+  _target_: src.client.baseclient.BaseClient
+  _partial_: true
+  cfg:
+    epochs: 5
+    device: cuda
+    batch_size: 32
+    optimizer: SGD
+    criterion: CrossEntropyLoss
+    lr: 0.01
+    lr_decay: 0.977
+    lr_scheduler:
+      _target_: torch.optim.lr_scheduler.ExponentialLR
+      _partial_: true
+      gamma: ${client.cfg.lr_decay}
+
+    lr_decay_step: null
+    beta: null
+    shuffle: false
+    eval_metrics: ['acc1']
+  train_cfg

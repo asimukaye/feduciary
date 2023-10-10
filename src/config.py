@@ -2,17 +2,36 @@
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Any
 import hydra
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 from hydra.core.config_store import ConfigStore
 from torch import cuda
-from hydra.utils import to_absolute_path
+from hydra.utils import to_absolute_path, get_object
 from src.utils import Range
 from torch import cuda
 from torch.backends import mps
 from pandas import json_normalize
 import logging
-
+import inspect
 logger = logging.getLogger(__name__)
+
+def arg_check(args:dict, fn:str =None):
+    # Figure out usage with string functions
+    # Check if the argument spec is compatible with
+    if fn is None:
+        fn = args['_target_']
+
+    all_args = inspect.signature(get_object(fn)).parameters.values()
+    required_args = [arg.name for arg in all_args if arg.default==inspect.Parameter.empty]
+    # collect eneterd arguments
+    for argument in required_args:
+        if argument in args:
+            logger.debug(f'Found required argument: {argument}')
+        else:
+            if args.get('_partial_', False):
+                logger.debug(f'Missing required argument: {argument} for {fn}')
+            else:
+                logger.error(f'Missing required argument: {argument}')
+                raise ValueError(f'Missing required argument: {argument}')
 
 ########## Simulator Configurations ##########
 @dataclass
@@ -38,7 +57,7 @@ class ClientConfig:
     lr_scheduler: Optional[dict] = field()
     lr_decay_step: Optional[int] = field()
     beta: Optional[float] = field()
-    shuffle: bool = field()
+    shuffle: bool = field(default=False)
     eval_metrics: list = field(default_factory=list)
     
     def __post_init__(self):
@@ -52,17 +71,18 @@ class ClientConfig:
             self.device = 'mps'
         else:
             self.device = 'cpu'
-
         logger.info(f'Auto Configured device to: {self.device}')
+        arg_check(self.lr_scheduler)
+
 
 @dataclass
 class ClientSchema:
     _target_: str 
     _partial_: bool
     cfg: ClientConfig 
+    
 
 ########## Server Configurations ##########
-
 @dataclass
 class ServerConfig:
     eval_type: str  = field(default='both')
@@ -198,18 +218,12 @@ class Config():
 
 
 def set_debug_mode(cfg: Config):
-    # if cuda.is_available():
-    #     cfg.client.cfg.device = 'cuda'
-    # elif mps.is_available():
-    #     cfg.client.cfg.device = 'mps'
-    # else:
-    #     cfg.client.cfg.device = 'cpu'
-    
-    logger.setLevel(logging.DEBUG)
-    # logger.debug(f'Setting device to: {cfg.client.cfg.device}')
 
+    logger.setLevel(logging.DEBUG)
     cfg.simulator.num_rounds = 1
     logger.debug(f'Setting rounds to: {cfg.simulator.num_rounds}')
+    cfg.client.cfg.epochs = 1
+    logger.debug(f'Setting epochs to: {cfg.client.cfg.epochs}')
 
     cfg.dataset.subsample = 0.01
 
@@ -217,6 +231,8 @@ def set_debug_mode(cfg: Config):
 def register_configs():
     cs = ConfigStore.instance()
     cs.store(name='base_config', node=Config)
+    cs.store(group='client', name='client_schema', node=ClientSchema)
+    cs.store(group='client/cfg', name='base_client', node=ClientConfig)
     cs.store(group='server', name='base_server', node=ServerSchema)
     cs.store(group='server/cfg', name='base_cgsv', node=CGSVConfig)
     cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
