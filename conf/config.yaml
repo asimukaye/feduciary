@@ -1,6 +1,8 @@
 %YAML 1.2
 ---
+# Make sure mode matches the experiment config for full runs
 mode: debug
+log_conf: [client.cfg.lr]
 
 defaults:
   - base_config
@@ -47,8 +49,6 @@ dataset:
       size: 
         - 28
         - 28
-
-
 
 model:
   name: TwoCNN

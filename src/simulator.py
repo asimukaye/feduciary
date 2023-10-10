@@ -8,19 +8,17 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from hydra.utils import instantiate
-
 from src.server.baseserver import BaseServer
 from src.client.baseclient import BaseClient
 from src.datasets.utils.data import load_vision_dataset
 from src.config import Config, SimConfig
 from src.utils  import TqdmToLogger, log_instance
-
+from src.postprocess import post_process
 
 # TODO: develop this into an eventual simulator class
 
 
 logger = logging.getLogger('SIMULATOR')
-
 
 
 class Simulator:
@@ -88,7 +86,6 @@ class Simulator:
                 self.server.evaluate(excluded_ids=selected_ids)
             
             self.server.result_manager.update_round_and_flush(curr_round)
-        self.server.finalize()
   
     @log_instance(attrs=['round', 'num_clients'], m_logger=logger)
     def _create_clients(self, client_datasets):
@@ -109,6 +106,10 @@ class Simulator:
 
        
     def finalize(self):
+        result = self.server.finalize()
+
+        post_process(self.master_cfg, result)
+
         del self.clients
         del self.server
         logger.info('Closing Feduciary')

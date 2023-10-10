@@ -1,5 +1,5 @@
 # Master config file to store config dataclasses and do validation
-from dataclasses import dataclass, field, MISSING
+from dataclasses import dataclass, field, asdict
 from typing import Optional, Any
 import hydra
 from omegaconf import OmegaConf
@@ -9,7 +9,7 @@ from hydra.utils import to_absolute_path
 from src.utils import Range
 from torch import cuda
 from torch.backends import mps
-
+from pandas import json_normalize
 import logging
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class ClientConfig:
     lr_decay_step: Optional[int] = field()
     beta: Optional[float] = field()
     shuffle: bool = field()
-    eval_metrics: list
+    eval_metrics: list = field(default_factory=list)
     
     def __post_init__(self):
         # if self.device =='cuda':
@@ -96,8 +96,7 @@ class FedavgConfig(ServerConfig):
         assert self.momentum >= 0.0
 
 @dataclass
-class VarAggConfig(ServerConfig):
-    beta: float = 1.5
+class VaraggConfig(ServerConfig):
     alpha: float = 0.95
     gamma: float = 0.5
     
@@ -179,6 +178,7 @@ class ModelConfig:
 @dataclass
 class Config():
     mode: str = field()
+    log_conf: list = field(default_factory=list)
     simulator: SimConfig = field(default=SimConfig)
     server: ServerSchema = field(default=ServerSchema)
     client: ClientSchema = field(default=ClientSchema)
@@ -189,6 +189,9 @@ class Config():
     def __post_init__(self):
         # if self.dataset.use_model_tokenizer or self.dataset.use_pt_model:
         #     assert self.model.name in ['DistilBert', 'SqueezeBert', 'MobileBert'], 'Please specify a proper model!'
+        flat_cfg = json_normalize(asdict(self))
+        if not all(arg in flat_cfg for arg in self.log_conf):
+            raise(KeyError(f'Recheck the keys set in log_conf: {self.log_conf}'))
         if self.mode == 'debug':
             set_debug_mode(self)
 
@@ -203,13 +206,12 @@ def set_debug_mode(cfg: Config):
     #     cfg.client.cfg.device = 'cpu'
     
     logger.setLevel(logging.DEBUG)
-    logger.debug(f'Setting device to: {cfg.client.cfg.device}')
+    # logger.debug(f'Setting device to: {cfg.client.cfg.device}')
 
-    cfg.simulator.num_rounds = 2
+    cfg.simulator.num_rounds = 1
     logger.debug(f'Setting rounds to: {cfg.simulator.num_rounds}')
 
-    cfg.dataset.subsample = 0.05
-
+    cfg.dataset.subsample = 0.01
 
 
 def register_configs():

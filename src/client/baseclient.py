@@ -1,6 +1,3 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Optional
 from torch.utils.data import DataLoader
 from torch.nn import Module
 from torch.optim import Optimizer
@@ -9,10 +6,9 @@ import copy
 import torch
 from torch import Tensor
 import logging
-from tqdm.contrib.logging import tqdm_logging_redirect
 
 from src.metrics.metricmanager import MetricManager, Result
-from src.utils import TqdmToLogger, logging_tqdm
+from src.utils import logging_tqdm
 from src.config import ClientConfig
 
 
@@ -124,7 +120,7 @@ class BaseClient:
         return refined_args
 
 
-    def update(self):
+    def train(self):
         # Run an round on the client
         # logger.info(f'CLIENT {self.id} Starting update')
         mm = MetricManager(self.cfg.eval_metrics, self._round, caller=self.__identifier)

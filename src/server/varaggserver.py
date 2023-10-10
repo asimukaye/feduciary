@@ -4,19 +4,20 @@ import torch
 from torch.nn import CosineSimilarity
 from torch.nn.utils import parameters_to_vector
 
-from .fedavgserver import FedavgOptimizer
-from src.config import ClientConfig, CGSVConfig
+from src.config import ClientConfig, VaraggConfig
 # from .fedavgserver import FedavgServer
 from src.metrics.metricmanager import ClientResult
-from .baseserver import BaseServer
+from .baseserver import BaseServer, BaseOptimizer
 logger = logging.getLogger(__name__)
 
 
-class VaragOptimizer(FedavgOptimizer):
+class VaragOptimizer(BaseOptimizer):
     def __init__(self, params, client_ids, **kwargs):
-        super(CgsvOptimizer, self).__init__(params=params, **kwargs)
-        self.gamma = kwargs.get('gamma')
         self.lr = kwargs.get('lr')
+        defaults = dict(lr=self.lr)
+        super().__init__(params=params, defaults=defaults)
+
+        self.gamma = kwargs.get('gamma')
         self.alpha = kwargs.get('alpha')
         self.local_grad_norm = None
         self.server_grad_norm = None
@@ -39,11 +40,6 @@ class VaragOptimizer(FedavgOptimizer):
     def _update_coefficients(self, client_id, cgsv):
         self._importance_coefficients[client_id] = self.alpha * self._importance_coefficients[client_id] + (1 - self.alpha)* cgsv
 
-        
-    def _sparsify_gradients(self, client_ids):
-        # Implement gradient sparsification for reward 
-        pass
-
     def step(self, closure=None):
         # single step in a round of cgsv
         loss = None
@@ -52,7 +48,6 @@ class VaragOptimizer(FedavgOptimizer):
 
         # print(self.param_groups)
         # TODO: what to do if param groups are multiple
-        
         for group in self.param_groups:
             # beta = group['momentum']
             for param in group['params']:
@@ -117,9 +112,9 @@ class VaragOptimizer(FedavgOptimizer):
         self._update_coefficients(client_id, cgsv)
 
 class VaragServer(BaseServer):
-    name:str = 'CgsvServer'
+    name:str = 'VaraggServer'
 
-    def __init__(self, cfg:CGSVConfig, *args, **kwargs):
+    def __init__(self, cfg:VaraggConfig, *args, **kwargs):
         super(VaragServer, self).__init__(cfg, *args, **kwargs)
         
         # self.server_optimizer = self._get_algorithm(self.model, lr=self.args.lr, gamma=self.args.gamma)

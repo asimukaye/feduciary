@@ -9,8 +9,9 @@ from enum import Enum, auto
 from dataclasses import dataclass, field, asdict
 from logging import Logger
 import pandas as pd
-import json
 
+from hydra.utils import to_absolute_path
+import os
 # class Updateable(object):
 #     def update(self, new):
 #         for key, value in new.items():
@@ -32,7 +33,7 @@ class Result:
 class MetricManager:
     """Managing metrics to be used.
     """
-    def __init__(self, eval_metrics, round, caller):
+    def __init__(self, eval_metrics: list[str], round: int, caller: str):
         self.metric_funcs = {
             name: import_module(f'.metricszoo', package=__package__).__dict__[name.title()]() for name in eval_metrics}
         self.figures = defaultdict(int) 
@@ -109,6 +110,8 @@ class AllResults:
     server_eval : Result = field(default_factory=Result)
 
 
+
+
 class ResultManager:
     '''Accumulate and process the results'''
     full_results: list[dict] = []
@@ -126,8 +129,9 @@ class ResultManager:
         client_result.round = self._round
         client_result = self.compute_client_stats_and_log(key, client_result)
         return client_result
-        
-    def populate_stats(self, array:list) -> Stats:
+
+    @staticmethod    
+    def compute_stats(array:list) -> Stats:
         stat = Stats(-1, -1, -1, -1)
         np_array = np.array(array).astype(float)
         stat.mean = np.mean(np_array)
@@ -150,7 +154,7 @@ class ResultManager:
             log_metric(f'client:{cid}_{key}', self._round, clnt.metrics, self.logger, self.writer)
 
         for metric, vals in metrics_list.items():
-            client_result.stats[metric] = self.populate_stats(vals)
+            client_result.stats[metric] = self.compute_stats(vals)
             log_metric(f'{key}_{metric}', self._round, client_result.stats[metric].__dict__, self.logger, self.writer)
         
         return client_result
@@ -187,7 +191,8 @@ class ResultManager:
     def update_round_and_flush(self, rnd:int):
         # print((self.result))
         self.result.round = self._round
-        self.full_results.append(asdict(self.result))
+        self.full_results.append(self.result)
+        self.save_results()
         self.result = AllResults()
         self.writer.flush()
         # print(pd.json_normalize(self.full_results))
@@ -195,17 +200,26 @@ class ResultManager:
         self._round = rnd+1  # setup for the next round
 
 
+    def save_results(self):
+        df = pd.json_normalize(asdict(self.result))
+        if self._round == 0:
+            df.to_csv('results.csv', mode='w', index=False, header=True)
+        else:
+            df.to_csv('results.csv', mode='a', index=False, header=False)
+
+
     def finalize(self):
         # TODO:
         """Save results.
         """
         self.logger.info(f'[RESULTS] [Round: {self._round:03}] Save results and the global model checkpoint!')
-        df = pd.json_normalize(self.full_results)
-        df.to_csv('results.csv')
+        # df = pd.json_normalize(self.full_results)
+        # df.to_csv('results.csv')
 
         self.writer.close()
 
         self.logger.info(f' [Round: {self._round:03}] ...finished federated learning!')
+        return self.full_results[-1]
 
 
     # TBD

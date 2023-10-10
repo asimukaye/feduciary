@@ -14,11 +14,10 @@ from logging.handlers import  QueueListener, QueueHandler
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.tensorboard import SummaryWriter
 
-from hydra.utils import instantiate
 from src.client.baseclient import BaseClient, model_eval_helper
 
 from src.utils  import logging_tqdm, log_instance
-from src.metrics.metricmanager import MetricManager, ResultManager, ClientResult
+from src.metrics.metricmanager import AllResults, ResultManager, ClientResult
 
 # from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -42,7 +41,7 @@ def add_logger_queue()-> Tuple[Queue, QueueListener]:
 
 def update_client(client: BaseClient):
     # getter function for client update
-    update_result, model = client.update()
+    update_result, model = client.train()
     return {'id':client.id, 'result':update_result, 'model':model}
 
 class BaseOptimizer(torch.optim.Optimizer, ABC):
@@ -102,7 +101,7 @@ class BaseServer(ABC):
         num_sampled_clients = max(int(self.cfg.sampling_fraction * self.num_clients), 1)
         sampled_client_ids = sorted(random.sample([cid for cid in self.clients.keys()], num_sampled_clients))
 
-        logger.info(f'[{self.name}] [Round: {self.round:03}] ...{num_sampled_clients} clients are selected!')
+        logger.info(f'[{self.name}] [Round: {self.round:03}] {num_sampled_clients} clients are randomly selected')
         return sampled_client_ids
 
     
@@ -116,20 +115,18 @@ class BaseServer(ABC):
             num_sampled_clients = max(int(self.cfg.eval_fraction * num_unparticipated_clients), 1)
             sampled_client_ids = sorted(random.sample([identifier for identifier in self.clients.keys() if identifier not in exclude], num_sampled_clients))
        
-        logger.info(f'[{self.name}] [Round: {self.round:03}] ...{num_sampled_clients} clients are selected!')
+        logger.info(f'[{self.name}] [Round: {self.round:03}] {num_sampled_clients} clients are selected')
         return sampled_client_ids
     
 
     def _update_request(self, ids:list[str]) -> ClientResult:
         def __update_client(client:BaseClient):
             # getter function for client update
-            update_result = client.update()
+            update_result = client.train()
             return (client.id, update_result)
         
         results_list = []
 
-        # model_ids = [id(self.clients[idx].model) for idx in ids]
-        # print(f'model order before: {model_ids}')
         # for idx in TqdmToLogger(ids, logger=logger, desc=f'[{self.name}] [Round: {self.round:03}] ...receiving updates... ', total=len(ids)):
         #     self.clients[idx].cfg.lr = self.lr_scheduler.get_last_lr()[-1]
         #     results_list.append(__update_clients(self.clients[idx]))
@@ -227,10 +224,11 @@ class BaseServer(ABC):
             }, f'model_ckpt_{epoch:003}.pt')
 
     
-    def finalize(self):
-        self.result_manager.finalize()
+    def finalize(self) -> AllResults:
+        all_results: AllResults = self.result_manager.finalize()
         # save checkpoint
         torch.save(self.model.state_dict(), f'final_model.pt')
+        return all_results
         
    
     # @abstractmethod
