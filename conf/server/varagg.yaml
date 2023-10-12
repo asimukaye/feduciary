@@ -1,0 +1,16 @@
+defaults:
+  - base_server
+  - cfg: varagg_server
+  - _self_
+
+_target_: src.server.varaggserver.VaraggServer
+_partial_: true
+cfg:
+  sampling_fraction: 1.0
+  rounds: ${simulator.num_rounds}
+  eval_type: both
+  eval_fraction: 1.0
+  eval_every: 1
+  momentum: 0.0
+  multiprocessing: false
+client_cfg: ${client.cfg}

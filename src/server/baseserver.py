@@ -123,7 +123,6 @@ class BaseServer(ABC):
             return {'id':client.id, 'result':update_result}
         
         results_list = []
-
   
         # TODO: does lr scheduling need to be done for select ids ??
         if self.lr_scheduler:
@@ -142,6 +141,7 @@ class BaseServer(ABC):
         else:
              for idx in log_tqdm(ids, logger=logger, desc=f'[{self.name}] [Round: {self.round:03}] receiving updates... ', total=len(ids)):
                 results_list.append(__update_client(self.clients[idx]))
+
 
         # results_dict = dict(results_list)
         results_dict = {item['id']: item['result'] for item in results_list}
@@ -230,21 +230,25 @@ class BaseServer(ABC):
         """Update the global model through federated learning.
         """
         # randomly select clients
+
+        # for name, param in self.model.named_parameters():
+        #     ic(name, param.requires_grad)
         selected_ids = self._sample_random_clients()
         # broadcast the current model at the server to selected clients
         self._broadcast_models(selected_ids)
 
         # request update to selected clients
         train_results = self._update_request(selected_ids)
+    
         # request evaluation to selected clients
         eval_result = self._eval_request(selected_ids)
-        self.result_manager.log_client_eval_pre_result(eval_result)
 
         # receive updates and aggregate into a new weights
         self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
+
         self._aggregate(selected_ids, train_results) # aggregate local updates
-        
         self.server_optimizer.step() # update global model with the aggregated update
+
         self.lr_scheduler.step() # update learning rate
 
         # remove model copy in clients

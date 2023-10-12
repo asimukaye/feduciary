@@ -3,7 +3,7 @@ import copy
 from .fedavgclient import FedavgClient
 from src.utils import MetricManager
 
-
+# FIXME: Broken file
 class FedproxClient(FedavgClient):
     def __init__(self, **kwargs):
         super(FedproxClient, self).__init__(**kwargs)

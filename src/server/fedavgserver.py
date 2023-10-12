@@ -1,6 +1,8 @@
 
 import torch
 from torch import Tensor
+from typing import Iterator, Tuple
+from torch.nn import Parameter
 import logging
 from .baseserver import BaseServer, BaseOptimizer
 from src.config import FedavgConfig
@@ -38,14 +40,21 @@ class FedavgOptimizer(BaseOptimizer):
                 param.data.sub_(delta)
         return loss
 
-    def accumulate(self, mixing_coefficient, local_param_iterator):
+    def accumulate(self, mixing_coefficient, local_param_iterator:Iterator[Tuple[str, Parameter]]):
+
+
+
         for group in self.param_groups:
+
             for server_param, (name, local_param) in zip(group['params'], local_param_iterator):
-                if server_param.grad is None: # NOTE: grad buffer is used to accumulate local updates!
+
+                if server_param.grad is None: # NOTE: grad is used as buffer to accumulate local updates!
                     server_param.grad = server_param.data.sub(local_param.data).mul(mixing_coefficient)
                 else:
                     server_param.grad.add_(server_param.data.sub(local_param.data).mul(mixing_coefficient))
-    
+        
+        # for name, param in self.model.named_parameters():
+        #     ic(name, param.requires_grad)
 class FedavgServer(BaseServer):
     name:str = 'FedAvgServer'
     def __init__(self, cfg:FedavgConfig, *args, **kwargs):

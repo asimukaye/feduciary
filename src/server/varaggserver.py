@@ -4,10 +4,11 @@ import torch
 from torch.nn import CosineSimilarity
 from torch.nn.utils import parameters_to_vector
 
-from src.config import ClientConfig, VaraggConfig
+from src.config import ClientConfig, VaraggServerConfig
 # from .fedavgserver import FedavgServer
 from src.results.resultmanager import ClientResult
 from .baseserver import BaseServer, BaseOptimizer
+
 logger = logging.getLogger(__name__)
 
 
@@ -114,13 +115,13 @@ class VaragOptimizer(BaseOptimizer):
 class VaragServer(BaseServer):
     name:str = 'VaraggServer'
 
-    def __init__(self, cfg:VaraggConfig, *args, **kwargs):
+    def __init__(self, cfg:VaraggServerConfig, *args, **kwargs):
         super(VaragServer, self).__init__(cfg, *args, **kwargs)
         
         # self.server_optimizer = self._get_algorithm(self.model, lr=self.args.lr, gamma=self.args.gamma)
         self.round = 0
         self.cfg = cfg
-
+        
         self.importance_coefficients = dict.fromkeys(self.clients, 0.0)
 
         self.server_optimizer = VaragOptimizer(params=self.model.parameters(), client_ids=self.clients.keys(), lr=self.client_cfg.lr, gamma=self.cfg.gamma, alpha=self.cfg.alpha)
@@ -131,7 +132,6 @@ class VaragServer(BaseServer):
 
     def _aggregate(self, ids, train_results:ClientResult):
         # Calls client upload and server accumulate
-        logger.info(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
 
         # accumulate weights
         for identifier in ids:

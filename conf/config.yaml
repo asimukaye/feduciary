@@ -6,15 +6,15 @@ log_conf: [client.cfg.lr]
 
 defaults:
   - base_config
-  - server: cgsv
-  - client: varagg
+  - server: fedavg
+  - client: base
   # - train: base_trainer
   - _self_
 
 simulator:
   seed: 42
   use_tensorboard: true
-  num_clients: 5
+  num_clients: 10
   num_rounds: 60
 
 # Overrides for clients

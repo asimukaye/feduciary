@@ -1,7 +1,8 @@
 
 import os
 from collections import defaultdict
-
+import copy
+import time
 import logging
 import random
 import numpy as np
@@ -27,6 +28,7 @@ class Simulator:
     """Simulator orchestrating the whole process of federated learning.
     """
     def __init__(self, cfg:Config):
+        self.start_time = time.time()
         self.round:int = 0
         self.master_cfg:Config = cfg
         self.cfg:SimConfig = cfg.simulator
@@ -53,10 +55,13 @@ class Simulator:
 
         self.writer = SummaryWriter()
 
-        self.clients = self._create_clients(client_datasets, model_instance)
+        # NOTE:IMPORTANT Sharing models without deepcopy could potentially have same references to parameters
+        self.clients = self._create_clients(client_datasets, copy.deepcopy(model_instance))
 
         # NOTE: later, consider making a copy of client to avoid simultaneous edits to clients dictionary
         self.server: BaseServer = server_partial(model=model_instance, dataset=server_dataset, clients= self.clients, writer=self.writer)
+
+        logger.debug(f'Init time: {time.time() - self.start_time} seconds')
 
 
     def set_seed(self, seed):
@@ -109,9 +114,9 @@ class Simulator:
        
     def finalize(self):
         result = self.server.finalize()
-
-        post_process(self.master_cfg, result)
-
+        total_time= time.time() - self.start_time
+        logger.info(f'Total runtime: {total_time} seconds')
+        post_process(self.master_cfg, result, total_time=total_time)
         del self.clients
         del self.server
         logger.info('Closing Feduciary')

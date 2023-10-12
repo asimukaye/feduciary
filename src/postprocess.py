@@ -5,13 +5,16 @@ from dataclasses import asdict, field, dataclass
 import pandas as pd
 import os
 from scipy.stats import pearsonr
-from datetime import datetime
+from datetime import datetime, timedelta
+import platform
+import json
 
 @dataclass
 class FinalResults:
-    timestamp: str = field(default='')
+    timestamp: str
     mode: str = field(default='')
     out_dir: str = field(default='')
+    hostname: str = field(default=platform.node)
     server_id: str = field(default='')
     client_id: str = field(default='')
     dataset: str = field(default='')
@@ -23,6 +26,8 @@ class FinalResults:
     clients: dict[str, Stats] = field(default_factory=dict)
     server: dict[str, float] = field(default_factory=dict)
     correlation: float = field(default=float('nan'))
+    runtime: float = field(default=0.0)
+    runtime_str: str = field(default='')
 
 
 def _finditem(obj:dict, key):
@@ -36,11 +41,14 @@ def compute_correlatation(arr_1, arr_2):
     assert len(arr_1) ==len(arr_2), "Mismatching array sizes for correlation"
     return pearsonr(arr_1, arr_2)[0]
 
-def post_process(cfg: Config, result:AllResults):
+def post_process(cfg: Config, result:AllResults, total_time=0.0):
 
-    final = FinalResults()
-    final.timestamp = datetime.now()
+    # Maybe just an omegaconf object would be fine
+
+    final = FinalResults(timestamp=datetime.now())
     final.out_dir = os.getcwd()
+    final.runtime = total_time
+    final.runtime_str = str(timedelta(seconds=total_time))
     final.server = result.server_eval.metrics
     final.clients = result.clients_eval.stats
     final.n_clients = cfg.simulator.num_clients
@@ -56,7 +64,10 @@ def post_process(cfg: Config, result:AllResults):
         flat_cfg = pd.json_normalize(asdict(cfg))
         final.opt_cfg = [f'{key}:{flat_cfg.get(key).values[0]}' for key in cfg.log_conf]        
 
-    df = pd.json_normalize(asdict(final))
+    result_dictionary = asdict(final)
+    with open('final_result.json', 'w') as f:
+        json.dump(result_dictionary)
+    df = pd.json_normalize(result_dictionary)
 
     filename = to_absolute_path('outputs/consolidated_results.csv')
 

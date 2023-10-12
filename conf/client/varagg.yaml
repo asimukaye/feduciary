@@ -4,7 +4,6 @@ defaults:
   - _self_
 
 _target_: src.client.varaggclient.VaraggClient
-# _target_: src.client.baseclient.BaseClient
 _partial_: true
 cfg:
   epochs: 5

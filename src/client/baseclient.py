@@ -37,6 +37,7 @@ class BaseClient:
     def __init__(self, cfg: ClientConfig, id_seed: int, dataset: tuple, model:Module):
         self._identifier:str = f'{id_seed:04}' # potential to convert to hash
         self._model: Module = model
+
         
         self._round = 0
         self._epoch = 0
@@ -87,7 +88,7 @@ class BaseClient:
         return DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, shuffle=shuffle)
     
 
-    def download(self, round, model):
+    def download(self, round:int, model:Module):
         # Copy the model from the server
         self._round = round
         self._model = copy.deepcopy(model)
@@ -106,10 +107,9 @@ class BaseClient:
         self.mm._round = self._round
         self._model.train()
         self._model.to(self.cfg.device)
-        
+
         # set optimizer parameters
         optimizer:Optimizer = self.optim_partial(self._model.parameters())
-
    
         # iterate over epochs and then on the batches
         for self._epoch in log_tqdm(range(self.cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):

@@ -23,7 +23,7 @@ class VaraggClient(BaseClient):
         for seed in seeds:
             gen = Generator()
             gen.manual_seed(seed)
-            sampler = RandomSampler(data_source=dataset, generator=Generator)
+            sampler = RandomSampler(data_source=dataset, generator=gen)
             loader_dict[seed] = DataLoader(dataset=dataset, sampler=sampler, batch_size=self.cfg.batch_size)
 
         return loader_dict
@@ -39,13 +39,16 @@ class VaraggClient(BaseClient):
         for name, param in self._model.named_parameters():
             tmp_param_list = []
             for seed, model in model_map.items():
-                tmp_param_list.append(model.get_parameter(name))
+                tmp_param_list.append(model.get_parameter(name).data)
 
             stacked = torch.stack(tmp_param_list)
             std_, mean_ = torch.std_mean(stacked, dim=0)
             param.data.copy_(mean_.data)
             self._param_std[name] = std_
 
+
+        # for name, param in self._model.named_parameters():
+        #     ic(name, param.requires_grad)
 
 
     def train(self, return_model=False):
@@ -71,7 +74,7 @@ class VaraggClient(BaseClient):
                     model.zero_grad(set_to_none=True)
 
                     outputs:Tensor = model(inputs)
-                    loss:Tensor = self.criterion((outputs, targets))
+                    loss:Tensor = self.criterion(outputs, targets)
                     loss.backward()
                     optimizer.step()
 
@@ -84,8 +87,13 @@ class VaraggClient(BaseClient):
         
         self.get_average_model_and_std(self._model_map)
 
+
         # logger.info(f'CLIENT {self.id} Completed update')
         if return_model:
             return out_result, self._model.to('cpu')
         else:
             return out_result
+        
+    def reset_model(self) -> None:
+        self._model = None
+       
