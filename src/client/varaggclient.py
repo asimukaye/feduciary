@@ -1,13 +1,15 @@
-from typing import Iterator
+from typing import Iterator, Tuple
 from .baseclient import  *
 from torch.utils.data import Dataset, RandomSampler, DataLoader
 from torch import Generator
 from torch.nn import Module, Parameter
 from src.config import VaraggClientConfig
+import logging
+logger = logging.getLogger(__name__)
 
 class VaraggClient(BaseClient):
     def __init__(self, cfg:VaraggClientConfig, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(cfg, **kwargs)
 
         self.cfg = cfg
 
@@ -19,7 +21,7 @@ class VaraggClient(BaseClient):
     def _create_shuffled_loaders(self, dataset:Dataset, seeds:list[int]) -> dict[int, DataLoader]:
         loader_dict = {}
         for seed in seeds:
-            gen = Generator(device='cpu')
+            gen = Generator()
             gen.manual_seed(seed)
             sampler = RandomSampler(data_source=dataset, generator=Generator)
             loader_dict[seed] = DataLoader(dataset=dataset, sampler=sampler, batch_size=self.cfg.batch_size)
@@ -27,7 +29,7 @@ class VaraggClient(BaseClient):
         return loader_dict
     
 
-    def parameter_std_dev(self)->Iterator[str, Parameter]:
+    def parameter_std_dev(self)->Iterator[Tuple[str, Parameter]]:
         for name, param in self._param_std.items():
             yield name, param
 

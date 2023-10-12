@@ -1,23 +1,27 @@
 defaults:
-  - clien_schema
+  - client_schema
   - cfg: varagg_client
   - _self_
 
-client:
-  _target_: src.client.baseclient.BaseClient
-  _partial_: true
-  cfg:
-    epochs: 5
-    device: cuda
-    batch_size: 32
-    optimizer: SGD
-    criterion: CrossEntropyLoss
-    lr: 0.01
-    lr_decay: 0.977
-    lr_scheduler:
-      _target_: torch.optim.lr_scheduler.ExponentialLR
-      _partial_: true
-      gamma: ${client.cfg.lr_decay}
-    shuffle: false
-    eval_metrics: ['acc1']
-    seeds: [1,2,3]
+_target_: src.client.varaggclient.VaraggClient
+# _target_: src.client.baseclient.BaseClient
+_partial_: true
+cfg:
+  epochs: 5
+  device: cuda
+  batch_size: 32
+  lr: 0.01
+  lr_decay: 0.977
+  optimizer:
+    _target_: torch.optim.SGD
+    _partial_: true
+    lr: ${client.cfg.lr}
+  criterion:
+    _target_: torch.nn.CrossEntropyLoss
+  lr_scheduler:
+    _target_: torch.optim.lr_scheduler.ExponentialLR
+    _partial_: true
+    gamma: ${client.cfg.lr_decay}
+  shuffle: false
+  eval_metrics: ['acc1']
+  seeds: [1,2,3]

@@ -1,5 +1,4 @@
 
-from typing import Any, Optional
 # from torch.utils.tensorboard import SummaryWriter
 import hydra
 from omegaconf import OmegaConf

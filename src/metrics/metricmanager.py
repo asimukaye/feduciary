@@ -1,7 +1,7 @@
 from collections import defaultdict
 # from typing import DefaultDict
 from importlib import import_module
-
+from .basemetric import BaseMetric
 from src.results.resultmanager import Result
 
 
@@ -12,7 +12,7 @@ class MetricManager:
     """Managing metrics to be used.
     """
     def __init__(self, eval_metrics: list[str], round: int, caller: str):
-        self.metric_funcs = {
+        self.metric_funcs: dict[str, BaseMetric] = {
             name: import_module(f'.metricszoo', package=__package__).__dict__[name.title()]() for name in eval_metrics}
         self.figures = defaultdict(int) 
         self._result = Result(round=round, caller=caller)

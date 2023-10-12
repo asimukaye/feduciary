@@ -7,7 +7,7 @@ log_conf: [client.cfg.lr]
 defaults:
   - base_config
   - server: cgsv
-  - client: base
+  - client: varagg
   # - train: base_trainer
   - _self_
 
