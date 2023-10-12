@@ -1,5 +1,5 @@
 from src.config import Config
-from src.metrics.metricmanager import Stats, AllResults
+from src.results.resultmanager import Stats, AllResults
 from hydra.utils import to_absolute_path
 from dataclasses import asdict, field, dataclass
 import pandas as pd
@@ -11,6 +11,7 @@ from datetime import datetime
 class FinalResults:
     timestamp: str = field(default='')
     mode: str = field(default='')
+    out_dir: str = field(default='')
     server_id: str = field(default='')
     client_id: str = field(default='')
     dataset: str = field(default='')
@@ -39,6 +40,7 @@ def post_process(cfg: Config, result:AllResults):
 
     final = FinalResults()
     final.timestamp = datetime.now()
+    final.out_dir = os.getcwd()
     final.server = result.server_eval.metrics
     final.clients = result.clients_eval.stats
     final.n_clients = cfg.simulator.num_clients
@@ -60,7 +62,7 @@ def post_process(cfg: Config, result:AllResults):
 
     if os.path.exists(filename):
         df1 = pd.read_csv(filename)
-        df3 = pd.concat([df1,df],axis=1,join='outer')
+        df3 = pd.concat([df1,df])
         df3.to_csv(filename, index=False)
     else:
         df.to_csv(filename, index=False)

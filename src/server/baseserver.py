@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Tuple
 import logging
-import json
 import torch
 import random
 import gc
@@ -15,9 +14,9 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.tensorboard import SummaryWriter
 
 from src.client.baseclient import BaseClient, model_eval_helper
-
-from src.utils  import logging_tqdm, log_instance
-from src.metrics.metricmanager import AllResults, ResultManager, ClientResult
+from src.metrics.metricmanager import MetricManager, Result
+from src.utils  import log_tqdm, log_instance
+from src.results.resultmanager import AllResults, ResultManager, ClientResult
 
 # from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -66,6 +65,8 @@ class BaseServer(ABC):
         self.server_optimizer:BaseOptimizer = None
 
         self.result_manager = ResultManager(logger=logger, writer=writer)
+        self.metric_manager = MetricManager(eval_metrics=client_cfg.eval_metrics,round= 0, caller='server')
+
         # global holdout set
         # if self.cfg.eval_type != 'local':
         self.server_dataset = dataset
@@ -83,11 +84,7 @@ class BaseServer(ABC):
         
         self.model.to('cpu')
 
-
-            # for identifier in TqdmToLogger(
-            #     ids, logger=logger, desc=f'[{self.name}] [Round: {self.round:03}] ...broadcasting server model... ',total=len(ids)):
-            #     __broadcast_model(self.clients[identifier])
-        for idx in logging_tqdm(ids, desc=f'broadcasting models: ', logger=logger):
+        for idx in log_tqdm(ids, desc=f'broadcasting models: ', logger=logger):
             __broadcast_model(self.clients[idx])
 
 
@@ -123,38 +120,34 @@ class BaseServer(ABC):
         def __update_client(client:BaseClient):
             # getter function for client update
             update_result = client.train()
-            return (client.id, update_result)
+            return {'id':client.id, 'result':update_result}
         
         results_list = []
 
-        # for idx in TqdmToLogger(ids, logger=logger, desc=f'[{self.name}] [Round: {self.round:03}] ...receiving updates... ', total=len(ids)):
-        #     self.clients[idx].cfg.lr = self.lr_scheduler.get_last_lr()[-1]
-        #     results_list.append(__update_clients(self.clients[idx]))
-
+  
         # TODO: does lr scheduling need to be done for select ids ??
         if self.lr_scheduler:
             current_lr = self.lr_scheduler.get_last_lr()[-1]
             [client.set_lr(current_lr) for client in self.clients.values()]
+
         # ctx = torch_mp.get_context('spawn')
-        # q, ql = add_logger_queue()
-        # with torch_mp.Pool(len(ids), worker_init, [q]) as pool:
-        with torch_mp.Pool(len(ids)) as pool:
-            results_list = pool.map(update_client, [self.clients[idx]  for idx in ids])
-        # ql.stop()
-        # q.close()
-
-        # model_ids = [id(item['model']) for item in results_list]
-        # print(f'model order after: {model_ids}')
-
-        [self.clients[item['id']].set_model(item['model']) for 
-         item in results_list]
-        
+        if self.cfg.multiprocessing:
+            q, ql = add_logger_queue()
+            with torch_mp.Pool(len(ids), worker_init, [q]) as pool:
+            # with torch_mp.Pool(len(ids)) as pool:
+                results_list = pool.map(update_client, [self.clients[idx]  for idx in ids])
+            ql.stop()
+            q.close()
+            [self.clients[item['id']].set_model(item['model']) for item in results_list]
+        else:
+             for idx in log_tqdm(ids, logger=logger, desc=f'[{self.name}] [Round: {self.round:03}] receiving updates... ', total=len(ids)):
+                results_list.append(__update_client(self.clients[idx]))
 
         # results_dict = dict(results_list)
         results_dict = {item['id']: item['result'] for item in results_list}
         update_result = self.result_manager.log_client_train_result(results_dict)
 
-        logger.info(f'[{self.name}] [Round: {self.round:03}] ...completed updates of {"all" if ids is None else len(ids)} clients!')
+        logger.debug(f'[{self.name}] [Round: {self.round:03}] ...completed updates of {"all" if ids is None else len(ids)} clients!')
 
         return update_result
 
@@ -167,7 +160,7 @@ class BaseServer(ABC):
 
         # if self.args._train_only: return
         results = []
-        for idx in logging_tqdm(ids, desc='eval clients: ', logger=logger):
+        for idx in log_tqdm(ids, desc='eval clients: ', logger=logger):
             results.append(__evaluate_clients(self.clients[idx]))
 
         eval_results = dict(results)
@@ -176,7 +169,7 @@ class BaseServer(ABC):
 
         return eval_results
 
-    def _cleanup(self, indices):
+    def reset_client_models(self, indices):
         logger.debug(f'[{self.name}] [Round: {self.round:03}] Clean up!')
 
         for identifier in indices:
@@ -194,7 +187,7 @@ class BaseServer(ABC):
 
         server_loader = DataLoader(dataset=self.server_dataset, batch_size=self.client_cfg.batch_size, shuffle=False)
         # log result
-        result = model_eval_helper(self.model, server_loader, self.client_cfg, 'server', self.round)
+        result = model_eval_helper(self.model, server_loader, self.client_cfg, self.metric_manager, self.round)
         return result
 
 
@@ -214,7 +207,7 @@ class BaseServer(ABC):
         self.result_manager.log_server_eval_result(server_results)
 
         # remove model copy in clients
-        self._cleanup(selected_ids)
+        self.reset_client_models(selected_ids)
 
     
     def save_checkpoint(self, epoch):
@@ -255,7 +248,7 @@ class BaseServer(ABC):
         self.lr_scheduler.step() # update learning rate
 
         # remove model copy in clients
-        self._cleanup(selected_ids)
+        self.reset_client_models(selected_ids)
 
         return selected_ids
 

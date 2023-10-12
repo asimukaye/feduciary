@@ -50,13 +50,11 @@ class ClientConfig:
     epochs: int = field()
     device: str = field()
     batch_size: int = field()
-    optimizer: str = field()
-    criterion: str = field()
+    optimizer: dict = field()
+    criterion: dict = field()
     lr: float = field()
     lr_decay: Optional[float] = field()
     lr_scheduler: Optional[dict] = field()
-    lr_decay_step: Optional[int] = field()
-    beta: Optional[float] = field()
     shuffle: bool = field(default=False)
     eval_metrics: list = field(default_factory=list)
     
@@ -64,16 +62,25 @@ class ClientConfig:
         # if self.device =='cuda':
         #     assert cuda.is_available(), 'Please check if your GPU is available !' 
         assert self.batch_size >= 1
-
-        if cuda.is_available():
-            self.device = 'cuda'
-        elif mps.is_available():
-            self.device = 'mps'
-        else:
-            self.device = 'cpu'
-        logger.info(f'Auto Configured device to: {self.device}')
+        if self.device == 'auto':
+            if cuda.is_available():
+                self.device = 'cuda'
+            elif mps.is_available():
+                self.device = 'mps'
+            else:
+                self.device = 'cpu'
+            logger.info(f'Auto Configured device to: {self.device}')
         arg_check(self.lr_scheduler)
+        arg_check(self.optimizer)
 
+def default_seed():
+    return [1,2,3]
+@dataclass
+class VaraggClientConfig(ClientConfig):
+    seeds: list[int] = field(default_factory=default_seed)
+    
+    def __post_init__(self):
+        super().__post_init__()
 
 @dataclass
 class ClientSchema:
@@ -90,6 +97,7 @@ class ServerConfig:
     eval_every: int  = field(default=1)
     sampling_fraction: float = field(default=1.0)
     rounds: int = 1
+    multiprocessing:bool = False
 
     def __post_init__(self):
         assert self.sampling_fraction == Range(0.0, 1.0), f'Invalid value {self.sampling_fraction} for sampling fraction'
@@ -116,7 +124,7 @@ class FedavgConfig(ServerConfig):
         assert self.momentum >= 0.0
 
 @dataclass
-class VaraggConfig(ServerConfig):
+class VaraggServerConfig(ServerConfig):
     alpha: float = 0.95
     gamma: float = 0.5
     
@@ -219,7 +227,7 @@ class Config():
 
 def set_debug_mode(cfg: Config):
 
-    logger.setLevel(logging.DEBUG)
+    logger.root.setLevel(logging.DEBUG)
     cfg.simulator.num_rounds = 1
     logger.debug(f'Setting rounds to: {cfg.simulator.num_rounds}')
     cfg.client.cfg.epochs = 1
@@ -236,4 +244,5 @@ def register_configs():
     cs.store(group='server', name='base_server', node=ServerSchema)
     cs.store(group='server/cfg', name='base_cgsv', node=CGSVConfig)
     cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
+    cs.store(group='client/cfg', name='varagg_client', node=VaraggClientConfig)
 

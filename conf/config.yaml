@@ -17,18 +17,6 @@ simulator:
   num_clients: 5
   num_rounds: 60
 
-# train:
-#   epochs: 5
-#   device: cuda # Currently using auto
-#   batch_size: 32
-#   optimizer: SGD
-#   criterion: CrossEntropyLoss
-#   lr: 0.01
-#   lr_scheduler:
-#     _target_: torch.optim.lr_scheduler.ExponentialLR
-#     _partial_: true
-#     gamma: 0.977  # lr_decay
-
 # Overrides for clients
 client:
   cfg:

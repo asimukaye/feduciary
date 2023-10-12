@@ -6,7 +6,7 @@ from torch.nn.utils import parameters_to_vector
 
 from src.config import ClientConfig, VaraggConfig
 # from .fedavgserver import FedavgServer
-from src.metrics.metricmanager import ClientResult
+from src.results.resultmanager import ClientResult
 from .baseserver import BaseServer, BaseOptimizer
 logger = logging.getLogger(__name__)
 

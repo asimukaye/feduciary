@@ -1,6 +1,6 @@
 defaults:
   - clien_schema
-  - cfg: base_client
+  - cfg: varagg_client
   - _self_
 
 client:
@@ -18,9 +18,6 @@ client:
       _target_: torch.optim.lr_scheduler.ExponentialLR
       _partial_: true
       gamma: ${client.cfg.lr_decay}
-
-    lr_decay_step: null
-    beta: null
     shuffle: false
     eval_metrics: ['acc1']
-  train_cfg
+    seeds: [1,2,3]

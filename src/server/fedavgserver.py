@@ -6,7 +6,7 @@ from .baseserver import BaseServer, BaseOptimizer
 from src.config import FedavgConfig
 # from hydra.utils import instantiate
 from torch.optim.lr_scheduler import LRScheduler
-from src.metrics.metricmanager import ClientResult
+from src.results.resultmanager import ClientResult
 logger = logging.getLogger(__name__)
 
 # FIXME: rewrite more efficiently
@@ -101,6 +101,6 @@ class FedavgServer(BaseServer):
     #     self.lr_scheduler.step() # update learning rate
 
     #     # remove model copy in clients
-    #     self._cleanup(selected_ids)
+    #     self.reset_client_models(selected_ids)
 
     #     return selected_ids

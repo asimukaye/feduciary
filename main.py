@@ -7,6 +7,8 @@ from src.simulator import Simulator
 from src.config import Config, register_configs
 import logging
 import torch.multiprocessing as torch_mp
+from icecream import install
+install()
 
 logger = logging.getLogger(__name__)
 

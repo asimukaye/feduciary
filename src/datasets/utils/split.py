@@ -8,7 +8,7 @@ from src.config import DatasetConfig
 logger = logging.getLogger(__name__)
 
 # FIXME: Rewrite this for clarity
-def simulate_split(args:DatasetConfig, dataset: data.Dataset):
+def DATA_SPLIT_split(args:DatasetConfig, dataset: data.Dataset):
     """Split data indices using labels.
     
     Args:
@@ -53,7 +53,7 @@ def simulate_split(args:DatasetConfig, dataset: data.Dataset):
         try:
             assert args.mincls >= 2
         except AssertionError as e:
-            logger.exception("[SIMULATE] Each client should have samples from at least 2 distinct classes!")
+            logger.exception("[DATA_SPLIT] Each client should have samples from at least 2 distinct classes!")
             raise e
         
         # get indices by class labels
@@ -63,7 +63,7 @@ def simulate_split(args:DatasetConfig, dataset: data.Dataset):
         # divide shards
         num_shards_per_class = args.K * args.mincls // args.num_classes
         if num_shards_per_class < 1:
-            err = f'[SIMULATE] Increase the number of minimum class (`args.mincls` > {args.mincls}) or the number of participating clients (`args.K` > {args.K})!'
+            err = f'[DATA_SPLIT] Increase the number of minimum class (`args.mincls` > {args.mincls}) or the number of participating clients (`args.K` > {args.K})!'
             logger.exception(err)
             raise Exception(err)
         
@@ -78,7 +78,7 @@ def simulate_split(args:DatasetConfig, dataset: data.Dataset):
         for _ in TqdmToLogger(
             range(args.K), 
             logger=logger,
-            desc='[SIMULATE] ...assigning to clients... '
+            desc='[DATA_SPLIT] ...assigning to clients... '
             ):
             # update selection proability according to the count of reamining shards
             # i.e., do NOT sample from class having no remaining shards
@@ -135,7 +135,7 @@ def simulate_split(args:DatasetConfig, dataset: data.Dataset):
         # calculate ideal samples counts per client
         ideal_samples_counts = len(dataset.targets) // args.K
         if ideal_samples_counts < 1:
-            err = f'[SIMULATE] Decrease the number of participating clients (`args.K` < {args.K})!'
+            err = f'[DATA_SPLIT] Decrease the number of participating clients (`args.K` < {args.K})!'
             logger.exception(err)
             raise Exception(err)
 
@@ -144,7 +144,7 @@ def simulate_split(args:DatasetConfig, dataset: data.Dataset):
         for k in TqdmToLogger(
             range(args.K), 
             logger=logger,
-            desc='[SIMULATE] ...assigning to clients... '
+            desc='[DATA_SPLIT] ...assigning to clients... '
             ):
             # update mask according to the count of reamining samples per class
             # i.e., do NOT sample from class having no remaining samples
@@ -185,4 +185,4 @@ def simulate_split(args:DatasetConfig, dataset: data.Dataset):
         return split_map
     # `leaf` - LEAF benchmark (Caldas et al., 2018); `fedvis` - Federated Vision Datasets (Hsu, Qi and Brown, 2020)
     elif args.split_type in ['leaf', 'fedvis']: 
-        logger.info('[SIMULATE] Use pre-defined split!')
+        logger.info('[DATA_SPLIT] Use pre-defined split!')

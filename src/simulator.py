@@ -6,14 +6,16 @@ import logging
 import random
 import numpy as np
 import torch
+from torch.nn import Module
 from torch.utils.tensorboard import SummaryWriter
 from hydra.utils import instantiate
 from src.server.baseserver import BaseServer
 from src.client.baseclient import BaseClient
 from src.datasets.utils.data import load_vision_dataset
 from src.config import Config, SimConfig
-from src.utils  import TqdmToLogger, log_instance
+from src.utils  import log_tqdm, log_instance
 from src.postprocess import post_process
+from src.models.model import init_model
 
 # TODO: develop this into an eventual simulator class
 
@@ -45,13 +47,13 @@ class Simulator:
         # print(cfg.model.model_spec)
         # model_instance, model_args = load_model(cfg.model)
 
-        model_instance = instantiate(cfg.model.model_spec)
+        model_instance:Module = instantiate(cfg.model.model_spec)
+
+        init_model(cfg.model, model_instance)
 
         self.writer = SummaryWriter()
 
-        self.clients = self._create_clients(client_datasets)
-
-        # print(self.clients)
+        self.clients = self._create_clients(client_datasets, model_instance)
 
         # NOTE: later, consider making a copy of client to avoid simultaneous edits to clients dictionary
         self.server: BaseServer = server_partial(model=model_instance, dataset=server_dataset, clients= self.clients, writer=self.writer)
@@ -88,18 +90,18 @@ class Simulator:
             self.server.result_manager.update_round_and_flush(curr_round)
   
     @log_instance(attrs=['round', 'num_clients'], m_logger=logger)
-    def _create_clients(self, client_datasets):
+    def _create_clients(self, client_datasets, model: Module):
         # Acess the client clas
         client_partial = instantiate(self.master_cfg.client)
 
-        def __create_client(idx, datasets):
-            client:BaseClient = client_partial(id_seed=idx, dataset=datasets)
+        def __create_client(idx, datasets, model):
+            client:BaseClient = client_partial(id_seed=idx, dataset=datasets, model=model)
             return client.id, client
 
         clients = {}
         # think of a better way to id the clients
-        for idx, datasets in TqdmToLogger(enumerate(client_datasets), logger=logger, desc=f'[Round: {self.round:03}] creating clients '):
-            client_id, client = __create_client(idx, datasets)
+        for idx, datasets in log_tqdm(enumerate(client_datasets), logger=logger, desc=f'[Round: {self.round:03}] creating clients '):
+            client_id, client = __create_client(idx, datasets, model)
             clients[client_id] = client       
 
         return clients

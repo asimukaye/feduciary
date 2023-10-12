@@ -11,7 +11,7 @@ from hydra.utils import instantiate
 
 from src.utils  import TqdmToLogger
 from src.datasets import *
-from src.datasets.utils.split import simulate_split
+from src.datasets.utils.split import DATA_SPLIT_split
 import torchvision.transforms as tvt
 from typing import Optional
 logger = logging.getLogger(__name__)
@@ -99,22 +99,22 @@ def load_vision_dataset(cfg: DatasetConfig, model_cfg:ModelSpecConfig):
         
     # get split indices if None
     # if split_map is None:
-    logger.info(f'[SIMULATE] Simulate dataset split (split scenario: `{cfg.split_type.upper()}`)!')    
-    split_map = simulate_split(cfg, raw_train)
-    logger.info(f'[SIMULATE] ...done simulating dataset split (split scenario: `{cfg.split_type.upper()}`)!')
+    logger.info(f'[DATA_SPLIT] DATA_SPLIT dataset split (split scenario: `{cfg.split_type.upper()}`)!')    
+    split_map = DATA_SPLIT_split(cfg, raw_train)
+    logger.info(f'[DATA_SPLIT] ...done simulating dataset split (split scenario: `{cfg.split_type.upper()}`)!')
     
     # construct client datasets if None
 
-    logger.info(f'[SIMULATE] Create client datasets!')
+    logger.info(f'[DATA_SPLIT] Create client datasets!')
     client_datasets = []
     for idx, sample_indices in TqdmToLogger(
         enumerate(split_map.values()), 
         logger=logger, 
-        desc=f'[SIMULATE] ...creating client datasets... ',
+        desc=f'[DATA_SPLIT] ...creating client datasets... ',
         total=len(split_map)
         ):
         client_datasets.append(construct_client_dataset(raw_train, cfg.test_fraction, idx, sample_indices))
-    logger.info(f'[SIMULATE] ...successfully created client datasets!')
+    logger.info(f'[DATA_SPLIT] ...successfully created client datasets!')
     # print(model_cfg)
 
     return raw_test, client_datasets
@@ -313,22 +313,22 @@ def load_dataset(cfg:DatasetConfig):
             
     # get split indices if None
     if split_map is None:
-        logger.info(f'[SIMULATE] Simulate dataset split (split scenario: `{cfg.split_type.upper()}`)!')
-        split_map = simulate_split(args, raw_train)
-        logger.info(f'[SIMULATE] ...done simulating dataset split (split scenario: `{cfg.split_type.upper()}`)!')
+        logger.info(f'[DATA_SPLIT] DATA_SPLIT dataset split (split scenario: `{cfg.split_type.upper()}`)!')
+        split_map = DATA_SPLIT_split(args, raw_train)
+        logger.info(f'[DATA_SPLIT] ...done simulating dataset split (split scenario: `{cfg.split_type.upper()}`)!')
     
     # construct client datasets if None
     if client_datasets is None:
-        logger.info(f'[SIMULATE] Create client datasets!')
+        logger.info(f'[DATA_SPLIT] Create client datasets!')
         client_datasets = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(cfg.K, os.cpu_count() - 1)) as workhorse:
             for idx, sample_indices in TqdmToLogger(
                 enumerate(split_map.values()), 
                 logger=logger, 
-                desc=f'[SIMULATE] ...creating client datasets... ',
+                desc=f'[DATA_SPLIT] ...creating client datasets... ',
                 total=len(split_map)
                 ):
                 client_datasets.append(workhorse.submit(_construct_dataset, raw_train, idx, sample_indices).result()) 
-        logger.info(f'[SIMULATE] ...successfully created client datasets!')
+        logger.info(f'[DATA_SPLIT] ...successfully created client datasets!')
     gc.collect()
     return raw_test, client_datasets    

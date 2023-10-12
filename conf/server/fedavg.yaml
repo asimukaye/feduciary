@@ -12,4 +12,5 @@ cfg:
   eval_fraction: 1.0
   eval_every: 1
   momentum: 0.0
+  multiprocessing: false
 client_cfg: ${client.cfg}

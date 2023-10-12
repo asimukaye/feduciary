@@ -151,7 +151,7 @@ from tqdm.std import tqdm as std_tqdm
 LOGGER = logging.getLogger(__name__)
 
 
-class logging_tqdm(std_tqdm):  # pylint: disable=invalid-name
+class log_tqdm(std_tqdm):  # pylint: disable=invalid-name
     """
     A version of tqdm that outputs the progress bar
     to Python logging instead of the console.
@@ -175,13 +175,13 @@ class logging_tqdm(std_tqdm):  # pylint: disable=invalid-name
     ```python
     import logging
     from time import sleep
-    from tqdm.contrib.logging import logging_tqdm
+    from tqdm.contrib.logging import log_tqdm
 
     LOG = logging.getLogger(__name__)
 
     if __name__ == '__main__':
         logging.basicConfig(level=logging.INFO)
-        for _ in logging_tqdm(range(10), mininterval=1, logger=LOG):
+        for _ in log_tqdm(range(10), mininterval=1, logger=LOG):
             sleep(0.3)  # assume processing one item takes less than mininterval
     ```
     """
@@ -200,7 +200,7 @@ class logging_tqdm(std_tqdm):  # pylint: disable=invalid-name
             #     TypeError: __init__() got multiple values for argument 'desc'
             #   This will raise a more descriptive error message.
             #   Calling dummy init to avoid attribute errors when __del__ is called
-            super(logging_tqdm, self).__init__([], disable=True)
+            super(log_tqdm, self).__init__([], disable=True)
             raise ValueError('only iterable may be used as a positional argument')
         tqdm_kwargs = kwargs.copy()
         self._logger = tqdm_kwargs.pop('logger', None)
@@ -208,7 +208,7 @@ class logging_tqdm(std_tqdm):  # pylint: disable=invalid-name
         tqdm_kwargs.setdefault('bar_format', '{desc:<}{percentage:3.0f}% |{bar:20}| [{n_fmt:6s}/{total_fmt}]')
         tqdm_kwargs.setdefault('desc', 'progress: ')
         self._last_log_n = -1
-        super(logging_tqdm, self).__init__(*args, **tqdm_kwargs)
+        super(log_tqdm, self).__init__(*args, **tqdm_kwargs)
 
     def _get_logger(self):
         if self._logger is not None:
