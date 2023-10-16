@@ -14,7 +14,7 @@ class FinalResults:
     timestamp: str
     mode: str = field(default='')
     out_dir: str = field(default='')
-    hostname: str = field(default=platform.node)
+    hostname: str = field(default=platform.node())
     server_id: str = field(default='')
     client_id: str = field(default='')
     dataset: str = field(default='')
@@ -25,7 +25,7 @@ class FinalResults:
     opt_cfg: list = field(default_factory=list)
     clients: dict[str, Stats] = field(default_factory=dict)
     server: dict[str, float] = field(default_factory=dict)
-    correlation: float = field(default=float('nan'))
+    correlation: float = field(default=None)
     runtime: float = field(default=0.0)
     runtime_str: str = field(default='')
 
@@ -45,7 +45,7 @@ def post_process(cfg: Config, result:AllResults, total_time=0.0):
 
     # Maybe just an omegaconf object would be fine
 
-    final = FinalResults(timestamp=datetime.now())
+    final = FinalResults(timestamp = datetime.now().strftime("%d/%m/%y, %H:%M:%S"))
     final.out_dir = os.getcwd()
     final.runtime = total_time
     final.runtime_str = str(timedelta(seconds=total_time))
@@ -66,14 +66,14 @@ def post_process(cfg: Config, result:AllResults, total_time=0.0):
 
     result_dictionary = asdict(final)
     with open('final_result.json', 'w') as f:
-        json.dump(result_dictionary)
+        json.dump(result_dictionary, f, indent=4)
     df = pd.json_normalize(result_dictionary)
 
-    filename = to_absolute_path('outputs/consolidated_results.csv')
-
-    if os.path.exists(filename):
-        df1 = pd.read_csv(filename)
-        df3 = pd.concat([df1,df])
-        df3.to_csv(filename, index=False)
-    else:
-        df.to_csv(filename, index=False)
+    if not cfg.mode == 'debug':
+        filename = to_absolute_path('outputs/consolidated_results.csv')
+        if os.path.exists(filename):
+            df1 = pd.read_csv(filename)
+            df3 = pd.concat([df1,df])
+            df3.to_csv(filename, index=False)
+        else:
+            df.to_csv(filename, index=False)

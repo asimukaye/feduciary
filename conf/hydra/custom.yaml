@@ -1,0 +1,33 @@
+# defaults:
+#   - hydra_custom
+
+job:
+  name: ${mode}_${dataset.name}
+  chdir: true
+  env_set:
+    HYDRA_FULL_ERROR: 1
+run:
+  dir: outputs/${now:%Y-%m-%d}_${hydra.job.name}/${now:%H-%M-%S}_${hydra.job.override_dirname}
+sweep:
+  dir: outputs/${now:%Y-%m-%d}_${hydra.job.name}/${now:%H-%M-%S}
+  subdir: ${hydra.job.override_dirname}
+job_logging:
+  version: 1
+  formatters:
+    simple:
+      format: '[%(levelname)s] - %(message)s'
+    stamped:
+      format: '%(asctime)s | %(name)s: [%(levelname)s] - %(message)s'
+  handlers:
+    console:
+      class: logging.StreamHandler
+      formatter: simple
+      stream: ext://sys.stdout
+    file:
+      class: logging.FileHandler
+      formatter: stamped
+  root:
+    handlers: [console, file]
+callbacks:
+  save_job_info:
+    _target_: hydra.experimental.callbacks.PickleJobInfoCallback

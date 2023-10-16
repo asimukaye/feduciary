@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # FIXME: rewrite more efficiently
 class FedavgOptimizer(BaseOptimizer):
 
-    def __init__(self, params:Tensor, **kwargs):
+    def __init__(self, params: Iterator[Parameter], **kwargs):
         self.lr = kwargs.get('lr')
         self.momentum = kwargs.get('momentum', 0.)
         defaults = dict(lr=self.lr, momentum=self.momentum)
@@ -40,9 +40,7 @@ class FedavgOptimizer(BaseOptimizer):
                 param.data.sub_(delta)
         return loss
 
-    def accumulate(self, mixing_coefficient, local_param_iterator:Iterator[Tuple[str, Parameter]]):
-
-
+    def accumulate(self, mixing_coefficient, local_param_iterator: Iterator[Tuple[str, Parameter]]):
 
         for group in self.param_groups:
 
@@ -53,8 +51,7 @@ class FedavgOptimizer(BaseOptimizer):
                 else:
                     server_param.grad.add_(server_param.data.sub(local_param.data).mul(mixing_coefficient))
         
-        # for name, param in self.model.named_parameters():
-        #     ic(name, param.requires_grad)
+
 class FedavgServer(BaseServer):
     name:str = 'FedAvgServer'
     def __init__(self, cfg:FedavgConfig, *args, **kwargs):
@@ -75,7 +72,7 @@ class FedavgServer(BaseServer):
     def _aggregate(self, ids, train_results:ClientResult):
         updated_sizes = train_results.sizes
         # Calls client upload and server accumulate
-        logger.info(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
+        logger.debug(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
 
         # calculate mixing coefficients according to sample sizes
         coefficients = {identifier: float(coefficient / sum(updated_sizes.values())) for identifier, coefficient in updated_sizes.items()}
@@ -86,7 +83,7 @@ class FedavgServer(BaseServer):
             # Accumulate weights
             self.server_optimizer.accumulate(coefficients[id], locally_updated_weights_iterator)
 
-        logger.info(f'[{self.name}] [Round: {self.round:03}] ...successfully aggregated into a new global model!')
+        logger.info(f'[{self.name}] [Round: {self.round:03}] successfully aggregated into a new global model!')
 
     # def update(self):
     #     """Update the global model through federated learning.

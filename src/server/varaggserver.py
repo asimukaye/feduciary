@@ -130,7 +130,7 @@ class VaragServer(BaseServer):
         self.lr_scheduler = self.client_cfg.lr_scheduler(optimizer=self.server_optimizer)
 
 
-    def _aggregate(self, ids, train_results:ClientResult):
+    def _aggregate(self, ids, train_results: ClientResult):
         # Calls client upload and server accumulate
 
         # accumulate weights

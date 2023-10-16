@@ -7,6 +7,7 @@ import gc
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
 from torch.nn import Module
+
 import torch.multiprocessing as torch_mp
 from torch.multiprocessing import Queue
 from logging.handlers import  QueueListener, QueueHandler
@@ -14,7 +15,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.tensorboard import SummaryWriter
 
 from src.client.baseclient import BaseClient, model_eval_helper
-from src.metrics.metricmanager import MetricManager, Result
+from src.metrics.metricmanager import MetricManager
 from src.utils  import log_tqdm, log_instance
 from src.results.resultmanager import AllResults, ResultManager, ClientResult
 
@@ -45,7 +46,7 @@ def update_client(client: BaseClient):
 
 class BaseOptimizer(torch.optim.Optimizer, ABC):
     # FIXME: LR is a required parameter as per current implementation
-     
+    # loss: Tensor
     @abstractmethod
     def accumulate(self, **kwargs):
         raise NotImplementedError
@@ -53,8 +54,8 @@ class BaseOptimizer(torch.optim.Optimizer, ABC):
 class BaseServer(ABC):
     """Centeral server orchestrating the whole process of federated learning.
     """
-    name:str = 'BaseServer'
-    def __init__(self, cfg:ServerConfig, client_cfg: ClientConfig, model:Module, dataset:Dataset, clients:list[BaseClient], writer:SummaryWriter):
+    name: str = 'BaseServer'
+    def __init__(self, cfg: ServerConfig, client_cfg: ClientConfig, model: Module, dataset: Dataset, clients: list[BaseClient], writer: SummaryWriter):
         self.round = 0
         self.model = model
         self.clients: dict[str, BaseClient] = clients
@@ -62,7 +63,8 @@ class BaseServer(ABC):
         self.writer = writer
         self.cfg = cfg
         self.client_cfg = client_cfg
-        self.server_optimizer:BaseOptimizer = None
+        self.server_optimizer: BaseOptimizer
+        self.loss: torch.Tensor
 
         self.result_manager = ResultManager(logger=logger, writer=writer)
         self.metric_manager = MetricManager(eval_metrics=client_cfg.eval_metrics,round= 0, caller='server')
@@ -70,7 +72,7 @@ class BaseServer(ABC):
         # global holdout set
         # if self.cfg.eval_type != 'local':
         self.server_dataset = dataset
-        self.lr_scheduler:LRScheduler 
+        self.lr_scheduler: LRScheduler 
 
     
     # @log_instance(attrs=['round'], m_logger=logger)
@@ -91,9 +93,7 @@ class BaseServer(ABC):
     @log_instance(attrs=['round'], m_logger=logger)
     def _sample_random_clients(self):
         # NOTE: Update does not use the logic of C+ 0 meaning all clients
-        
-        # logger.info(f'[{self.name}] [Round: {self.round:03}] Sample clients!')
-        
+
         # Update - randomly select max(floor(C * K), 1) clients
         num_sampled_clients = max(int(self.cfg.sampling_fraction * self.num_clients), 1)
         sampled_client_ids = sorted(random.sample([cid for cid in self.clients.keys()], num_sampled_clients))
@@ -129,6 +129,8 @@ class BaseServer(ABC):
             current_lr = self.lr_scheduler.get_last_lr()[-1]
             [client.set_lr(current_lr) for client in self.clients.values()]
 
+        logger.debug(f'[{self.name}] [Round: {self.round:03}] Beginning updates')
+
         # ctx = torch_mp.get_context('spawn')
         if self.cfg.multiprocessing:
             q, ql = add_logger_queue()
@@ -139,7 +141,7 @@ class BaseServer(ABC):
             q.close()
             [self.clients[item['id']].set_model(item['model']) for item in results_list]
         else:
-             for idx in log_tqdm(ids, logger=logger, desc=f'[{self.name}] [Round: {self.round:03}] receiving updates... ', total=len(ids)):
+             for idx in ids:
                 results_list.append(__update_client(self.clients[idx]))
 
 
@@ -147,7 +149,7 @@ class BaseServer(ABC):
         results_dict = {item['id']: item['result'] for item in results_list}
         update_result = self.result_manager.log_client_train_result(results_dict)
 
-        logger.debug(f'[{self.name}] [Round: {self.round:03}] ...completed updates of {"all" if ids is None else len(ids)} clients!')
+        logger.info(f'[{self.name}] [Round: {self.round:03}] ...completed updates of {"all" if ids is None else len(ids)} clients.')
 
         return update_result
 
@@ -209,13 +211,24 @@ class BaseServer(ABC):
         # remove model copy in clients
         self.reset_client_models(selected_ids)
 
+    def load_checkpoint(self, ckpt_path):
+        checkpoint = torch.load(ckpt_path)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.server_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        # epoch = checkpoint['epoch']
+        self.round = checkpoint['round']
+        # Find a way to avoid this result manager round bug repeatedly
+        self.result_manager._round = checkpoint['round']
+
+        # loss = checkpoint['loss']
     
-    def save_checkpoint(self, epoch):
+    def save_checkpoint(self):
 
         torch.save({
-            'epoch': epoch,
+            'round': self.round,
             'model_state_dict': self.model.state_dict(),
-            }, f'model_ckpt_{epoch:003}.pt')
+            'optimizer_state_dict' : self.server_optimizer.state_dict(),
+            }, f'server_ckpts/server_ckpt_{self.round:003}.pt')
 
     
     def finalize(self) -> AllResults:

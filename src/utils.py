@@ -204,6 +204,7 @@ class log_tqdm(std_tqdm):  # pylint: disable=invalid-name
             raise ValueError('only iterable may be used as a positional argument')
         tqdm_kwargs = kwargs.copy()
         self._logger = tqdm_kwargs.pop('logger', None)
+        self._mode = tqdm_kwargs.pop('mode', 'debug')
         tqdm_kwargs.setdefault('mininterval', 1)
         tqdm_kwargs.setdefault('bar_format', '{desc:<}{percentage:3.0f}% |{bar:20}| [{n_fmt:6s}/{total_fmt}]')
         tqdm_kwargs.setdefault('desc', 'progress: ')
@@ -230,4 +231,7 @@ class log_tqdm(std_tqdm):  # pylint: disable=invalid-name
         if not msg:
             LOGGER.debug('ignoring empty message: %r', msg)
             return
-        self._get_logger().info('%s', msg)
+        if self._mode == 'debug':
+            self._get_logger().debug('%s', msg)
+        else:
+            self._get_logger().info('%s', msg)
