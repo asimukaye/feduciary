@@ -8,6 +8,7 @@ from scipy.stats import pearsonr
 from datetime import datetime, timedelta
 import platform
 import json
+import wandb
 
 @dataclass
 class FinalResults:
@@ -28,6 +29,10 @@ class FinalResults:
     correlation: float = field(default=None)
     runtime: float = field(default=0.0)
     runtime_str: str = field(default='')
+    train_sizes: dict[str, int] = field(default_factory=dict)
+    eval_sizes: dict[str, int] = field(default_factory=dict)
+    server_size: int = field(default=-1)
+
 
 
 def _finditem(obj:dict, key):
@@ -57,6 +62,10 @@ def post_process(cfg: Config, result:AllResults, total_time=0.0):
     final.rounds = cfg.simulator.num_rounds
     final.steps = cfg.simulator.num_rounds * cfg.client.cfg.epochs
     final.mode = cfg.mode
+    final.eval_sizes = result.clients_eval.sizes
+    final.train_sizes = result.clients_train.sizes
+    final.server_size = result.server_eval.size
+
     final.server_id = cfg.server._target_.split('.')[-1].removesuffix('Server').lower()
     final.client_id = cfg.client._target_.split('.')[-1].removesuffix('Client').lower()
 
@@ -65,6 +74,9 @@ def post_process(cfg: Config, result:AllResults, total_time=0.0):
         final.opt_cfg = [f'{key}:{flat_cfg.get(key).values[0]}' for key in cfg.log_conf]        
 
     result_dictionary = asdict(final)
+    for key, val in result_dictionary.items():
+        wandb.run.summary[key] = val
+
     with open('final_result.json', 'w') as f:
         json.dump(result_dictionary, f, indent=4)
     df = pd.json_normalize(result_dictionary)

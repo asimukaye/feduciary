@@ -17,13 +17,8 @@ simulator:
   use_tensorboard: true
   num_clients: 10
   num_rounds: 200
+  checkpoint_every: 10
 
-# Overrides for clients
-client:
-  cfg:
-    shuffle: false
-    eval_metrics: ['acc1']
-  # train_cfg: ${train}
 
 
 dataset:
@@ -52,6 +47,15 @@ model:
     in_channels: null
     num_classes: null 
 
+# Overrides
+
+# client:
+#   cfg:
+#     shuffle: false
+#     eval_metrics: ['acc1']
+  # train_cfg: ${train}
+
+
 # hydra:
   # job:
   #   name: ${mode}_${dataset.name}
@@ -61,5 +65,4 @@ model:
   # sweep:
   #   dir: outputs/${now:%Y-%m-%d}_${hydra.job.name}/${now:%H-%M-%S}
   #   subdir: ${hydra.job.override_dirname}
-
 ...

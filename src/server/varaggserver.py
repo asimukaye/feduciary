@@ -8,6 +8,9 @@ from src.config import ClientConfig, VaraggServerConfig
 # from .fedavgserver import FedavgServer
 from src.results.resultmanager import ClientResult
 from .baseserver import BaseServer, BaseOptimizer
+from src.client.varaggclient import VaraggClient
+from typing import Iterator, Tuple
+from torch.nn import Parameter
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +32,6 @@ class VaragOptimizer(BaseOptimizer):
         
     
     def _compute_cgsv(self, server_param, local_param):
-        # self.local_grad_norm = self.server_para
-        # print(server_param[0].dtype)
-        # print(local_param[0].dtype)
 
         server_param_vec = parameters_to_vector(server_param)
         local_param_vec = parameters_to_vector(local_param)
@@ -116,6 +116,8 @@ class VaragServer(BaseServer):
     name:str = 'VaraggServer'
 
     def __init__(self, cfg:VaraggServerConfig, *args, **kwargs):
+        self.clients: dict[str, VaraggClient]
+
         super(VaragServer, self).__init__(cfg, *args, **kwargs)
         
         # self.server_optimizer = self._get_algorithm(self.model, lr=self.args.lr, gamma=self.args.gamma)
@@ -129,6 +131,10 @@ class VaragServer(BaseServer):
         # lr scheduler
         self.lr_scheduler = self.client_cfg.lr_scheduler(optimizer=self.server_optimizer)
 
+    def _log_params(self, params: Iterator):
+        # self.result_manager.log_wandb_and_tb()
+        for param in params:
+            self.
 
     def _aggregate(self, ids, train_results: ClientResult):
         # Calls client upload and server accumulate
@@ -136,6 +142,11 @@ class VaragServer(BaseServer):
         # accumulate weights
         for identifier in ids:
             local_weights_itr = self.clients[identifier].upload()
+            local_weights_std_itr = self.clients[identifier].parameter_std_dev()
+            self._log_params(local_weights_itr)
+            self._log_params(local_weights_std_itr)
+
+
             
             self.server_optimizer.accumulate(local_weights_itr, identifier)
 

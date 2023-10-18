@@ -17,7 +17,8 @@ from torch.utils.tensorboard import SummaryWriter
 from src.client.baseclient import BaseClient, model_eval_helper
 from src.metrics.metricmanager import MetricManager
 from src.utils  import log_tqdm, log_instance
-from src.results.resultmanager import AllResults, ResultManager, ClientResult
+from src.results.resultmanager import AllResults, ResultManager, ClientResult, Result
+import wandb
 
 # from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -70,6 +71,7 @@ class BaseServer(ABC):
         self.metric_manager = MetricManager(eval_metrics=client_cfg.eval_metrics,round= 0, caller='server')
 
         # global holdout set
+        wandb.watch(self.model, log='all', log_freq=5)
         # if self.cfg.eval_type != 'local':
         self.server_dataset = dataset
         self.lr_scheduler: LRScheduler 
@@ -154,7 +156,7 @@ class BaseServer(ABC):
         return update_result
 
     
-    def _eval_request(self, ids)->dict:
+    def _eval_request(self, ids)->dict[str, Result]:
         
         def __evaluate_clients(client: BaseClient):
             eval_result = client.evaluate() 
@@ -255,6 +257,7 @@ class BaseServer(ABC):
     
         # request evaluation to selected clients
         eval_result = self._eval_request(selected_ids)
+        self.result_manager.log_client_eval_pre_result(eval_result)
 
         # receive updates and aggregate into a new weights
         self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer

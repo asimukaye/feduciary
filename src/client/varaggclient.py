@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 class VaraggClient(BaseClient):
     def __init__(self, cfg:VaraggClientConfig, **kwargs):
         super().__init__(cfg, **kwargs)
+        kwargs.get()
 
         self.cfg = cfg
 
@@ -53,8 +54,7 @@ class VaraggClient(BaseClient):
 
     def train(self, return_model=False):
         # Run an round on the client
-        # logger.info(f'CLIENT {self.id} Starting update')
-        # mm = MetricManager(self.cfg.eval_metrics, self._round, caller=self._identifier)
+
         self.mm._round = self._round
         self._model.train()
         self._model.to(self.cfg.device)
@@ -62,7 +62,7 @@ class VaraggClient(BaseClient):
 
         for seed, model in self._model_map.items():       
             # set optimizer parameters
-            optimizer:Optimizer = self.optim_partial(model.parameters())
+            optimizer: Optimizer = self.optim_partial(model.parameters())
             model.train()
             model.to(self.cfg.device)
             # iterate over epochs and then on the batches
@@ -86,9 +86,9 @@ class VaraggClient(BaseClient):
 
         
         self.get_average_model_and_std(self._model_map)
+        
 
-
-        # logger.info(f'CLIENT {self.id} Completed update')
+        logger.info(f'CLIENT {self.id} Completed update')
         if return_model:
             return out_result, self._model.to('cpu')
         else:

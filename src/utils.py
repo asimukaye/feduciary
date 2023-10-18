@@ -234,4 +234,5 @@ class log_tqdm(std_tqdm):  # pylint: disable=invalid-name
         if self._mode == 'debug':
             self._get_logger().debug('%s', msg)
         else:
+            ic(msg)
             self._get_logger().info('%s', msg)

@@ -7,6 +7,8 @@ from enum import Enum, auto
 from dataclasses import dataclass, field, asdict
 from logging import Logger
 import pandas as pd
+import wandb
+from copy import deepcopy
 
 # Result for one entity to the epoch level
 @dataclass
@@ -14,19 +16,22 @@ class Result:
     caller: str = ''# this is just for debugging for now
     epoch: int = -1 # epoch -1 reserved for evaluation request
     round: int = 0 # this is just for debugging for now
-    size: int = 0
+    size: int = 0  # dataset size used to generate this result object
     metrics: dict[float] = field(default_factory=dict)
 
-
-
-
+def scrub(obj, bad_key):
+    if isinstance(obj, dict):
+        for key in list(obj.keys()):
+            if key == bad_key:
+                del obj[key]
+            else:
+                scrub(obj[key], bad_key)
+    
 def log_metric(key:str, rnd:int, metrics:dict, logger: Logger, writer:SummaryWriter):
     log_string = f'Round:{rnd} | {key.upper()} '
     for metric, stat in metrics.items():
         log_string += f'| {metric}: {stat:.4f} '
-    
     logger.debug(log_string)
-    writer.add_scalars(key, metrics, rnd)
 
 
 @dataclass
@@ -40,16 +45,10 @@ class Stats:
 @dataclass
 class ClientResult:
     round: int = field(default=-1)
-    results: dict[Result] = field(default_factory=dict)
-    stats: dict[Stats] = field(default_factory=dict)
-    sizes: dict[int] = field(default_factory=dict)
+    results: dict[str, Result] = field(default_factory=dict)
+    stats: dict[str,Stats] = field(default_factory=dict)
+    sizes: dict[str,int] = field(default_factory=dict)
     
-# class ResultPhase(Enum):
-#     TRAIN = auto()
-#     EVAL = auto()
-#     EVAL_PRE_AGGREGATE = auto()
-
-
 @dataclass
 class AllResults:
     # This might need a default factory
@@ -58,23 +57,33 @@ class AllResults:
     clients_train: ClientResult = field(default_factory=ClientResult)
     clients_eval: ClientResult = field(default_factory=ClientResult)
     clients_eval_pre: ClientResult = field(default_factory=ClientResult)
+    # client
     server_eval : Result = field(default_factory=Result)
 
+@dataclass
+class ClientParameters:
+    round: int
+    params: dict[str, Tensor]
 
 
+# TODO: Add nesting later to improve the 
 
+# @dataclass
+# class ClientStats
 class ResultManager:
     '''Accumulate and process the results'''
-    full_results: list[dict] = []
+    # Potentially runaway list commented
+    # full_results: list[dict] = []
     _round: int = 0
 
     def __init__(self, logger: Logger, writer:SummaryWriter) -> None:
         self.result = AllResults()
+        self.last_result = AllResults()
         self.writer = writer
         self.logger = logger
 
     
-    def client_results(self, key:str, result:dict[Result]) -> ClientResult:
+    def get_client_results(self, key:str, result:dict[str, Result]) -> ClientResult:
         client_result = ClientResult()
         client_result.results = result
         client_result.round = self._round
@@ -96,6 +105,7 @@ class ResultManager:
 
     def compute_client_stats_and_log(self, key, client_result:ClientResult)->ClientResult:
         metrics_list=defaultdict(list)
+        # Maybe per client logging could be disabled later
         for cid, clnt in client_result.results.items():
             self._round_check(clnt.round, cid)
             for metric, value in clnt.metrics.items():
@@ -113,46 +123,68 @@ class ResultManager:
     
     def log_server_eval_result(self, result:Result):
         self._round_check(result.round, 'server')
-        log_metric('server eval', result.round, result.metrics, self.logger, self.writer)
+        log_metric('server_eval', result.round, result.metrics, self.logger, self.writer)
         self.result.server_eval = result
         self.result.participants['server_eval'] = 'server'
 
 
     def log_client_eval_result(self, result:dict[Result]):
         key = 'client_eval'
-        client_result = self.client_results(key, result)
+        client_result = self.get_client_results(key, result)
         self.result.clients_eval = client_result
+        # self.logger.debug(f'Participants in {key}: {result.keys()}')
         self.result.participants[key] = list(result.keys())
         return client_result
 
     def log_client_eval_pre_result(self, result:dict[Result]):
         key = 'client_eval_pre'
-        client_result = self.client_results(key, result)
+        client_result = self.get_client_results(key, result)
         self.result.clients_eval_pre = client_result
         self.result.participants[key] = list(result.keys())
+        # self.logger.debug(f'Participants in {key}: {result.keys()}')
         return client_result
     
     def log_client_train_result(self, result:dict[Result]):
         key = 'client_train'
-        client_result = self.client_results(key, result)
+        client_result = self.get_client_results(key, result)
         self.result.clients_train = client_result
         self.result.participants[key] = list(result.keys())
+        # self.logger.debug(f'Participants in {key}: {result.keys()}')
         return client_result
     
     def update_round_and_flush(self, rnd:int):
         # print((self.result))
         self.result.round = self._round
-        self.full_results.append(self.result)
+        self.last_result = deepcopy(self.result)
+        # self.full_results.append(self.result)
+        # ic(self.result)
         self.save_results()
+        # self.log_wandb()
         self.result = AllResults()
         self.writer.flush()
-        # print(pd.json_normalize(self.full_results))
-        # print((self.full_results))
         self._round = rnd+1  # setup for the next round
 
+    def log_wandb_and_tb(self, result_dict):
+        numeric_only_dict = deepcopy(result_dict)
+        # removing clutter from results
+        scrub(numeric_only_dict, 'caller')
+        scrub(numeric_only_dict, 'epoch')
+        scrub(numeric_only_dict, 'sizes')
+        scrub(numeric_only_dict, 'size')
+        scrub(numeric_only_dict, 'participants')
+        scrub(numeric_only_dict, 'round')
+        numeric_only_dict['round'] = self._round
+
+        wandb_dict = pd.json_normalize(numeric_only_dict, sep='/').to_dict('records')[0]
+
+        self.writer.add_scalars('results', wandb_dict, global_step=self._round)
+        wandb.log(wandb_dict)
 
     def save_results(self):
-        df = pd.json_normalize(asdict(self.result))
+        result_dict = asdict(self.result)
+        self.log_wandb_and_tb(result_dict)
+
+        df = pd.json_normalize(result_dict)
         if self._round == 0:
             df.to_csv('results.csv', mode='w', index=False, header=True)
         else:
@@ -166,11 +198,10 @@ class ResultManager:
         self.logger.debug(f'[RESULTS] [Round: {self._round:03}] Save results and the global model checkpoint!')
         # df = pd.json_normalize(self.full_results)
         # df.to_csv('results.csv')
-
         self.writer.close()
 
         self.logger.info(f' [Round: {self._round:03}] ...finished federated learning!')
-        return self.full_results[-1]
+        return self.last_result
 
 
     # TBD

@@ -40,6 +40,8 @@ class SimConfig:
     num_clients: int
     use_tensorboard: bool
     num_rounds: int
+    checkpoint_every: int = field(default=10)
+
     # def __post_init__(self):
     #     pass
 
@@ -72,6 +74,7 @@ class ClientConfig:
             logger.info(f'Auto Configured device to: {self.device}')
         arg_check(self.lr_scheduler)
         arg_check(self.optimizer)
+
 
 def default_seed():
     return [1,2,3]
@@ -125,8 +128,8 @@ class FedavgConfig(ServerConfig):
 
 @dataclass
 class VaraggServerConfig(ServerConfig):
-    alpha: float = 0.95
-    gamma: float = 0.5
+    # alpha: float = 0.95
+    # gamma: float = 0.5
     
     def __post_init__(self):
         super().__post_init__()
@@ -228,10 +231,15 @@ class Config():
 def set_debug_mode(cfg: Config):
 
     logger.root.setLevel(logging.DEBUG)
-    cfg.simulator.num_rounds = 1
-    logger.debug(f'Setting rounds to: {cfg.simulator.num_rounds}')
+    cfg.simulator.num_rounds = 5
+    logger.debug(f'[Debug Override] Setting rounds to: {cfg.simulator.num_rounds}')
     cfg.client.cfg.epochs = 1
-    logger.debug(f'Setting epochs to: {cfg.client.cfg.epochs}')
+    logger.debug(f'[Debug Override] Setting epochs to: {cfg.client.cfg.epochs}')
+
+    cfg.simulator.num_clients = 3
+    cfg.dataset.K = 3
+    logger.debug(f'[Debug Override] Setting num clients to: {cfg.simulator.num_clients}')
+
 
     cfg.dataset.subsample = 0.01
 
@@ -244,5 +252,6 @@ def register_configs():
     cs.store(group='server', name='base_server', node=ServerSchema)
     cs.store(group='server/cfg', name='base_cgsv', node=CGSVConfig)
     cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
+    cs.store(group='server/cfg', name='varagg_server', node=VaraggServerConfig)
     cs.store(group='client/cfg', name='varagg_client', node=VaraggClientConfig)
 

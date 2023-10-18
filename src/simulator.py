@@ -20,8 +20,7 @@ from src.postprocess import post_process
 from src.models.model import init_model
 from functools import partial
 # TODO: develop this into an eventual simulator class
-
-
+import wandb
 logger = logging.getLogger('SIMULATOR')
 
 
@@ -33,6 +32,8 @@ class Simulator:
         self.round: int = 0
         self.master_cfg: Config = cfg
         self.cfg: SimConfig = cfg.simulator
+
+        logger.info(f'[NUM ROUNDS] : {self.cfg.num_rounds}')
 
         self.num_clients = cfg.simulator.num_clients
 
@@ -50,7 +51,7 @@ class Simulator:
         # print(cfg.model.model_spec)
         # model_instance, model_args = load_model(cfg.model)
 
-        model_instance:Module = instantiate(cfg.model.model_spec)
+        model_instance: Module = instantiate(cfg.model.model_spec)
 
         init_model(cfg.model, model_instance)
 
@@ -62,14 +63,18 @@ class Simulator:
         # NOTE: later, consider making a copy of client to avoid simultaneous edits to clients dictionary
         self.server: BaseServer = server_partial(model=model_instance, dataset=server_dataset, clients= self.clients, writer=self.writer)
 
+        self.make_checkpoint_dirs()
         if self.find_chekcpoint_and_load():
             logger.info('------------ Resuming training ------------')
             # self.load_state()
 
         logger.debug(f'Init time: {time.time() - self.start_time} seconds')
 
-    def find_chekcpoint_and_load(self)-> bool:
+    def make_checkpoint_dirs(self):
+        os.makedirs('server_ckpts', exist_ok = True)
+        os.makedirs('client_ckpts', exist_ok = True)
 
+    def find_chekcpoint_and_load(self)-> bool:
         ckpts = glob.glob('server_ckpts/server_ckpt_*')
         if ckpts:
             # ic(ckpts[-1])
@@ -99,6 +104,7 @@ class Simulator:
 
         for curr_round in range(self.round, self.cfg.num_rounds +1):
             logger.info(f'-------- Round: {curr_round} --------\n')
+            # wandb.log({'round': curr_round})
             self.round = curr_round
             ## update round indicator
             self.server.round = curr_round
@@ -110,7 +116,8 @@ class Simulator:
             if curr_round % self.master_cfg.server.cfg.eval_every == 0:
                 self.server.evaluate(excluded_ids=selected_ids)
 
-            self.save_checkpoints()
+            if curr_round % self.cfg.checkpoint_every == 0:
+                self.save_checkpoints()
             
             self.server.result_manager.update_round_and_flush(curr_round)
 
@@ -124,13 +131,6 @@ class Simulator:
 
         self.server.load_checkpoint(server_ckpt_path)
         self.round = self.server.round
-
-        # checkpoint = torch.load(ckpt_path)
-        # self.server.model.load_state_dict(checkpoint['model_state_dict'])
-        # self.server.server_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        # epoch = checkpoint['epoch']
-        # loss = checkpoint['loss']
-
 
 
     @log_instance(attrs=['round', 'num_clients'], m_logger=logger)
