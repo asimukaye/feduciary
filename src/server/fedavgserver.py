@@ -77,12 +77,16 @@ class FedavgServer(BaseServer):
         # calculate mixing coefficients according to sample sizes
         coefficients = {identifier: float(coefficient / sum(updated_sizes.values())) for identifier, coefficient in updated_sizes.items()}
         
+            # receive updates and aggregate into a new weights
+        self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
         # accumulate weights
         for id in ids:
             locally_updated_weights_iterator = self.clients[id].upload()
             # Accumulate weights
             self.server_optimizer.accumulate(coefficients[id], locally_updated_weights_iterator)
 
+        self.server_optimizer.step() # update global model with the aggregated update
+        self.lr_scheduler.step() # update learning rate
         logger.info(f'[{self.name}] [Round: {self.round:03}] successfully aggregated into a new global model!')
 
     # def update(self):

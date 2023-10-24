@@ -142,6 +142,7 @@ class CgsvServer(BaseServer):
     def _aggregate(self, ids, train_results:ClientResult):
         # Calls client upload and server accumulate
         logger.debug(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
+        self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
 
         # accumulate weights
         for identifier in ids:
@@ -155,4 +156,6 @@ class CgsvServer(BaseServer):
             self.server_optimizer.accumulate(local_weights_itr, identifier)
 
         self.server_optimizer.normalize_coefficients()
+        self.server_optimizer.step() # update global model with the aggregated update
+        self.lr_scheduler.step() # update learning rate
         logger.debug(f'[{self.name}] [Round: {self.round:03}] ...successfully aggregated into a new global model!')

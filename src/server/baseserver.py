@@ -12,7 +12,7 @@ import torch.multiprocessing as torch_mp
 from torch.multiprocessing import Queue
 from logging.handlers import  QueueListener, QueueHandler
 from torch.optim.lr_scheduler import LRScheduler
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 
 from src.client.baseclient import BaseClient, model_eval_helper
 from src.metrics.metricmanager import MetricManager
@@ -24,7 +24,8 @@ import wandb
 
 from src.config import *
 
-# TODO: Long term todo: the server should probably eventually be tied directly to server algorithm
+# TODO: Long term todo: the server should 
+#  eventually be tied directly to the server algorithm
 logger = logging.getLogger(__name__)
 
 def worker_init(q):
@@ -56,25 +57,26 @@ class BaseServer(ABC):
     """Centeral server orchestrating the whole process of federated learning.
     """
     name: str = 'BaseServer'
-    def __init__(self, cfg: ServerConfig, client_cfg: ClientConfig, model: Module, dataset: Dataset, clients: list[BaseClient], writer: SummaryWriter):
+    def __init__(self, cfg: ServerConfig, client_cfg: ClientConfig, model: Module, dataset: Dataset, clients: list[BaseClient], result_manager: ResultManager):
         self.round = 0
         self.model = model
         self.clients: dict[str, BaseClient] = clients
         self.num_clients:int = len(self.clients)
-        self.writer = writer
+        # self.writer = writer
         self.cfg = cfg
         self.client_cfg = client_cfg
-        self.server_optimizer: BaseOptimizer
-        self.loss: torch.Tensor
+        self.server_optimizer: BaseOptimizer = None
+        self.loss: torch.Tensor = None
+        self.lr_scheduler: LRScheduler = None
 
-        self.result_manager = ResultManager(logger=logger, writer=writer)
+
+        self.result_manager = result_manager
         self.metric_manager = MetricManager(eval_metrics=client_cfg.eval_metrics,round= 0, caller='server')
 
         # global holdout set
-        wandb.watch(self.model, log='all', log_freq=5)
+        # wandb.watch(self.model, log='all', log_freq=5)
         # if self.cfg.eval_type != 'local':
         self.server_dataset = dataset
-        self.lr_scheduler: LRScheduler 
 
     
     # @log_instance(attrs=['round'], m_logger=logger)
@@ -259,22 +261,30 @@ class BaseServer(ABC):
         eval_result = self._eval_request(selected_ids)
         self.result_manager.log_client_eval_pre_result(eval_result)
 
-        # receive updates and aggregate into a new weights
-        self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
 
         self._aggregate(selected_ids, train_results) # aggregate local updates
-        self.server_optimizer.step() # update global model with the aggregated update
 
-        self.lr_scheduler.step() # update learning rate
 
         # remove model copy in clients
         self.reset_client_models(selected_ids)
 
         return selected_ids
 
-
-            # Every server needs to implement these uniquely
-
+    
+    # Every server needs to implement this function uniquely
     @abstractmethod
     def _aggregate(self, indices:int, train_results:ClientResult):
+        # receive updates and aggregate into a new weights
+
+        #### INSERT ACCUMULATION INIT HERE #####
+
+        self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
+
+        for id in indices:
+            #### INSERT ACCUMULATION LOGIC HERE #####
+
+            pass
+
+        self.server_optimizer.step() # update global model with the aggregated update
+        self.lr_scheduler.step() # update learning rate
         raise NotImplementedError

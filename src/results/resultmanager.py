@@ -9,6 +9,7 @@ from logging import Logger
 import pandas as pd
 import wandb
 from copy import deepcopy
+from src.config import *
 
 # Result for one entity to the epoch level
 @dataclass
@@ -76,11 +77,13 @@ class ResultManager:
     # full_results: list[dict] = []
     _round: int = 0
 
-    def __init__(self, logger: Logger, writer:SummaryWriter) -> None:
+    def __init__(self, cfg:SimConfig, logger: Logger) -> None:
         self.result = AllResults()
         self.last_result = AllResults()
-        self.writer = writer
+
+        self.writer = SummaryWriter()
         self.logger = logger
+        self.cfg = cfg
 
     
     def get_client_results(self, key:str, result:dict[str, Result]) -> ClientResult:
@@ -152,43 +155,49 @@ class ResultManager:
         # self.logger.debug(f'Participants in {key}: {result.keys()}')
         return client_result
     
+
     def update_round_and_flush(self, rnd:int):
-        # print((self.result))
         self.result.round = self._round
         self.last_result = deepcopy(self.result)
-        # self.full_results.append(self.result)
-        # ic(self.result)
-        self.save_results()
-        # self.log_wandb()
+        self.save_results(asdict(self.result))
         self.result = AllResults()
         self.writer.flush()
+
         self._round = rnd+1  # setup for the next round
 
-    def log_wandb_and_tb(self, result_dict):
-        numeric_only_dict = deepcopy(result_dict)
-        # removing clutter from results
-        scrub(numeric_only_dict, 'caller')
-        scrub(numeric_only_dict, 'epoch')
-        scrub(numeric_only_dict, 'sizes')
-        scrub(numeric_only_dict, 'size')
-        scrub(numeric_only_dict, 'participants')
-        scrub(numeric_only_dict, 'round')
-        numeric_only_dict['round'] = self._round
+    def log_wandb_and_tb(self, result_dict: dict, tag='results'):
 
-        wandb_dict = pd.json_normalize(numeric_only_dict, sep='/').to_dict('records')[0]
+        wandb_dict = pd.json_normalize(result_dict, sep='/').to_dict('records')[0]
 
-        self.writer.add_scalars('results', wandb_dict, global_step=self._round)
-        wandb.log(wandb_dict)
+        if self.cfg.use_tensorboard:
+            self.writer.add_scalars(tag, wandb_dict, global_step=self._round)
 
-    def save_results(self):
-        result_dict = asdict(self.result)
-        self.log_wandb_and_tb(result_dict)
+        if self.cfg.use_wandb:
+            wandb.log(wandb_dict)
 
+    def save_as_csv(self, result_dict: dict, filename='results.csv'):
         df = pd.json_normalize(result_dict)
         if self._round == 0:
-            df.to_csv('results.csv', mode='w', index=False, header=True)
+            df.to_csv(filename, mode='w', index=False, header=True)
         else:
-            df.to_csv('results.csv', mode='a', index=False, header=False)
+            df.to_csv(filename, mode='a', index=False, header=False)
+
+    def scrub_dictionary(self, in_dict: dict, remove_keys: list):
+        scrubbed_dict = deepcopy(in_dict)
+        for key in remove_keys:
+            scrub(scrubbed_dict, key)
+        if 'round' in remove_keys:
+            scrubbed_dict['round'] = self._round
+        return scrubbed_dict
+
+    def save_results(self, result_dict: dict):
+        remove_keys = ['caller', 'epoch', 'sizes',
+                        'size', 'participants', 'round']
+        cleaned_dict = self.scrub_dictionary(result_dict, remove_keys)
+
+        self.log_wandb_and_tb(cleaned_dict)
+        self.save_as_csv(result_dict=result_dict)
+
 
 
     def finalize(self):

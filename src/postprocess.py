@@ -74,8 +74,9 @@ def post_process(cfg: Config, result:AllResults, total_time=0.0):
         final.opt_cfg = [f'{key}:{flat_cfg.get(key).values[0]}' for key in cfg.log_conf]        
 
     result_dictionary = asdict(final)
-    for key, val in result_dictionary.items():
-        wandb.run.summary[key] = val
+    if cfg.simulator.use_wandb:
+        for key, val in result_dictionary.items():
+            wandb.run.summary[key] = val
 
     with open('final_result.json', 'w') as f:
         json.dump(result_dictionary, f, indent=4)

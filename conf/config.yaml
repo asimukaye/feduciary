@@ -1,25 +1,24 @@
 %YAML 1.2
 ---
 # Make sure mode matches the experiment config for full runs
-mode: fedavg
+mode: varagg
 log_conf: [client.cfg.lr]
 
 defaults:
   - base_config
   - hydra: custom
-  - server: fedavg
-  - client: base
+  - server: varagg
+  - client: varagg
   # - train: base_trainer
   - _self_
 
 simulator:
   seed: 42
   use_tensorboard: true
-  num_clients: 10
+  use_wandb: true
+  num_clients: 5
   num_rounds: 200
   checkpoint_every: 10
-
-
 
 dataset:
   name: CIFAR10
@@ -49,8 +48,9 @@ model:
 
 # Overrides
 
-# client:
-#   cfg:
+client:
+  cfg:
+    batch_size: 256
 #     shuffle: false
 #     eval_metrics: ['acc1']
   # train_cfg: ${train}

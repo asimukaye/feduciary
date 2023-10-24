@@ -40,6 +40,7 @@ class SimConfig:
     num_clients: int
     use_tensorboard: bool
     num_rounds: int
+    use_wandb: bool
     checkpoint_every: int = field(default=10)
 
     # def __post_init__(self):
@@ -128,8 +129,8 @@ class FedavgConfig(ServerConfig):
 
 @dataclass
 class VaraggServerConfig(ServerConfig):
-    # alpha: float = 0.95
-    # gamma: float = 0.5
+    alpha: float = 0.95
+    gamma: float = 0.5
     
     def __post_init__(self):
         super().__post_init__()
@@ -171,9 +172,6 @@ class DatasetConfig:
     K: int  # num_clients
     transforms: Optional[TransformsConfig]
     subsample: float = 0.0  # subsample the dataset with the given fraction
-    # rawsmpl: Optional[int]
-    # use_model_tokenizer: Optional[bool]
-    # use_pt_model: Optional[bool]
 
 
     def __post_init__(self):

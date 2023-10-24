@@ -2,6 +2,7 @@
 import os
 import glob
 from collections import defaultdict
+from dataclasses import asdict
 import copy
 import time
 import logging
@@ -18,8 +19,8 @@ from src.config import Config, SimConfig
 from src.utils  import log_tqdm, log_instance
 from src.postprocess import post_process
 from src.models.model import init_model
+from src.results.resultmanager import AllResults, ResultManager
 from functools import partial
-# TODO: develop this into an eventual simulator class
 import wandb
 logger = logging.getLogger('SIMULATOR')
 
@@ -32,6 +33,15 @@ class Simulator:
         self.round: int = 0
         self.master_cfg: Config = cfg
         self.cfg: SimConfig = cfg.simulator
+        # self.tb_server = Process()
+
+        self.make_checkpoint_dirs()
+
+        self.is_resumed =False
+        
+        ckpt = self.find_checkpoint()
+        if self.cfg.use_wandb:
+            wandb.init(project='fed_ml', job_type=cfg.mode, config=asdict(cfg), resume=True)
 
         logger.info(f'[NUM ROUNDS] : {self.cfg.num_rounds}')
 
@@ -55,34 +65,45 @@ class Simulator:
 
         init_model(cfg.model, model_instance)
 
-        self.writer = SummaryWriter()
-
         # NOTE:IMPORTANT Sharing models without deepcopy could potentially have same references to parameters
         self.clients = self._create_clients(client_datasets, copy.deepcopy(model_instance))
 
         # NOTE: later, consider making a copy of client to avoid simultaneous edits to clients dictionary
-        self.server: BaseServer = server_partial(model=model_instance, dataset=server_dataset, clients= self.clients, writer=self.writer)
 
-        self.make_checkpoint_dirs()
-        if self.find_chekcpoint_and_load():
+        self.result_manager = ResultManager(cfg.simulator, logger=logger)
+        self.server: BaseServer = server_partial(model=model_instance, dataset=server_dataset, clients= self.clients, result_manager=self.result_manager)
+
+        if self.is_resumed:
             logger.info('------------ Resuming training ------------')
-            # self.load_state()
+            self.load_state(ckpt)
 
+        
         logger.debug(f'Init time: {time.time() - self.start_time} seconds')
 
     def make_checkpoint_dirs(self):
         os.makedirs('server_ckpts', exist_ok = True)
         os.makedirs('client_ckpts', exist_ok = True)
 
-    def find_chekcpoint_and_load(self)-> bool:
+    def find_checkpoint(self)-> bool:
         ckpts = glob.glob('server_ckpts/server_ckpt_*')
         if ckpts:
-            # ic(ckpts[-1])
-            self.load_state(ckpts[-1])
-            return True
+            logger.info(f'------ Found checkpoint: {ckpts[-1]} ------')
+            self.is_resumed = True
+            return ckpts[-1]
         else:
             logger.debug('------------ No checkpoints found. Starting afresh ------------')
-            return False
+            self.is_resumed = False
+            return None
+
+    # def find_chekcpoint_and_load(self, ckpt)-> bool:
+    #     ckpts = glob.glob('server_ckpts/server_ckpt_*')
+    #     if ckpts:
+    #         # ic(ckpts[-1])
+    #         self.load_state(ckpts[-1])
+    #         return True
+    #     else:
+    #         logger.debug('------------ No checkpoints found. Starting afresh ------------')
+    #         return False
 
 
     def set_seed(self, seed):
