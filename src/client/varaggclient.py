@@ -53,14 +53,12 @@ class VaraggClient(BaseClient):
             param.data.copy_(mean_.data)
             self._param_std[name] = std_.to('cpu')
 
-
         # for name, param in self._model.named_parameters():
         #     ic(name, param.requires_grad)
 
-
     def train(self, return_model=False):
         # Run an round on the client
-
+    
         self.mm._round = self._round
         self._model.train()
         self._model.to(self.cfg.device)
@@ -72,15 +70,16 @@ class VaraggClient(BaseClient):
             model.train()
             model.to(self.cfg.device)
             # iterate over epochs and then on the batches
-            for self._epoch in log_tqdm(range(self.cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):
+            # for self._epoch in log_tqdm(range(self.cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):
+            for self._epoch in self.cfg.epochs:
                 for inputs, targets in self.train_loader_map[seed]:
 
                     inputs, targets = inputs.to(self.cfg.device), targets.to(self.cfg.device)
 
                     model.zero_grad(set_to_none=True)
 
-                    outputs:Tensor = model(inputs)
-                    loss:Tensor = self.criterion(outputs, targets)
+                    outputs: Tensor = model(inputs)
+                    loss: Tensor = self.criterion(outputs, targets)
                     loss.backward()
                     optimizer.step()
 

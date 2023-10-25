@@ -28,7 +28,9 @@ class VaraggOptimizer(BaseOptimizer):
         self.local_grad_norm = None
         self.server_grad_norm = None
 
-        self._importance_coefficients: dict[str, dict[str, Tensor]] = dict.fromkeys(client_ids, dict.fromkeys(param_keys, 1.0/len(client_ids)))
+        # self._importance_coefficients: dict[str, dict[str, Tensor]] = dict.fromkeys(client_ids, dict.fromkeys(param_keys, 1.0/len(client_ids)))
+        self._importance_coefficients: dict[str, dict[str, Tensor]] = {cid: {param: 1.0/len(client_ids) for param in param_keys} for cid in client_ids}
+
         self._server_params: list[Parameter] = self.param_groups[0]['params']
         self.param_keys = param_keys
         
@@ -74,13 +76,17 @@ class VaraggOptimizer(BaseOptimizer):
         for client, coeff in self._importance_coefficients.items():
             for layer, tensor in coeff.items():
                 total_coeff[layer] += tensor
+            # ic(total_coeff)
         for client, coeff in self._importance_coefficients.items():
             for layer, tensor in coeff.items():
                 assert total_coeff[layer] > 1e-9, f'Coefficient total is too small'
                 self._importance_coefficients[client][layer] = tensor/total_coeff[layer]
-
+                # ic(client, layer)
+                # ic(layer)
+            # ic(tensor, total_coeff[layer])
+            # ic(self._importance_coefficients[client])
         
-        # assert 1.0 - sum(self._importance_coefficients.values()) < 1e-5
+        # assert abs(1.0 - sum(self._importance_coefficients.values())) < 1e-5
 
 
     def accumulate(self, client_params: dict[str, Parameter],client_id):
@@ -91,10 +97,6 @@ class VaraggOptimizer(BaseOptimizer):
         self._server_params: list[Parameter] = self.param_groups[0]['params']
         # ic(type(self._server_params))
         # # local_params = [param.data.float() for _, param in client_params.items()]
-        # ic(self._server_params[0].get_device())
-        # ic(list(client_params.values())[0].get_device())
-        # ic(self._importance_coefficients[])
-
 
         local_grads = []
         server_grads = []
@@ -179,7 +181,7 @@ class VaraggServer(BaseServer):
             client_results[identifier].std_weights = self.detorch_params(new_weights)
 
         self.server_optimizer.normalize_coefficients()
-
+        # ic(self.server_optimizer._importance_coefficients)
         # accumulate weights
 
         for identifier in ids: 
@@ -189,12 +191,13 @@ class VaraggServer(BaseServer):
 
 
         self.server_optimizer.step()
-        self.lr_scheduler.step() # update learning rate
+        self.lr_scheduler.step()    # update learning rate
 
         server_params_np = self.detorch_params(dict(self.model.named_parameters()))
         imp_coeffs = {}
         for cl, coeffs in self.server_optimizer._importance_coefficients.items():
             imp_coeffs[cl] = self.detorch_params(coeffs)
+        # ic(imp_coeffs)
         varag_result =  VaraggResult(clients=client_results, server_params=server_params_np, imp_coeffs=imp_coeffs, round=self.round)
 
         self.result_manager.save_as_csv(asdict(varag_result), filename='varag_results.csv')

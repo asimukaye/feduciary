@@ -85,7 +85,7 @@ class Simulator:
         os.makedirs('client_ckpts', exist_ok = True)
 
     def find_checkpoint(self)-> bool:
-        ckpts = glob.glob('server_ckpts/server_ckpt_*')
+        ckpts = sorted(glob.glob('server_ckpts/server_ckpt_*'))
         if ckpts:
             logger.info(f'------ Found checkpoint: {ckpts[-1]} ------')
             self.is_resumed = True
@@ -94,16 +94,6 @@ class Simulator:
             logger.debug('------------ No checkpoints found. Starting afresh ------------')
             self.is_resumed = False
             return None
-
-    # def find_chekcpoint_and_load(self, ckpt)-> bool:
-    #     ckpts = glob.glob('server_ckpts/server_ckpt_*')
-    #     if ckpts:
-    #         # ic(ckpts[-1])
-    #         self.load_state(ckpts[-1])
-    #         return True
-    #     else:
-    #         logger.debug('------------ No checkpoints found. Starting afresh ------------')
-    #         return False
 
 
     def set_seed(self, seed):

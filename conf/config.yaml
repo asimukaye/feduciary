@@ -51,6 +51,7 @@ model:
 client:
   cfg:
     batch_size: 256
+    epochs: 1
 #     shuffle: false
 #     eval_metrics: ['acc1']
   # train_cfg: ${train}

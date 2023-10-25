@@ -205,7 +205,7 @@ class BaseServer(ABC):
         # randomly select all remaining clients not participated in current round
         selected_ids = self._sample_selected_clients(exclude=excluded_ids)
         self._broadcast_models(selected_ids)
-
+        ic(selected_ids)
         eval_results = self._eval_request(selected_ids)
         server_results = self._central_evaluate()
 
