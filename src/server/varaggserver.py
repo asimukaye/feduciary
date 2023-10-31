@@ -12,7 +12,10 @@ from src.client.varaggclient import VaraggClient
 from typing import Iterator, Tuple, Iterable
 from torch.nn import Parameter
 from torch import Tensor
-import numpy as np
+import numpy as np  
+import json
+import os
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,6 +36,10 @@ class VaraggOptimizer(BaseOptimizer):
 
         self._server_params: list[Parameter] = self.param_groups[0]['params']
         self.param_keys = param_keys
+
+        self._server_deltas: dict[str, Tensor] = {param: None for param in param_keys}
+
+        self._client_deltas: dict[str, dict[str, Tensor]] = {cid: {param: None for param in param_keys} for cid in client_ids}
         
     def _compute_scaled_weights(self, std_dict: dict[str, Parameter]) -> dict[str, Tensor]:
         weights = {}
@@ -81,12 +88,6 @@ class VaraggOptimizer(BaseOptimizer):
             for layer, tensor in coeff.items():
                 assert total_coeff[layer] > 1e-9, f'Coefficient total is too small'
                 self._importance_coefficients[client][layer] = tensor/total_coeff[layer]
-                # ic(client, layer)
-                # ic(layer)
-            # ic(tensor, total_coeff[layer])
-            # ic(self._importance_coefficients[client])
-        
-        # assert abs(1.0 - sum(self._importance_coefficients.values())) < 1e-5
 
 
     def accumulate(self, client_params: dict[str, Parameter],client_id):
@@ -95,16 +96,14 @@ class VaraggOptimizer(BaseOptimizer):
         # NOTE: Note that accumulate is called before step
         # NOTE: Currently supporting only one param group
         self._server_params: list[Parameter] = self.param_groups[0]['params']
-        # ic(type(self._server_params))
-        # # local_params = [param.data.float() for _, param in client_params.items()]
 
-        local_grads = []
-        server_grads = []
+        # # local_params = [param.data.float() for _, param in client_params.items()]
+        local_grads: dict[str, Tensor] = {}
+        server_grads: dict[str, Tensor] = {}
         i = 0
         for server_param, (name, local_param) in zip(self._server_params, client_params.items()):
                 i += 1
                 local_delta = server_param - local_param
-
                 norm = local_delta.norm() 
                 if norm == 0:
                     logger.warning(f"CLIENT [{client_id}]: Got a zero norm!")
@@ -112,7 +111,6 @@ class VaraggOptimizer(BaseOptimizer):
                 else:
                     local_grad_norm = local_delta.div(norm).mul(self.gamma)
 
-                # ic(local_grad_norm.get_device())
                 # ic(self._importance_coefficients[client_id][name].get_device())
                 weighted_local_grad = local_grad_norm.mul(self._importance_coefficients[client_id][name])
                 
@@ -122,8 +120,11 @@ class VaraggOptimizer(BaseOptimizer):
                 else:
                     server_param.grad.add_(weighted_local_grad)
 
-                server_grads.append(server_param.grad.data)
-                local_grads.append(local_grad_norm.data)
+                server_grads[name] = server_param.grad.data
+                local_grads[name] = local_grad_norm.data
+        
+        self._client_deltas[client_id] = local_grads
+        self._server_deltas = server_grads
 
 @dataclass
 class PerClientResult:
@@ -139,6 +140,7 @@ class VaraggResult:
     server_params: dict[str, np.ndarray]
     imp_coeffs : dict[str, dict[str, np.ndarray]]
 
+
 class VaraggServer(BaseServer):
     name:str = 'VaraggServer'
 
@@ -151,9 +153,8 @@ class VaraggServer(BaseServer):
         
         self.importance_coefficients = dict.fromkeys(self.clients, 0.0)
 
-        self.server_optimizer: VaraggOptimizer = VaraggOptimizer(params=self.model.parameters(),
-         param_keys=dict(self.model.named_parameters()).keys(), client_ids=self.clients.keys(),
-         lr= self.client_cfg.lr, gamma=self.cfg.gamma, alpha=self.cfg.alpha)
+        self.server_optimizer: VaraggOptimizer = VaraggOptimizer(params=self.model.parameters(), param_keys=dict(self.model.named_parameters()).keys(), client_ids=self.clients.keys(), lr= self.client_cfg.lr,
+         gamma=self.cfg.gamma, alpha=self.cfg.alpha)
 
         # lr scheduler
         self.lr_scheduler = self.client_cfg.lr_scheduler(optimizer=self.server_optimizer)
@@ -165,12 +166,50 @@ class VaraggServer(BaseServer):
             out_dict[name] = param.detach().cpu().abs().mean().item()
         return out_dict
 
+    @staticmethod
+    def detorch_params_no_reduce(param_dict: dict[str, Parameter]) ->dict[str, list]:
+        out_dict = {}
+        for name, param in param_dict.items():
+            out_dict[name] = param.detach().cpu().numpy()
+        return out_dict
+    
+    def _compute_delta_sigma(self, del_dict: dict[str, np.ndarray], std_dict: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    # def _compute_delta_sigma(self, del_dict: dict[str, list], std_dict: dict[str, list]) -> dict[str, list]:
+        out_dict = {}
+        for name, delta in del_dict.items():
+            out_dict[name] = np.abs(delta)*std_dict[name]
+        return out_dict
+
+    def save_full_param_dict(self, clients_mu:dict[str, dict], clients_delta: dict[str, dict], clients_std: dict[str, dict]):
+        result = {}
+        result['round'] = self.round
+        result['clients_delta'] = clients_delta
+        # ic(clients_delta.keys())
+        result['clients_mu'] = clients_mu
+        result['clients_std'] = clients_std
+        clients_del_sigma = {}
+        for clnt, delta in clients_delta.items():
+            clients_del_sigma[clnt] = self._compute_delta_sigma(delta, clients_std[clnt])
+        result['clients_del_sigma'] = clients_del_sigma
+
+        if not os.path.exists('varagg_debug'):
+            os.makedirs('varagg_debug')
+        
+        # with open(f'varagg_debug/varagg_full_{self.round}.json', 'w') as f:
+        #     json.dump(result, f, indent=4)
+        # ic(result['clients_delta'])
+        np.savez_compressed(f'varagg_debug/varagg_{self.round:03}.npz', **result)
+        # self.result_manager.save_as_csv(result, 'varagg_full.csv')
+
     def _aggregate(self, ids, train_results: ClientResult):
         
         # Calls client upload and server accumulate
         self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
 
         client_results = {idx: PerClientResult() for idx in ids}
+        client_mus = {}
+        client_stds = {}
+        client_deltas = {}
 
         # Compute coefficients
         for identifier in ids:
@@ -178,7 +217,9 @@ class VaraggServer(BaseServer):
             new_weights = self.server_optimizer._compute_scaled_weights(client_params_std)
             self.server_optimizer._update_coefficients(identifier, new_weights)
             client_results[identifier].param_std = self.detorch_params(client_params_std)
+
             client_results[identifier].std_weights = self.detorch_params(new_weights)
+            client_stds[identifier] = self.detorch_params_no_reduce(client_params_std)
 
         self.server_optimizer.normalize_coefficients()
         # ic(self.server_optimizer._importance_coefficients)
@@ -188,7 +229,13 @@ class VaraggServer(BaseServer):
             client_params = self.clients[identifier].upload()
             self.server_optimizer.accumulate(client_params, identifier)
             client_results[identifier].param = self.detorch_params(client_params)
-
+            client_mus[identifier] = self.detorch_params_no_reduce(client_params)
+            client_deltas[identifier] = self.detorch_params_no_reduce(self.server_optimizer._client_deltas[identifier])
+        
+        # ic(client_deltas.keys())
+        # ic(client_mus.keys())
+        if self.round in [0, 10, 20, 30, 50, 75, 100, 125, 149]:
+            self.save_full_param_dict(clients_mu=client_mus, clients_delta=client_deltas, clients_std=client_stds)
 
         self.server_optimizer.step()
         self.lr_scheduler.step()    # update learning rate

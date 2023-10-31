@@ -59,7 +59,7 @@ class AllResults:
     clients_eval: ClientResult = field(default_factory=ClientResult)
     clients_eval_pre: ClientResult = field(default_factory=ClientResult)
     # client
-    server_eval : Result = field(default_factory=Result)
+    server_eval: Result = field(default_factory=Result)
 
 @dataclass
 class ClientParameters:

@@ -12,7 +12,6 @@ import torch.multiprocessing as torch_mp
 from torch.multiprocessing import Queue
 from logging.handlers import  QueueListener, QueueHandler
 from torch.optim.lr_scheduler import LRScheduler
-# from torch.utils.tensorboard import SummaryWriter
 
 from src.client.baseclient import BaseClient, model_eval_helper
 from src.metrics.metricmanager import MetricManager
@@ -205,7 +204,6 @@ class BaseServer(ABC):
         # randomly select all remaining clients not participated in current round
         selected_ids = self._sample_selected_clients(exclude=excluded_ids)
         self._broadcast_models(selected_ids)
-        ic(selected_ids)
         eval_results = self._eval_request(selected_ids)
         server_results = self._central_evaluate()
 
@@ -251,9 +249,11 @@ class BaseServer(ABC):
         # for name, param in self.model.named_parameters():
         #     ic(name, param.requires_grad)
         selected_ids = self._sample_random_clients()
+
         # broadcast the current model at the server to selected clients
         self._broadcast_models(selected_ids)
 
+        # ic(self.clients[selected_ids[0]].optim_partial)
         # request update to selected clients
         train_results = self._update_request(selected_ids)
     

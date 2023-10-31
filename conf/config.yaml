@@ -17,7 +17,7 @@ simulator:
   use_tensorboard: true
   use_wandb: true
   num_clients: 5
-  num_rounds: 200
+  num_rounds: 150
   checkpoint_every: 10
 
 dataset:
@@ -54,16 +54,5 @@ client:
     epochs: 1
 #     shuffle: false
 #     eval_metrics: ['acc1']
-  # train_cfg: ${train}
 
-
-# hydra:
-  # job:
-  #   name: ${mode}_${dataset.name}
-  #   chdir: true
-  # run:
-  #   dir: outputs/${now:%Y-%m-%d}_${hydra.job.name}/${now:%H-%M-%S}_${hydra.job.override_dirname}
-  # sweep:
-  #   dir: outputs/${now:%Y-%m-%d}_${hydra.job.name}/${now:%H-%M-%S}
-  #   subdir: ${hydra.job.override_dirname}
 ...

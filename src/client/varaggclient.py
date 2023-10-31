@@ -71,7 +71,7 @@ class VaraggClient(BaseClient):
             model.to(self.cfg.device)
             # iterate over epochs and then on the batches
             # for self._epoch in log_tqdm(range(self.cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):
-            for self._epoch in self.cfg.epochs:
+            for self._epoch in range(self.cfg.epochs):
                 for inputs, targets in self.train_loader_map[seed]:
 
                     inputs, targets = inputs.to(self.cfg.device), targets.to(self.cfg.device)

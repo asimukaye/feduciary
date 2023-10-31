@@ -229,7 +229,9 @@ class Config():
 def set_debug_mode(cfg: Config):
 
     logger.root.setLevel(logging.DEBUG)
-    cfg.simulator.num_rounds = 5
+    cfg.simulator.use_wandb = False
+    logger.debug(f'[Debug Override] Setting use_wandb to: {cfg.simulator.use_wandb}')
+    cfg.simulator.num_rounds = 2
     logger.debug(f'[Debug Override] Setting rounds to: {cfg.simulator.num_rounds}')
     cfg.client.cfg.epochs = 1
     logger.debug(f'[Debug Override] Setting epochs to: {cfg.client.cfg.epochs}')

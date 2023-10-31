@@ -23,4 +23,4 @@ cfg:
     gamma: ${client.cfg.lr_decay}
   shuffle: false
   eval_metrics: ['acc1']
-  seeds: [1,2,3,4,5,6,7]
+  seeds: [15, 25, 35, 45, 55]
