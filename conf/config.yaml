@@ -1,7 +1,7 @@
 %YAML 1.2
 ---
 # Make sure mode matches the experiment config for full runs
-mode: varagg
+mode: debug
 log_conf: [client.cfg.lr]
 
 defaults:
@@ -19,6 +19,7 @@ simulator:
   num_clients: 5
   num_rounds: 150
   checkpoint_every: 10
+  mode: standalone
 
 dataset:
   name: CIFAR10

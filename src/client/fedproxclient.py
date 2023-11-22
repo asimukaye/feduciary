@@ -1,10 +1,10 @@
 import copy
 
-from .fedavgclient import FedavgClient
-from src.utils import MetricManager
+from .baseclient import BaseClient
+from src.metrics.metricmanager import MetricManager
 
 # FIXME: Broken file
-class FedproxClient(FedavgClient):
+class FedproxClient(BaseClient):
     def __init__(self, **kwargs):
         super(FedproxClient, self).__init__(**kwargs)
 

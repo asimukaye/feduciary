@@ -1,17 +1,18 @@
+from collections import defaultdict
+import os
 import numpy as np
 import pandas as pd
-import os
 import matplotlib.pyplot as plt
 from icecream import ic
-from collections import defaultdict
 
 # DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-24_varagg_CIFAR10/09-44-15_'
 # DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-24_varagg_CIFAR10/14-12-34_'
 # DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-24_varagg_CIFAR10/15-40-06_'
 
 # DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_debug_CIFAR10/11-12-43_'
-# DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/13-15-52_'
-DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/14-23-18_'
+DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/13-15-52_'
+# DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/14-23-18_'
+# DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/14-21-11_'
 
 def plot_list(df: pd.DataFrame, list_to_plot: list, feature_list: list, tag: str):
     n_cols = 4
@@ -32,50 +33,50 @@ def plot_list(df: pd.DataFrame, list_to_plot: list, feature_list: list, tag: str
     if not os.path.exists(f'{DATA_PATH}/plots'):
         os.makedirs(f'{DATA_PATH}/plots')
     fig1.savefig(f'{DATA_PATH}/plots/{tag}_plots.png')
+    plt.close()
 
 
-def plot_3d_param_histograms(in_dict: dict, tag: str):
+
+def plot_3d_param_histograms(in_dict: dict, tag: str, ylabel='Clients', path=f'{DATA_PATH}/histograms'):
 
     layers = list(in_dict.keys())
-    # feature_list = in_dict.values()
     for val in in_dict.values():
         assert isinstance(val, dict)
         feature_list = list(val.keys())
-
-    
-    ic(feature_list)
-    ic (layers)
-    bins = 100
 
     n_cols = 4
     feat_len = len(feature_list)
     n_rows = feat_len//n_cols + bool(feat_len%n_cols)
     fig1, axs1 = plt.subplots(nrows=n_rows, ncols=n_cols, subplot_kw={'projection': '3d'}, figsize=(n_cols*5, n_rows*4))
 
-
+    n_bins = 100
+    spacing = 10
     for i, feature in enumerate(feature_list):
         # z = np.arange(len(layers), )
         for k, layer in enumerate(layers):
-            ys, xs = np.histogram(in_dict[layer][feature], bins, density=True )
-            axs1[i//n_cols, i%n_cols].bar(xs[:-1], ys, zs=10*k, zdir='y', alpha=0.8, label=layer)
+            n_bins = np.minimum(n_bins, np.prod(in_dict[layer][feature].shape))
+            ys, bins = np.histogram(in_dict[layer][feature], n_bins)
+            xs = (bins[1:] + bins[:-1])/2
+            dx = bins[1:] - bins[:-1]
+            axs1[i//n_cols, i%n_cols].bar(xs, ys, zs=spacing*k, zdir='y', width=dx, alpha=0.8,   label=str(layer))
 
         axs1[i//n_cols, i%n_cols].set_title(feature)
         axs1[i//n_cols, i%n_cols].set_xlabel('X')
-        axs1[i//n_cols, i%n_cols].set_yticks(np.arange(len(layers), 10), layers)
+        axs1[i//n_cols, i%n_cols].set_yticks(np.arange(0, spacing*len(layers), spacing), layers)
 
-        axs1[i//n_cols, i%n_cols].set_ylabel('Clients')
+        axs1[i//n_cols, i%n_cols].set_ylabel(ylabel)
         axs1[i//n_cols, i%n_cols].set_zlabel('Count')
         # axs1[i//n_cols, i%n_cols].legend(loc='upper right')
-
 
     handles, labels = axs1[i//n_cols, i%n_cols].get_legend_handles_labels()
     fig1.tight_layout()
     # fig1.legend().set_in_layout(False)
     fig1.legend(handles, labels, loc='upper center')
 
-    if not os.path.exists(f'{DATA_PATH}/histograms'):
-        os.makedirs(f'{DATA_PATH}/histograms')
-    fig1.savefig(f'{DATA_PATH}/histograms/{tag}.png')
+    if not os.path.exists(path):
+        os.makedirs(path)
+    fig1.savefig(f'{path}/{tag}.png')
+    plt.close()
     
 
 def plot_single_param_histograms(feature_dict: dict, path:str, tag:str):
@@ -88,22 +89,27 @@ def plot_single_param_histograms(feature_dict: dict, path:str, tag:str):
     fig1, axs1 = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(n_cols*5, n_rows*4))
 
     for i, feature in enumerate(feature_list):
-        ys, xs = np.histogram(feature_dict[feature], n_bins, density=True)
-        axs1[i//n_cols, i%n_cols].bar(xs[:-1], ys)
+        n_bins = np.minimum(n_bins, np.prod(feature_dict[feature].shape))
+        ys, bins = np.histogram(feature_dict[feature], n_bins, density=True)
+        xs = (bins[1:] + bins[:-1])/2
+        dx = bins[1:] - bins[:-1]
+        axs1[i//n_cols, i%n_cols].bar(xs, ys, width=dx)
     
     handles, labels = axs1[i//n_cols, i%n_cols].get_legend_handles_labels()
     fig1.tight_layout()
     fig1.legend(handles, labels, loc='upper center')
     assert os.path.exists(path), f'Path {path} does not exist.'
     fig1.savefig(f'{path}/{tag}.png')
+    plt.close()
 
-def plot_single_histograms_wrapper(master_dict: dict, tag:str):
+
+def plot_single_histograms_wrapper(master_dict: dict, path: str, tag:str):
     for key, val in master_dict.items():
         assert isinstance(val, dict)
-        path = f'{DATA_PATH}/histograms/{key}'
-        if not os.path.exists(path):
-            os.makedirs(path)
-        plot_single_param_histograms(val, path, tag)
+        path_update = f'{path}/{key}'
+        if not os.path.exists(path_update):
+            os.makedirs(path_update)
+        plot_single_param_histograms(val, path_update, tag)
 
 def rearrange_dict_per_client(main_dict: dict[int, dict[str, np.ndarray]]):
     out_dict = defaultdict(dict)   
@@ -120,9 +126,38 @@ if __name__=='__main__':
     df = pd.read_csv(filename)
 
     rounds = []
-    del_sigma_per_client = {}
-    del_sigma_per_round = {}
     del_sigmas = {}
+    deltas = {}
+    params = {}
+    sigmas = {}
+
+
+    # for file in sorted(os.listdir(f'{DATA_PATH}/varagg_debug')):
+    #     np_obj = np.load(f'{DATA_PATH}/varagg_debug/{file}', allow_pickle=True)
+    #     ic(file)
+    #     # ic(np_obj.keys())
+    #     round = np_obj['round'].item()
+    #     rounds.append(round)
+    #     del_sigmas[round] = np_obj['clients_del_sigma'].item()
+    #     params[round] = np_obj['clients_mu']
+    #     deltas[round] = np_obj['clients_delta']
+    #     sigmas[round] = np_obj['clients_std']
+
+    #     # del_sigmas[round] = del_sigma.item()
+    #     # clients = list(del_sigma.item().keys())
+
+    #     plot_single_histograms_wrapper(del_sigmas[round], f'{DATA_PATH}/histograms/del_sigma/', f'del_sigma_round_{round}')
+    #     plot_3d_param_histograms(del_sigmas[round], f'del_sigma_round_{round}_3d')
+
+    # swapped_del_sigmas = rearrange_dict_per_client(del_sigmas)
+    # ic(swapped_del_sigmas.keys())
+    # clients = list(swapped_del_sigmas.keys())
+
+    # for clnt in clients:
+    #     plot_3d_param_histograms(swapped_del_sigmas[clnt], f'del_sigma_client_{clnt}_3d', path=f'{DATA_PATH}/histograms/del_sigma/{clnt}', ylabel='Rounds')
+
+    dict_list = [del_sigmas, deltas, params, sigmas]
+    str_list = ['del_sigma', 'delta', 'mu', 'std']
 
     for file in sorted(os.listdir(f'{DATA_PATH}/varagg_debug')):
         np_obj = np.load(f'{DATA_PATH}/varagg_debug/{file}', allow_pickle=True)
@@ -130,19 +165,22 @@ if __name__=='__main__':
         # ic(np_obj.keys())
         round = np_obj['round'].item()
         rounds.append(round)
-        del_sigma = np_obj['clients_del_sigma']
-        del_sigmas[round] = del_sigma.item()
-        clients = list(del_sigma.item().keys())
+        for dict_to_use, label in zip(dict_list, str_list):
 
-        plot_single_histograms_wrapper(del_sigmas[round], f'del_sigma_round_{round}')
-        
-        # plot_3d_param_histograms(del_sigma_per_client, f'del_sigma_client_{round}')
+            dict_to_use[round] = np_obj[f'clients_{label}'].item()
 
-    swapped_del_sigmas = rearrange_dict_per_client(del_sigmas)
-    ic(swapped_del_sigmas.keys())
-    # ic(swapped_dict.values())
-    del_sigma_per_round = del_sigmas[round]
-    plot_3d_param_histograms(del_sigma_per_round, f'del_sigma_round_{round}_3d')
+            plot_single_histograms_wrapper(dict_to_use[round], f'{DATA_PATH}/histograms/{label}', f'{label}_round_{round}')
+
+            plot_3d_param_histograms(dict_to_use[round], f'{label}_round_{round}_3d', path=f'{DATA_PATH}/histograms/{label}')
+
+    for dict_to_use, label in zip(dict_list, str_list):
+        swapped_dict = rearrange_dict_per_client(dict_to_use)
+        ic(swapped_dict.keys())
+        clients = list(swapped_dict.keys())
+
+        for clnt in clients:
+            plot_3d_param_histograms(swapped_dict[clnt], f'{label}_client_{clnt}_3d', path=f'{DATA_PATH}/histograms/{label}/{clnt}', ylabel='Rounds')
+
 
     exit(0)
            

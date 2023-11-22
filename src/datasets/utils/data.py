@@ -76,7 +76,7 @@ def construct_client_dataset(raw_train, test_fraction, idx, sample_indices) ->(S
         test_set = SubsetWrapper(test_set, f'< {str(idx).zfill(8)} > (test)')
         return (traininig_set, test_set)
     
-def load_vision_dataset(cfg: DatasetConfig, model_cfg:ModelSpecConfig):
+def load_vision_dataset(cfg: DatasetConfig, model_cfg: ModelSpecConfig):
        
     transforms = [get_train_transform(cfg.transforms), get_test_transform(cfg.transforms)]
     raw_train, raw_test, model_cfg = fetch_torchvision_dataset(dataset_name=cfg.name, root=cfg.data_path, transforms= transforms, model_cfg=model_cfg)
@@ -94,9 +94,7 @@ def load_vision_dataset(cfg: DatasetConfig, model_cfg:ModelSpecConfig):
     # adjust the number of classes in binary case
     if model_cfg.num_classes == 2:
         raise NotImplementedError()
-        # cfg.num_classes = 1
-        # cfg.criterion = 'BCEWithLogitsLoss'
-        
+
     # get split indices if None
     # if split_map is None:
     logger.info(f'[DATA_SPLIT] DATA_SPLIT dataset split (split scenario: `{cfg.split_type.upper()}`)!')    

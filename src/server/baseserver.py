@@ -120,7 +120,7 @@ class BaseServer(ABC):
     
 
     def _update_request(self, ids:list[str]) -> ClientResult:
-        def __update_client(client:BaseClient):
+        def __update_client(client: BaseClient):
             # getter function for client update
             update_result = client.train()
             return {'id':client.id, 'result':update_result}
@@ -147,10 +147,10 @@ class BaseServer(ABC):
              for idx in ids:
                 results_list.append(__update_client(self.clients[idx]))
 
-
         # results_dict = dict(results_list)
         results_dict = {item['id']: item['result'] for item in results_list}
-        update_result = self.result_manager.log_client_train_result(results_dict)
+        # update_result = self.result_manager.log_client_train_result(results_dict)
+        update_result = self.result_manager.log_client_result(results_dict, key='client_eval')
 
         logger.info(f'[{self.name}] [Round: {self.round:03}] ...completed updates of {"all" if ids is None else len(ids)} clients.')
 
@@ -207,7 +207,7 @@ class BaseServer(ABC):
         eval_results = self._eval_request(selected_ids)
         server_results = self._central_evaluate()
 
-        self.result_manager.log_client_eval_result(eval_results)
+        self.result_manager.log_client_result(eval_results, key='client_eval')
         self.result_manager.log_server_eval_result(server_results)
 
         # remove model copy in clients
@@ -233,11 +233,11 @@ class BaseServer(ABC):
             }, f'server_ckpts/server_ckpt_{self.round:003}.pt')
 
     
-    def finalize(self) -> AllResults:
-        all_results: AllResults = self.result_manager.finalize()
+    def finalize(self) -> None:
+        # all_results: AllResults = self.result_manager.finalize()
         # save checkpoint
         torch.save(self.model.state_dict(), f'final_model.pt')
-        return all_results
+        # return all_results
         
    
     # @abstractmethod
@@ -259,7 +259,9 @@ class BaseServer(ABC):
     
         # request evaluation to selected clients
         eval_result = self._eval_request(selected_ids)
-        self.result_manager.log_client_eval_pre_result(eval_result)
+        self.result_manager.log_client_result(eval_result, key='client_eval_pre')
+
+        # self.result_manager.log_client_eval_pre_result(eval_result)
 
 
         self._aggregate(selected_ids, train_results) # aggregate local updates

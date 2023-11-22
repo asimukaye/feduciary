@@ -9,10 +9,11 @@ from src.metrics.metricmanager import MetricManager, Result
 from src.utils import log_tqdm
 from src.config import ClientConfig
 # from .varaggclient import VaraggClient
+
 logger = logging.getLogger(__name__)
 
 
-def model_eval_helper(model: Module, dataloader:DataLoader, cfg: ClientConfig, mm:MetricManager, round:int)->Result:
+def model_eval_helper(model: Module, dataloader: DataLoader, cfg: ClientConfig, mm: MetricManager, round: int)->Result:
     # mm = MetricManager(cfg.eval_metrics, round, caller)
     mm._round = round
     model.eval()
@@ -27,7 +28,6 @@ def model_eval_helper(model: Module, dataloader:DataLoader, cfg: ClientConfig, m
     else:
         result = mm.aggregate(len(dataloader), -1)
         mm.flush()
-    # log result
     return result
 
 
@@ -41,6 +41,7 @@ class BaseClient:
         
         self._round = 0
         self._epoch = 0
+        self._is_resumed = False
         self.cfg = cfg
         self.training_set = dataset[0]
         self.test_set = dataset[1]
@@ -52,6 +53,8 @@ class BaseClient:
 
         self.train_loader = self._create_dataloader(self.training_set, shuffle=cfg.shuffle)
         self.test_loader = self._create_dataloader(self.test_set, shuffle=False)
+        self.optimizer: Optimizer = self.optim_partial(self._model.parameters())
+
         # self._debug_param: Tensor = None
     
 
@@ -60,13 +63,12 @@ class BaseClient:
         return self._identifier
 
     @property
-    def model(self)->Module:
+    def model(self)-> Module:
         return self._model
     
     # @model.setter
-    def set_model(self, model:Module):
+    def set_model(self, model: Module):
         self._model = model
-    
     
     def set_lr(self, lr:float) -> None:
         self.cfg.lr = lr
@@ -74,6 +76,9 @@ class BaseClient:
     @property
     def round(self)->int:
         return self._round
+    @round.setter
+    def round(self, value: int):
+        self._round = value
     
     @property
     def epoch(self)->int:
@@ -108,8 +113,9 @@ class BaseClient:
         self._model.train()
         self._model.to(self.cfg.device)
 
-        # set optimizer parameters
-        optimizer:Optimizer = self.optim_partial(self._model.parameters())
+        # set optimizer parameters again
+        if not self._is_resumed:
+            self.optimizer: Optimizer = self.optim_partial(self._model.parameters())
    
         # iterate over epochs and then on the batches
         for self._epoch in log_tqdm(range(self.cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):
@@ -118,17 +124,20 @@ class BaseClient:
 
                 self._model.zero_grad(set_to_none=True)
 
-                outputs:Tensor = self._model(inputs)
-                loss:Tensor = self.criterion(outputs, targets)
+                outputs: Tensor = self._model(inputs)
+                loss: Tensor = self.criterion(outputs, targets)
                 loss.backward()
-                optimizer.step()
+                self.optimizer.step()
 
                 # accumulate metrics
                 self.mm.track(loss.item(), outputs, targets)
             else:
                 out_result = self.mm.aggregate(len(self.training_set), self._epoch)
                 self.mm.flush()
+            if self._epoch + 1 % 10 == 0:
+                self.save_checkpoint()
 
+        self._epoch = 0
         # logger.info(f'CLIENT {self.id} Completed update')
         if return_model:
             return out_result, self._model.to('cpu')
@@ -142,7 +151,25 @@ class BaseClient:
 
         return model_eval_helper(self._model, self.test_loader, self.cfg, self.mm, self._round)
 
-    
+    def save_checkpoint(self):
+
+        torch.save({
+            'round': self._round,
+            'epoch': self._epoch,
+            'model_state_dict': self._model.state_dict(),
+            'optimizer_state_dict' : self.optimizer.state_dict(),
+            }, f'client_ckpts/{self._identifier}/ckpt_r{self.round:003}_e{self._epoch:003}.pt')
+
+    def load_checkpoint(self, ckpt_path):
+        checkpoint = torch.load(ckpt_path)
+        self._epoch = checkpoint['epoch']
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        # epoch = checkpoint['epoch']
+        logger.info(f'CLIENT {self.id} Loaded ckpt path: {ckpt_path}')
+        self._round = checkpoint['round']
+
+
     def __len__(self):
         return len(self.training_set), len(self.test_set)
 

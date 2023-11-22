@@ -124,36 +124,39 @@ class ResultManager:
         return client_result
 
     
-    def log_server_eval_result(self, result:Result):
+    def log_server_eval_result(self, result: Result):
         self._round_check(result.round, 'server')
         log_metric('server_eval', result.round, result.metrics, self.logger, self.writer)
         self.result.server_eval = result
         self.result.participants['server_eval'] = 'server'
+        
 
-
-    def log_client_eval_result(self, result:dict[Result]):
-        key = 'client_eval'
+    def log_client_result(self, result: dict[Result], key='client_eval'):
         client_result = self.get_client_results(key, result)
         self.result.clients_eval = client_result
-        # self.logger.debug(f'Participants in {key}: {result.keys()}')
         self.result.participants[key] = list(result.keys())
         return client_result
 
-    def log_client_eval_pre_result(self, result:dict[Result]):
-        key = 'client_eval_pre'
-        client_result = self.get_client_results(key, result)
-        self.result.clients_eval_pre = client_result
-        self.result.participants[key] = list(result.keys())
-        # self.logger.debug(f'Participants in {key}: {result.keys()}')
-        return client_result
+    # def log_client_eval_result(self, result:dict[Result]):
+    #     key = 'client_eval'
+    #     client_result = self.get_client_results(key, result)
+    #     self.result.clients_eval = client_result
+    #     self.result.participants[key] = list(result.keys())
+    #     return client_result
+
+    # def log_client_eval_pre_result(self, result:dict[Result]):
+    #     key = 'client_eval_pre'
+    #     client_result = self.get_client_results(key, result)
+    #     self.result.clients_eval_pre = client_result
+    #     self.result.participants[key] = list(result.keys())
+    #     return client_result
     
-    def log_client_train_result(self, result:dict[Result]):
-        key = 'client_train'
-        client_result = self.get_client_results(key, result)
-        self.result.clients_train = client_result
-        self.result.participants[key] = list(result.keys())
-        # self.logger.debug(f'Participants in {key}: {result.keys()}')
-        return client_result
+    # def log_client_train_result(self, result:dict[Result]):
+    #     key = 'client_train'
+    #     client_result = self.get_client_results(key, result)
+    #     self.result.clients_train = client_result
+    #     self.result.participants[key] = list(result.keys())
+    #     return client_result
     
 
     def update_round_and_flush(self, rnd:int):

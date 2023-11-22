@@ -1,6 +1,6 @@
 # Master config file to store config dataclasses and do validation
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Any
+from typing import Optional
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from hydra.core.config_store import ConfigStore
@@ -42,9 +42,11 @@ class SimConfig:
     num_rounds: int
     use_wandb: bool
     checkpoint_every: int = field(default=10)
+    mode: str = field(default='federated')
 
-    # def __post_init__(self):
-    #     pass
+    def __post_init__(self):
+        assert self.mode in ['federated', 'standalone', 'centralized'], f'Unknown simulator mode: {self.mode}'
+
 
 ########## Client Configurations ##########
 
@@ -88,10 +90,9 @@ class VaraggClientConfig(ClientConfig):
 
 @dataclass
 class ClientSchema:
-    _target_: str 
+    _target_: str
     _partial_: bool
-    cfg: ClientConfig 
-    
+    cfg: ClientConfig
 
 ########## Server Configurations ##########
 @dataclass
@@ -106,7 +107,7 @@ class ServerConfig:
     def __post_init__(self):
         assert self.sampling_fraction == Range(0.0, 1.0), f'Invalid value {self.sampling_fraction} for sampling fraction'
         assert self.eval_fraction == Range(0., 1.0)
-        assert self.eval_type == 'both' # Remove after 
+        assert self.eval_type == 'both' # Remove later
 
 
 @dataclass
@@ -180,11 +181,11 @@ class DatasetConfig:
 
 @dataclass
 class ModelSpecConfig:
-    _target_: str 
-    _partial_: bool 
-    hidden_size: Optional[int]  
-    num_classes: Optional[int] 
-    in_channels: Optional[int] 
+    _target_: str
+    _partial_: bool
+    hidden_size: Optional[int]
+    num_classes: Optional[int]
+    in_channels: Optional[int]
 
 @dataclass
 class ModelConfig:

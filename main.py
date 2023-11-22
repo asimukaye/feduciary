@@ -1,5 +1,3 @@
-
-# from torch.utils.tensorboard import SummaryWriter
 import hydra
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf
@@ -17,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def run_feduciary(cfg: Config):
-    # ic(to_absolute_path('.'))
-    # wandb.init(project='fed_ml', job_type=cfg.mode, config=OmegaConf.to_container(cfg))
 
     cfg_obj: Config = OmegaConf.to_object(cfg)
     logger.debug((OmegaConf.to_yaml(cfg_obj)))
