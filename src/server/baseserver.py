@@ -107,7 +107,7 @@ class BaseServer(ABC):
     
     def _sample_selected_clients(self, exclude: list[str]):
         # FIXME: Rewrite this for clarity of usage
-        num_unparticipated_clients = self.num_clients- len(exclude)
+        num_unparticipated_clients = self.num_clients - len(exclude)
         if num_unparticipated_clients == 0: # when C = 1, i.e., need to evaluate on all clients
             num_sampled_clients = self.num_clients
             sampled_client_ids = sorted(self.clients.keys())
@@ -211,7 +211,8 @@ class BaseServer(ABC):
         self.result_manager.log_server_eval_result(server_results)
 
         # remove model copy in clients
-        self.reset_client_models(selected_ids)
+        # self.reset_client_models(selected_ids)
+        return selected_ids
 
     def load_checkpoint(self, ckpt_path):
         checkpoint = torch.load(ckpt_path)
@@ -225,7 +226,6 @@ class BaseServer(ABC):
         # loss = checkpoint['loss']
     
     def save_checkpoint(self):
-
         torch.save({
             'round': self.round,
             'model_state_dict': self.model.state_dict(),

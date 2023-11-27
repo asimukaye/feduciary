@@ -1,8 +1,9 @@
 %YAML 1.2
 ---
 # Make sure mode matches the experiment config for full runs
-mode: debug
+mode: varagg
 log_conf: [client.cfg.lr]
+desc: 'min max scaling, no tanh, alpha is 0.8'
 
 defaults:
   - base_config
@@ -19,7 +20,7 @@ simulator:
   num_clients: 5
   num_rounds: 150
   checkpoint_every: 10
-  mode: standalone
+  mode: federated
 
 dataset:
   name: CIFAR10
@@ -48,7 +49,6 @@ model:
     num_classes: null 
 
 # Overrides
-
 client:
   cfg:
     batch_size: 256

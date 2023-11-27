@@ -56,7 +56,6 @@ class BaseClient:
         self.optimizer: Optimizer = self.optim_partial(self._model.parameters())
 
         # self._debug_param: Tensor = None
-    
 
     @property
     def id(self)->str:

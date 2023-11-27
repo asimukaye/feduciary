@@ -132,6 +132,7 @@ class FedavgConfig(ServerConfig):
 class VaraggServerConfig(ServerConfig):
     alpha: float = 0.95
     gamma: float = 0.5
+    betas: list = field(default_factory=list)
     
     def __post_init__(self):
         super().__post_init__()
@@ -208,6 +209,7 @@ class ModelConfig:
 @dataclass
 class Config():
     mode: str = field()
+    desc: str = field()
     log_conf: list = field(default_factory=list)
     simulator: SimConfig = field(default=SimConfig)
     server: ServerSchema = field(default=ServerSchema)

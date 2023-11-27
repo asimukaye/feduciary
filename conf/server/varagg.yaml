@@ -11,7 +11,16 @@ cfg:
   eval_type: both
   eval_fraction: 1.0
   eval_every: 1
-  alpha: 0.5
+  alpha: 0.8
   gamma: 0.95
+  betas: 
+    - 1e3
+    - 1e3
+    - 1e4
+    - 1e3
+    - 1e4
+    - 1e3
+    - 1e3
+    - 1e3
   multiprocessing: false
 client_cfg: ${client.cfg}

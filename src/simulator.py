@@ -203,20 +203,23 @@ class Simulator:
         for curr_round in range(self.round, self.cfg.num_rounds +1):
             logger.info(f'-------- Round: {curr_round} --------\n')
             # wandb.log({'round': curr_round})
-            loop_start = time.time() - self.start_time
+            loop_start = time.time()
             self.round = curr_round
             ## update round indicator
             self.server.round = curr_round
 
             ## update after sampling clients randomly
-            selected_ids = self.server.update()
+            update_ids = self.server.update()
 
             ## evaluate on clients not sampled (for measuring generalization performance)
             if curr_round % self.master_cfg.server.cfg.eval_every == 0:
-                self.server.evaluate(excluded_ids=selected_ids)
+                eval_ids = self.server.evaluate(excluded_ids=update_ids)
 
             if curr_round % self.cfg.checkpoint_every == 0:
                 self.save_checkpoints()
+            
+            # This is weird, needs some rearch]
+            self.server.reset_client_models(eval_ids)
             
             self.result_manager.update_round_and_flush(curr_round)
 

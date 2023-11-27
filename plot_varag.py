@@ -12,7 +12,11 @@ from icecream import ic
 # DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_debug_CIFAR10/11-12-43_'
 DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/13-15-52_'
 # DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/14-23-18_'
-# DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/14-21-11_'
+DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/14-21-11_'
+
+# DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-22_varagg_CIFAR10/13-15-29_'
+
+DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-23_varagg_CIFAR10/12-20-10_'
 
 def plot_list(df: pd.DataFrame, list_to_plot: list, feature_list: list, tag: str):
     n_cols = 4
@@ -156,33 +160,33 @@ if __name__=='__main__':
     # for clnt in clients:
     #     plot_3d_param_histograms(swapped_del_sigmas[clnt], f'del_sigma_client_{clnt}_3d', path=f'{DATA_PATH}/histograms/del_sigma/{clnt}', ylabel='Rounds')
 
-    dict_list = [del_sigmas, deltas, params, sigmas]
-    str_list = ['del_sigma', 'delta', 'mu', 'std']
+    # dict_list = [del_sigmas, deltas, params, sigmas]
+    # str_list = ['del_sigma', 'delta', 'mu', 'std']
 
-    for file in sorted(os.listdir(f'{DATA_PATH}/varagg_debug')):
-        np_obj = np.load(f'{DATA_PATH}/varagg_debug/{file}', allow_pickle=True)
-        ic(file)
-        # ic(np_obj.keys())
-        round = np_obj['round'].item()
-        rounds.append(round)
-        for dict_to_use, label in zip(dict_list, str_list):
+    # for file in sorted(os.listdir(f'{DATA_PATH}/varagg_debug')):
+    #     np_obj = np.load(f'{DATA_PATH}/varagg_debug/{file}', allow_pickle=True)
+    #     ic(file)
+    #     # ic(np_obj.keys())
+    #     round = np_obj['round'].item()
+    #     rounds.append(round)
+    #     for dict_to_use, label in zip(dict_list, str_list):
 
-            dict_to_use[round] = np_obj[f'clients_{label}'].item()
+    #         dict_to_use[round] = np_obj[f'clients_{label}'].item()
 
-            plot_single_histograms_wrapper(dict_to_use[round], f'{DATA_PATH}/histograms/{label}', f'{label}_round_{round}')
+    #         plot_single_histograms_wrapper(dict_to_use[round], f'{DATA_PATH}/histograms/{label}', f'{label}_round_{round}')
 
-            plot_3d_param_histograms(dict_to_use[round], f'{label}_round_{round}_3d', path=f'{DATA_PATH}/histograms/{label}')
+    #         plot_3d_param_histograms(dict_to_use[round], f'{label}_round_{round}_3d', path=f'{DATA_PATH}/histograms/{label}')
 
-    for dict_to_use, label in zip(dict_list, str_list):
-        swapped_dict = rearrange_dict_per_client(dict_to_use)
-        ic(swapped_dict.keys())
-        clients = list(swapped_dict.keys())
+    # for dict_to_use, label in zip(dict_list, str_list):
+    #     swapped_dict = rearrange_dict_per_client(dict_to_use)
+    #     ic(swapped_dict.keys())
+    #     clients = list(swapped_dict.keys())
 
-        for clnt in clients:
-            plot_3d_param_histograms(swapped_dict[clnt], f'{label}_client_{clnt}_3d', path=f'{DATA_PATH}/histograms/{label}/{clnt}', ylabel='Rounds')
+    #     for clnt in clients:
+    #         plot_3d_param_histograms(swapped_dict[clnt], f'{label}_client_{clnt}_3d', path=f'{DATA_PATH}/histograms/{label}/{clnt}', ylabel='Rounds')
 
 
-    exit(0)
+    # exit(0)
            
 
     feature_list = []

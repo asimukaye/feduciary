@@ -6,6 +6,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field, asdict
 from src.config import ClientConfig, VaraggServerConfig
 # from .fedavgserver import FedavgServer
+from collections import defaultdict
 from src.results.resultmanager import ClientResult
 from .baseserver import BaseServer, BaseOptimizer
 from src.client.varaggclient import VaraggClient
@@ -22,17 +23,22 @@ logger = logging.getLogger(__name__)
 class VaraggOptimizer(BaseOptimizer):
     def __init__(self, params: Iterator[Parameter], param_keys: Iterable,  client_ids, **kwargs):
         self.lr = kwargs.get('lr')
-        defaults = dict(lr=self.lr)
+        defaults = dict(lr= self.lr)
         super().__init__(params=params, defaults=defaults)
 
         # Gamma is the scaling coeffic
         self.gamma = kwargs.get('gamma')
         self.alpha = kwargs.get('alpha')
+        betas = kwargs.get('betas')
+        assert len(param_keys)==len(betas)
         self.local_grad_norm = None
         self.server_grad_norm = None
+        self.beta = {param: beta for param, beta in zip(param_keys, betas)}
+
 
         # self._importance_coefficients: dict[str, dict[str, Tensor]] = dict.fromkeys(client_ids, dict.fromkeys(param_keys, 1.0/len(client_ids)))
         self._importance_coefficients: dict[str, dict[str, Tensor]] = {cid: {param: 1.0/len(client_ids) for param in param_keys} for cid in client_ids}
+
 
         self._server_params: list[Parameter] = self.param_groups[0]['params']
         self.param_keys = param_keys
@@ -45,17 +51,38 @@ class VaraggOptimizer(BaseOptimizer):
         weights = {}
         for key, val in std_dict.items():
             # ic(val)
-            tanh_std = 1 - torch.tanh(val.data)
+            sigma_scaled = self.beta[key]*val.data
+            tanh_std = 1 - torch.tanh(sigma_scaled)
             # ic(tanh_std)
             weights[key] = tanh_std.mean()
             # ic(key, weights[key])
         return weights
 
+    def compute_mean_weights(self, std_dict: dict[str, Parameter]) -> dict[str, Tensor]:
+        sigma_scaled = {}
+        for key, val in std_dict.items():
+            sigma_scaled[key] = self.beta[key]*val.data.mean()
+        return sigma_scaled            
+       
+    def min_max_normalized_weights(self, in_weights: dict[str, dict[str, Tensor]]):
+        out_weights = defaultdict(dict)
+        temp_weight = defaultdict(list)
+        for id, weights in in_weights.items():
+            for layer, weight in weights.items():
+                temp_weight[layer].append(weight)
+        
+        for id, weights in in_weights.items():
+            for layer, weight in weights.items():
+                out_weights[id][layer] = 1 - (weight - min(temp_weight[layer]))/(max(temp_weight[layer])- min(temp_weight[layer]))
+        
+        return out_weights
+
+
     def _update_coefficients(self, client_id, importance: dict[str, Tensor]):
         client_coefficient = self._importance_coefficients[client_id]
 
         for name, weight_per_param in importance.items():
-            client_coefficient[name]= self.alpha * client_coefficient[name] + (1 - self.alpha)* weight_per_param
+            client_coefficient[name] = self.alpha * client_coefficient[name] + (1 - self.alpha)* weight_per_param
 
         self._importance_coefficients[client_id] = client_coefficient
 
@@ -154,10 +181,11 @@ class VaraggServer(BaseServer):
         self.importance_coefficients = dict.fromkeys(self.clients, 0.0)
 
         self.server_optimizer: VaraggOptimizer = VaraggOptimizer(params=self.model.parameters(), param_keys=dict(self.model.named_parameters()).keys(), client_ids=self.clients.keys(), lr= self.client_cfg.lr,
-         gamma=self.cfg.gamma, alpha=self.cfg.alpha)
-
+         gamma=self.cfg.gamma, alpha=self.cfg.alpha, betas=self.cfg.betas)
+        
         # lr scheduler
         self.lr_scheduler = self.client_cfg.lr_scheduler(optimizer=self.server_optimizer)
+
 
     @staticmethod
     def detorch_params(param_dict: dict[str, Parameter]):
@@ -212,14 +240,30 @@ class VaraggServer(BaseServer):
         client_deltas = {}
 
         # Compute coefficients
+        # No normalize on weights
+        # for identifier in ids:
+        #     client_params_std = self.clients[identifier].parameter_std_dev()
+        #     new_weights = self.server_optimizer._compute_scaled_weights(client_params_std)
+        #     self.server_optimizer._update_coefficients(identifier, new_weights)
+        #     client_results[identifier].param_std = self.detorch_params(client_params_std)
+
+        #     client_results[identifier].std_weights = self.detorch_params(new_weights)
+        #     client_stds[identifier] = self.detorch_params_no_reduce(client_params_std)
+
+        # Normalize twice version
+        int_weights = {}
         for identifier in ids:
             client_params_std = self.clients[identifier].parameter_std_dev()
-            new_weights = self.server_optimizer._compute_scaled_weights(client_params_std)
-            self.server_optimizer._update_coefficients(identifier, new_weights)
+            int_weights[identifier] = self.server_optimizer.compute_mean_weights(client_params_std)
+            client_stds[identifier] = self.detorch_params_no_reduce(client_params_std)
+
+        normalized_weights = self.server_optimizer.min_max_normalized_weights(int_weights)
+        for identifier in ids:
+            self.server_optimizer._update_coefficients(identifier, normalized_weights[identifier])
             client_results[identifier].param_std = self.detorch_params(client_params_std)
 
-            client_results[identifier].std_weights = self.detorch_params(new_weights)
-            client_stds[identifier] = self.detorch_params_no_reduce(client_params_std)
+            client_results[identifier].std_weights = self.detorch_params(normalized_weights[identifier])
+            # client_stds[identifier] = self.detorch_params_no_reduce(client_params_std)
 
         self.server_optimizer.normalize_coefficients()
         # ic(self.server_optimizer._importance_coefficients)
