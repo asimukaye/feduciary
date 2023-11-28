@@ -16,7 +16,11 @@ DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_C
 
 # DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-22_varagg_CIFAR10/13-15-29_'
 
-DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-23_varagg_CIFAR10/12-20-10_'
+DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-23_varagg_CIFAR10/13-22-41_'
+
+DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-27_varagg_CIFAR10/10-56-18_'
+
+DATA_PATH= '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-27_varagg_CIFAR10/22-00-42_'
 
 def plot_list(df: pd.DataFrame, list_to_plot: list, feature_list: list, tag: str):
     n_cols = 4
@@ -122,73 +126,67 @@ def rearrange_dict_per_client(main_dict: dict[int, dict[str, np.ndarray]]):
             out_dict[clnt][round] = feat_dict
     return out_dict
 
-            
-if __name__=='__main__':
-    
-    filename = f'{DATA_PATH}/varag_results.csv'
 
-    df = pd.read_csv(filename)
-
+def histogram_plots():
     rounds = []
     del_sigmas = {}
     deltas = {}
     params = {}
     sigmas = {}
+    for file in sorted(os.listdir(f'{DATA_PATH}/varagg_debug')):
+        np_obj = np.load(f'{DATA_PATH}/varagg_debug/{file}', allow_pickle=True)
+        ic(file)
+        # ic(np_obj.keys())
+        round = np_obj['round'].item()
+        rounds.append(round)
+        del_sigmas[round] = np_obj['clients_del_sigma'].item()
+        params[round] = np_obj['clients_mu']
+        deltas[round] = np_obj['clients_delta']
+        sigmas[round] = np_obj['clients_std']
 
+        # del_sigmas[round] = del_sigma.item()
+        # clients = list(del_sigma.item().keys())
 
-    # for file in sorted(os.listdir(f'{DATA_PATH}/varagg_debug')):
-    #     np_obj = np.load(f'{DATA_PATH}/varagg_debug/{file}', allow_pickle=True)
-    #     ic(file)
-    #     # ic(np_obj.keys())
-    #     round = np_obj['round'].item()
-    #     rounds.append(round)
-    #     del_sigmas[round] = np_obj['clients_del_sigma'].item()
-    #     params[round] = np_obj['clients_mu']
-    #     deltas[round] = np_obj['clients_delta']
-    #     sigmas[round] = np_obj['clients_std']
+        plot_single_histograms_wrapper(del_sigmas[round], f'{DATA_PATH}/histograms/del_sigma/', f'del_sigma_round_{round}')
+        plot_3d_param_histograms(del_sigmas[round], f'del_sigma_round_{round}_3d')
 
-    #     # del_sigmas[round] = del_sigma.item()
-    #     # clients = list(del_sigma.item().keys())
+    swapped_del_sigmas = rearrange_dict_per_client(del_sigmas)
+    ic(swapped_del_sigmas.keys())
+    clients = list(swapped_del_sigmas.keys())
 
-    #     plot_single_histograms_wrapper(del_sigmas[round], f'{DATA_PATH}/histograms/del_sigma/', f'del_sigma_round_{round}')
-    #     plot_3d_param_histograms(del_sigmas[round], f'del_sigma_round_{round}_3d')
+    for clnt in clients:
+        plot_3d_param_histograms(swapped_del_sigmas[clnt], f'del_sigma_client_{clnt}_3d', path=f'{DATA_PATH}/histograms/del_sigma/{clnt}', ylabel='Rounds')
 
-    # swapped_del_sigmas = rearrange_dict_per_client(del_sigmas)
-    # ic(swapped_del_sigmas.keys())
-    # clients = list(swapped_del_sigmas.keys())
+    dict_list = [del_sigmas, deltas, params, sigmas]
+    str_list = ['del_sigma', 'delta', 'mu', 'std']
 
-    # for clnt in clients:
-    #     plot_3d_param_histograms(swapped_del_sigmas[clnt], f'del_sigma_client_{clnt}_3d', path=f'{DATA_PATH}/histograms/del_sigma/{clnt}', ylabel='Rounds')
+    for file in sorted(os.listdir(f'{DATA_PATH}/varagg_debug')):
+        np_obj = np.load(f'{DATA_PATH}/varagg_debug/{file}', allow_pickle=True)
+        ic(file)
+        # ic(np_obj.keys())
+        round = np_obj['round'].item()
+        rounds.append(round)
+        for dict_to_use, label in zip(dict_list, str_list):
 
-    # dict_list = [del_sigmas, deltas, params, sigmas]
-    # str_list = ['del_sigma', 'delta', 'mu', 'std']
+            dict_to_use[round] = np_obj[f'clients_{label}'].item()
 
-    # for file in sorted(os.listdir(f'{DATA_PATH}/varagg_debug')):
-    #     np_obj = np.load(f'{DATA_PATH}/varagg_debug/{file}', allow_pickle=True)
-    #     ic(file)
-    #     # ic(np_obj.keys())
-    #     round = np_obj['round'].item()
-    #     rounds.append(round)
-    #     for dict_to_use, label in zip(dict_list, str_list):
+            plot_single_histograms_wrapper(dict_to_use[round], f'{DATA_PATH}/histograms/{label}', f'{label}_round_{round}')
 
-    #         dict_to_use[round] = np_obj[f'clients_{label}'].item()
+            plot_3d_param_histograms(dict_to_use[round], f'{label}_round_{round}_3d', path=f'{DATA_PATH}/histograms/{label}')
 
-    #         plot_single_histograms_wrapper(dict_to_use[round], f'{DATA_PATH}/histograms/{label}', f'{label}_round_{round}')
+    for dict_to_use, label in zip(dict_list, str_list):
+        swapped_dict = rearrange_dict_per_client(dict_to_use)
+        ic(swapped_dict.keys())
+        clients = list(swapped_dict.keys())
 
-    #         plot_3d_param_histograms(dict_to_use[round], f'{label}_round_{round}_3d', path=f'{DATA_PATH}/histograms/{label}')
+        for clnt in clients:
+            plot_3d_param_histograms(swapped_dict[clnt], f'{label}_client_{clnt}_3d', path=f'{DATA_PATH}/histograms/{label}/{clnt}', ylabel='Rounds')
 
-    # for dict_to_use, label in zip(dict_list, str_list):
-    #     swapped_dict = rearrange_dict_per_client(dict_to_use)
-    #     ic(swapped_dict.keys())
-    #     clients = list(swapped_dict.keys())
+def weight_plots():
+     
+    filename = f'{DATA_PATH}/varag_results.csv'
 
-    #     for clnt in clients:
-    #         plot_3d_param_histograms(swapped_dict[clnt], f'{label}_client_{clnt}_3d', path=f'{DATA_PATH}/histograms/{label}/{clnt}', ylabel='Rounds')
-
-
-    # exit(0)
-           
-
+    df = pd.read_csv(filename)
     feature_list = []
     client_list = []
     for val in df.keys().str.split('.'):
@@ -217,3 +215,8 @@ if __name__=='__main__':
     plot_list(df, param_std_list, feature_list, tag='param_std')
     plot_list(df, imp_coeff_list, feature_list, tag='imp_coeffs')
     plot_list(df, std_weights_list, feature_list, tag='std_weights')
+
+
+if __name__=='__main__':
+#    histogram_plots()
+   weight_plots()

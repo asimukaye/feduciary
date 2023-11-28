@@ -133,9 +133,11 @@ class VaraggServerConfig(ServerConfig):
     alpha: float = 0.95
     gamma: float = 0.5
     betas: list = field(default_factory=list)
+    weight_scaling: str = field(default='tanh')
     
     def __post_init__(self):
         super().__post_init__()
+        assert self.weight_scaling in ['tanh', 'min_max'], 'Incorrect weight scaling type'
         
 
 @dataclass
@@ -166,12 +168,18 @@ class TransformsConfig:
     # construct
 
 @dataclass
+class NoiseConfig:
+    mu: float = 0.0
+    sigma: float = 1.0
+    
+@dataclass
 class DatasetConfig:
     name: str
     data_path: str
     split_type: str
     test_fraction: float
-    K: int  # num_clients
+    num_clients: int  # num_clients
+    noise: Optional[NoiseConfig]
     transforms: Optional[TransformsConfig]
     subsample: float = 0.0  # subsample the dataset with the given fraction
 

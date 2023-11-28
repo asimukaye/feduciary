@@ -23,4 +23,5 @@ cfg:
     - 1e3
     - 1e3
   multiprocessing: false
+  weight_scaling: tanh
 client_cfg: ${client.cfg}

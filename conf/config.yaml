@@ -3,7 +3,7 @@
 # Make sure mode matches the experiment config for full runs
 mode: varagg
 log_conf: [client.cfg.lr]
-desc: 'min max scaling, no tanh, alpha is 0.8'
+desc: 'scaled tanh with patho client 0, noise: 0, 0.5'
 
 defaults:
   - base_config
@@ -26,9 +26,13 @@ dataset:
   name: CIFAR10
   data_path: data/
   test_fraction: 0.2
-  split_type: iid
-  K: ${simulator.num_clients}
+  split_type: one_patho_client
+  num_clients: ${simulator.num_clients}
   subsample: 1.0
+  # Noise parameter is specific to one patho client
+  noise:
+    mu: 0.0
+    sigma: 0.5
   transforms:
     resize:
       _target_: torchvision.transforms.Resize

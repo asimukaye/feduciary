@@ -241,32 +241,35 @@ class VaraggServer(BaseServer):
 
         # Compute coefficients
         # No normalize on weights
-        # for identifier in ids:
-        #     client_params_std = self.clients[identifier].parameter_std_dev()
-        #     new_weights = self.server_optimizer._compute_scaled_weights(client_params_std)
-        #     self.server_optimizer._update_coefficients(identifier, new_weights)
-        #     client_results[identifier].param_std = self.detorch_params(client_params_std)
+        if self.cfg.weight_scaling == 'tanh':
+            for identifier in ids:
+                client_params_std = self.clients[identifier].parameter_std_dev()
+                new_weights = self.server_optimizer._compute_scaled_weights(client_params_std)
+                self.server_optimizer._update_coefficients(identifier, new_weights)
+                client_results[identifier].param_std = self.detorch_params(client_params_std)
 
-        #     client_results[identifier].std_weights = self.detorch_params(new_weights)
-        #     client_stds[identifier] = self.detorch_params_no_reduce(client_params_std)
+                client_results[identifier].std_weights = self.detorch_params(new_weights)
+                client_stds[identifier] = self.detorch_params_no_reduce(client_params_std)
+        elif self.cfg.weight_scaling == 'min_max':
+            # Normalize twice version
+            int_weights = {}
+            for identifier in ids:
+                client_params_std = self.clients[identifier].parameter_std_dev()
+                int_weights[identifier] = self.server_optimizer.compute_mean_weights(client_params_std)
+                client_stds[identifier] = self.detorch_params_no_reduce(client_params_std)
 
-        # Normalize twice version
-        int_weights = {}
-        for identifier in ids:
-            client_params_std = self.clients[identifier].parameter_std_dev()
-            int_weights[identifier] = self.server_optimizer.compute_mean_weights(client_params_std)
-            client_stds[identifier] = self.detorch_params_no_reduce(client_params_std)
+            normalized_weights = self.server_optimizer.min_max_normalized_weights(int_weights)
+            for identifier in ids:
+                self.server_optimizer._update_coefficients(identifier, normalized_weights[identifier])
+                client_results[identifier].param_std = self.detorch_params(client_params_std)
 
-        normalized_weights = self.server_optimizer.min_max_normalized_weights(int_weights)
-        for identifier in ids:
-            self.server_optimizer._update_coefficients(identifier, normalized_weights[identifier])
-            client_results[identifier].param_std = self.detorch_params(client_params_std)
-
-            client_results[identifier].std_weights = self.detorch_params(normalized_weights[identifier])
-            # client_stds[identifier] = self.detorch_params_no_reduce(client_params_std)
+                client_results[identifier].std_weights = self.detorch_params(normalized_weights[identifier])
+        else:
+            logger.error(f'Unknown weight scaling type: {self.cfg.weight_scaling}')
+  
 
         self.server_optimizer.normalize_coefficients()
-        # ic(self.server_optimizer._importance_coefficients)
+
         # accumulate weights
 
         for identifier in ids: 
