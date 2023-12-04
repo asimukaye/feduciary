@@ -1,5 +1,7 @@
 import logging
 import numpy as np
+from typing import Sequence
+import random
 from torch.utils import data
 import torch
 import torchvision.transforms as tvt
@@ -8,24 +10,32 @@ from src.config import DatasetConfig
 
 logger = logging.getLogger(__name__)
 
-# class SubsetWrapper(data.Subset):
-#     # NOTE: looks like this is just a 
-#     """Wrapper of `torch.utils.data.Subset` module for applying individual transform.
-#     """
-#     def __init__(self, subset:data.Subset,  suffix:str):
-#         self.subset = subset
-#         self.suffix = suffix
 
-#     def __getitem__(self, index):
-#         inputs, targets = self.subset[index]
-#         return inputs, targets
+def extract_root_dataset(subset: data.Subset) -> data.Dataset:
+    if isinstance(subset.dataset, data.Subset):
+        return extract_root_dataset(subset.dataset)
+    else:
+        assert isinstance(subset.dataset, data.Dataset), 'Unknown subset nesting' 
+        return subset.dataset
 
-#     def __len__(self):
-#         return len(self.subset)
+def extract_root_dataset_and_indices(subset: data.Subset, indices = None) -> tuple[data.Dataset, np.ndarray] :
+    # ic(type(subset.indices))
+    if indices is None:
+        indices = subset.indices
+    np_indices = np.array(indices)
+    # ic(np_indices)
+    if isinstance(subset.dataset, data.Subset):
+        mapped_indices = np.array(subset.dataset.indices)[np_indices]
+        # ic(mapped_indices)
+        return extract_root_dataset_and_indices(subset.dataset, mapped_indices)
+    else:
+        assert isinstance(subset.dataset, data.Dataset), 'Unknown subset nesting' 
+        # mapped_indices = np.array(subset.indices)[in_indices]
+        # ic(np_indices)
+        return subset.dataset, np_indices
+
+
     
-#     def __repr__(self):
-#         return f'{repr(self.subset.dataset)} {self.suffix}'
-
 class AddGaussianNoise(object):
     def __init__(self, mean=0., std=1.):
         self.std = std
@@ -54,6 +64,41 @@ class NoisySubset(data.Subset):
     def __repr__(self):
         return f'{repr(self.subset.dataset)}_GaussianNoise'
 
+class LabelFlippedSubset(data.Subset):
+    """Wrapper of `torch.utils.data.Subset` module for label flipping.
+    """
+    def __init__(self, subset: data.Subset,  flip_pct: float):
+        self.subset = self._flip_set(subset, flip_pct) 
+
+    def _flip_set(self, subset: data.Subset, flip_pct: float):
+        total_size = len(subset)
+        dataset, mapped_ids = extract_root_dataset_and_indices(subset)
+        # ic(total_size, len(mapped_ids))
+
+        samples = np.random.choice(total_size, size=int(flip_pct*total_size), replace=False)
+
+        selected_indices = mapped_ids[samples]
+        # ic(samples, selected_indices)
+        class_ids = list(dataset.class_to_idx.values())
+        for idx, dataset_idx in zip(samples, selected_indices):
+            _, lbl = subset[idx]
+            assert lbl == dataset.targets[dataset_idx]
+            # ic(lbl, )
+            excluded_labels = [cid for cid in class_ids if cid != lbl]
+            # changed_label = np.random.choice(excluded_labels)
+            # ic(changed_label)
+            dataset.targets[dataset_idx] = np.random.choice(excluded_labels)
+            # print('\n')
+        return subset
+    def __getitem__(self, index):
+        inputs, targets = self.subset[index]
+        return inputs, targets
+
+    def __len__(self):
+        return len(self.subset)
+    
+    def __repr__(self):
+        return f'{repr(self.subset.dataset)}_LabelFlipped'
 
     
 def get_iid_split(dataset: data.Dataset, num_clients: int, seed: int = 42) -> dict[int, np.ndarray]:
@@ -273,7 +318,7 @@ def get_split_map(cfg: DatasetConfig, dataset: data.Dataset) -> dict[int, np.nda
         split_map (dict): dictionary with key is a client index and a corresponding value is a list of indices
     """
     match cfg.split_type:
-        case 'iid' | 'one_patho_client':
+        case 'iid' | 'one_noisy_client' | 'one_label_flipped_client':
             split_map = get_iid_split(dataset, cfg.num_clients)
         case 'unbalanced':
             split_map = get_unbalanced_split(dataset, cfg.num_clients)
@@ -315,14 +360,38 @@ def get_client_datasets(cfg: DatasetConfig, dataset: data.Dataset) -> list[tuple
     client_datasets = []
     for idx, sample_indices in enumerate(split_map.values()):
         client_datasets.append(construct_client_dataset(dataset, cfg.test_fraction, idx, sample_indices))
-    if cfg.split_type == 'one_patho_client':
+    if cfg.split_type == 'one_noisy_client':
         train, test = client_datasets[0]
         patho_train = NoisySubset(train, cfg.noise.mu, cfg.noise.sigma)
         client_datasets[0] = patho_train, test
+    elif cfg.split_type == 'one_label_flipped_client':
+        train, test = client_datasets[0]
+        patho_train = LabelFlippedSubset(train, cfg.noise.flip_percent)
+        client_datasets[0] = patho_train, test
+
     logger.info(f'[DATA_SPLIT] ...successfully created client datasets!')
+    # exit(0)
 
     return client_datasets
 
+
+# class SubsetWrapper(data.Subset):
+#     # NOTE: looks like this is just a 
+#     """Wrapper of `torch.utils.data.Subset` module for applying individual transform.
+#     """
+#     def __init__(self, subset:data.Subset,  suffix:str):
+#         self.subset = subset
+#         self.suffix = suffix
+
+#     def __getitem__(self, index):
+#         inputs, targets = self.subset[index]
+#         return inputs, targets
+
+#     def __len__(self):
+#         return len(self.subset)
+    
+#     def __repr__(self):
+#         return f'{repr(self.subset.dataset)} {self.suffix}'
 
 
 # FIXME: Deprecated..

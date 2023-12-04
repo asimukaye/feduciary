@@ -181,10 +181,10 @@ class BaseServer(ABC):
             if self.clients[identifier].model is not None:
                 self.clients[identifier].reset_model()
             else:
-                err = f'why clients ({identifier}) has no model? please check!'
+                err = f'Client ({identifier}) has no model.'
                 logger.exception(err)
                 raise AssertionError(err)
-        logger.debug(f'[{self.name}] [Round: {self.round:03}] ...successfully cleaned up!')
+        logger.debug(f'[{self.name}] [Round: {self.round:03}] Client Models are reset')
         gc.collect()
 
     @torch.inference_mode()

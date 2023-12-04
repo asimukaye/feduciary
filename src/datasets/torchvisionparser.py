@@ -3,15 +3,17 @@ import logging
 import torchvision
 from src.config import ModelSpecConfig
 from torch.utils import data
+import numpy as np
 logger = logging.getLogger(__name__)
 
 # dataset wrapper module
-class VisionClassificationDataset(data.Dataset): 
+class VisionClassificationDataset(data.Subset): 
     def __init__(self, dataset, dataset_name, suffix):
         self.dataset = dataset
         self.dataset_name = dataset_name
         self.suffix = suffix
         self.targets = self.dataset.targets
+        self.indices = np.arange(len(self.dataset))
 
     def __getitem__(self, index):
         inputs, targets = self.dataset[index]

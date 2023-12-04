@@ -5,14 +5,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from icecream import ic
 
+DATA_ROOT = '/home/asim.ukaye/fed_learning/feduciary/outputs/'
 # DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-24_varagg_CIFAR10/09-44-15_'
 # DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-24_varagg_CIFAR10/14-12-34_'
 # DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-24_varagg_CIFAR10/15-40-06_'
 
 # DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_debug_CIFAR10/11-12-43_'
-DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/13-15-52_'
+# DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/13-15-52_'
 # DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/14-23-18_'
-DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/14-21-11_'
+# DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-10-30_varagg_CIFAR10/14-21-11_'
 
 # DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-22_varagg_CIFAR10/13-15-29_'
 
@@ -21,6 +22,9 @@ DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-23_varagg_CI
 DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-27_varagg_CIFAR10/10-56-18_'
 
 DATA_PATH= '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-27_varagg_CIFAR10/22-00-42_'
+
+# DATA_PATH= '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-28_varagg_CIFAR10/16-24-19_'
+# DATA_PATH= '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-28_varagg_CIFAR10/16-26-03_'
 
 def plot_list(df: pd.DataFrame, list_to_plot: list, feature_list: list, tag: str):
     n_cols = 4
@@ -185,7 +189,6 @@ def histogram_plots():
 def weight_plots():
      
     filename = f'{DATA_PATH}/varag_results.csv'
-
     df = pd.read_csv(filename)
     feature_list = []
     client_list = []
@@ -217,6 +220,51 @@ def weight_plots():
     plot_list(df, std_weights_list, feature_list, tag='std_weights')
 
 
+def imp_coeff_comparison():
+    
+    dataframes = {
+        's_0.5': f'{DATA_ROOT}/2023-11-28_varagg_CIFAR10/16-26-03_/varag_results.csv',
+        's_1.0': f'{DATA_ROOT}/2023-11-28_varagg_CIFAR10/16-24-19_/varag_results.csv',
+        's_2.0': f'{DATA_ROOT}/2023-11-27_varagg_CIFAR10/22-00-42_/varag_results.csv'
+    }
+
+    list_to_plot = list(dataframes.keys())
+
+    ds_dict = {}
+    feature_list = []
+
+    client_list = []
+    df = pd.read_csv(dataframes['s_1.0'])
+
+    for val in df.keys().str.split('.'):
+        if val[0] == 'round':
+            continue
+        if val[0] == 'clients':
+            client = val[1]
+        if client not in client_list:
+            client_list.append(client)
+        feature = '.'.join(val[-3:])
+        if feature not in feature_list:
+            feature_list.append(feature)
+    
+    for key, val in dataframes.items():
+        df = pd.read_csv(val)
+        ic(df.keys())
+        for i, feature in enumerate(feature_list):
+            ic(df[f'imp_coeffs.0000.{feature}'])
+
+            ds_dict[f'{key}.{feature}'] = df[f'imp_coeffs.0000.{feature}']
+    
+    df_sig = pd.DataFrame(ds_dict)
+    ic(df_sig.keys())
+    # imp_coeff_list.append(f'imp_coeffs.0000')
+
+    # plot_list(df_sig, list_to_plot, feature_list, tag='sigmas')
+
+    # f1 = f'{DATA_ROOT}/2023-11-28_varagg_CIFAR10/16-24-19_'
+
+
 if __name__=='__main__':
 #    histogram_plots()
-   weight_plots()
+#    weight_plots()
+   imp_coeff_comparison()

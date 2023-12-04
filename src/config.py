@@ -171,6 +171,7 @@ class TransformsConfig:
 class NoiseConfig:
     mu: float = 0.0
     sigma: float = 1.0
+    flip_percent: float = 0.5
     
 @dataclass
 class DatasetConfig:

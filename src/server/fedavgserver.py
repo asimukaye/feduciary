@@ -1,4 +1,3 @@
-
 import torch
 from torch import Tensor
 from typing import Iterator, Tuple
@@ -11,7 +10,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from src.results.resultmanager import ClientResult
 logger = logging.getLogger(__name__)
 
-# FIXME: rewrite more efficiently
+# FIXME: rewrite this to match the paper's implementation
 class FedavgOptimizer(BaseOptimizer):
 
     def __init__(self, params: Iterator[Parameter], **kwargs):
@@ -25,7 +24,7 @@ class FedavgOptimizer(BaseOptimizer):
         if closure is not None:
             loss = closure()
         
-        # param groups is list of params. Initialized in the torch optimizer class 
+        # param groups is list of params. Initialized in the torch optFedimizer class 
         for group in self.param_groups:
             beta = group['momentum']
             for param in group['params']:

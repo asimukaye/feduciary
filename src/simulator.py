@@ -36,7 +36,7 @@ class Simulator:
         self.cfg: SimConfig = cfg.simulator
         
         if self.cfg.use_wandb:
-            wandb.init(project='fed_ml', job_type=cfg.mode, config=asdict(cfg), resume=True)
+            wandb.init(project='fed_ml', job_type=cfg.mode, config=asdict(cfg), resume=True, notes=cfg.desc)
 
         logger.info(f'[NUM ROUNDS] : {self.cfg.num_rounds}')
 

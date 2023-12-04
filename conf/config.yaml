@@ -1,9 +1,13 @@
 %YAML 1.2
 ---
-# Make sure mode matches the experiment config for full runs
+# Experiment mode: Switch between debug and experiment runs. Debug mode overrides certain configs. Other modes are used as a one word tag for the experiment type
 mode: varagg
+
+# Description: A string to describe the intent of the run
+desc: 'scaled tanh  variance agg. with 75 % label flipping'
+
+# Log Configuration: Additional configurations to be copied in the results summary section. Must be a valid configuration from the config tree.
 log_conf: [client.cfg.lr]
-desc: 'scaled tanh with patho client 0, noise: 0, 0.5'
 
 defaults:
   - base_config
@@ -20,19 +24,21 @@ simulator:
   num_clients: 5
   num_rounds: 150
   checkpoint_every: 10
+  # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized'
   mode: federated
 
 dataset:
   name: CIFAR10
   data_path: data/
   test_fraction: 0.2
-  split_type: one_patho_client
+  split_type: one_label_flipped_client
   num_clients: ${simulator.num_clients}
   subsample: 1.0
   # Noise parameter is specific to one patho client
   noise:
     mu: 0.0
     sigma: 0.5
+    flip_percent: 0.75
   transforms:
     resize:
       _target_: torchvision.transforms.Resize
