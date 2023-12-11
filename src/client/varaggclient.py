@@ -13,7 +13,7 @@ class VaraggClient(BaseClient):
     def __init__(self, cfg:VaraggClientConfig, **kwargs):
         super().__init__(cfg, **kwargs)
 
-        self.cfg = cfg
+        # self.cfg = cfg
 
         self.train_loader_map = self._create_shuffled_loaders(self.training_set, cfg.seeds)
         self._model_map: dict[int, Module] = {seed: deepcopy(self._model) for seed in cfg.seeds}
@@ -22,6 +22,16 @@ class VaraggClient(BaseClient):
 
     def _create_shuffled_loaders(self, dataset:Dataset, seeds:list[int]) -> dict[int, DataLoader]:
         loader_dict = {}
+        # HACK: Hack to fix the batch size based on dataset size for imbalanced dataset
+        n_iters = len(dataset)/self.cfg.batch_size
+        # ic(self._identifier, n_iters)
+        # ic(len(dataset))
+        # ic(self.cfg.batch_size)
+
+        if self._identifier == '0000':
+            self.cfg.batch_size =  int(self.cfg.batch_size/2.0)
+        new_iters = len(dataset)/self.cfg.batch_size
+        # ic(new_iters)
         for seed in seeds:
             gen = Generator()
             gen.manual_seed(seed)
@@ -33,7 +43,8 @@ class VaraggClient(BaseClient):
     def upload(self)->OrderedDict[str, Parameter]:
         # Upload the model back to the server
         self._model.to('cpu')
-        return OrderedDict(self._model.named_parameters())
+        return self._model.state_dict()
+        # return OrderedDict(self._model.named_parameters())
     
     def parameter_std_dev(self)->OrderedDict[str, Tensor]:
         return deepcopy(self._param_std)

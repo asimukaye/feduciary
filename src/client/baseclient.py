@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from torch.utils.data import DataLoader
 from torch.nn import Module
 from torch.optim import Optimizer
@@ -34,15 +35,16 @@ def model_eval_helper(model: Module, dataloader: DataLoader, cfg: ClientConfig, 
 class BaseClient:
     """Class for client object having its own (private) data and resources to train a model.
     """
-    def __init__(self, cfg: ClientConfig, id_seed: int, dataset: tuple, model:Module):
+    def __init__(self, cfg: ClientConfig, id_seed: int, dataset: tuple, model: Module):
         self._identifier:str = f'{id_seed:04}' # potential to convert to hash
         self._model: Module = model
+        self._init_state_dict: OrderedDict = model.state_dict()
 
         
         self._round = 0
         self._epoch = 0
         self._is_resumed = False
-        self.cfg = cfg
+        self.cfg = copy.deepcopy(cfg)
         self.training_set = dataset[0]
         self.test_set = dataset[1]
 
@@ -84,7 +86,7 @@ class BaseClient:
         return self._epoch
 
     def reset_model(self) -> None:
-        self._model = None
+        self._model.load_state_dict(self._init_state_dict)
         
     def _create_dataloader(self, dataset, shuffle:bool)->DataLoader:
         if self.cfg.batch_size == 0 :
@@ -92,16 +94,19 @@ class BaseClient:
         return DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, shuffle=shuffle)
     
 
-    def download(self, round:int, model:Module):
+    # TODO: Migrate to using parameter state dictionaries
+    def download(self, round:int, model_dict: OrderedDict):
         # Copy the model from the server
         self._round = round
-        self._model = copy.deepcopy(model)
+        # self._model = copy.deepcopy(model)
+        self._model.load_state_dict(model_dict)
         # print(f'Client {self.id} model: {id(self._model)}')
 
-    def upload(self):
+    def upload(self) -> OrderedDict:
         # Upload the model back to the server
         self._model.to('cpu')
-        return self._model.named_parameters()
+        return self.model.state_dict(keep_vars=True)
+        # return self._model.named_parameters()
     
     # Adding temp fix to return model under multiprocessing
     def train(self, return_model=False):
@@ -144,7 +149,7 @@ class BaseClient:
             return out_result
 
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def evaluate(self):
         # Run evaluation on the client
 
@@ -167,6 +172,7 @@ class BaseClient:
         # epoch = checkpoint['epoch']
         logger.info(f'CLIENT {self.id} Loaded ckpt path: {ckpt_path}')
         self._round = checkpoint['round']
+
 
 
     def __len__(self):

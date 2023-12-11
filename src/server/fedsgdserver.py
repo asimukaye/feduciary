@@ -4,11 +4,11 @@ from torch.nn import Parameter
 import torch
 
 from .fedavgserver import FedavgServer
-from .baseserver import BaseServer, BaseOptimizer
+from .baseserver import BaseServer, BaseStrategy
 
 logger = logging.getLogger(__name__)
 
-class FedsgdOptimizer(BaseOptimizer):
+class FedsgdOptimizer(BaseStrategy):
 
     def __init__(self, params: Iterator[Parameter], **kwargs):
         self.lr = kwargs.get('lr')

@@ -17,16 +17,24 @@ DATA_ROOT = '/home/asim.ukaye/fed_learning/feduciary/outputs/'
 
 # DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-22_varagg_CIFAR10/13-15-29_'
 
-DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-23_varagg_CIFAR10/13-22-41_'
+# DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-23_varagg_CIFAR10/13-22-41_'
 
-DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-27_varagg_CIFAR10/10-56-18_'
+# DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-27_varagg_CIFAR10/10-56-18_'
 
-DATA_PATH= '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-27_varagg_CIFAR10/22-00-42_'
+# DATA_PATH= '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-27_varagg_CIFAR10/22-00-42_'
 
 # DATA_PATH= '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-28_varagg_CIFAR10/16-24-19_'
 # DATA_PATH= '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-28_varagg_CIFAR10/16-26-03_'
 
-def plot_list(df: pd.DataFrame, list_to_plot: list, feature_list: list, tag: str):
+DATA_PATH ='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-12-04_varagg_CIFAR10/12-11-27_'
+
+# DATA_PATH = '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-12-04_varagg_CIFAR10/12-12-27_'
+
+# DATA_PATH= '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-12-04_varagg_CIFAR10/12-12-54_'
+
+DATA_PATH='/home/asim.ukaye/fed_learning/feduciary/outputs/2023-12-04_varagg_CIFAR10/21-10-54_'
+
+def plot_list(df: pd.DataFrame, list_to_plot: list, feature_list: list, tag: str, path: str = DATA_PATH):
     n_cols = 4
     feat_len = len(feature_list)
     n_rows = feat_len//n_cols + bool(feat_len%n_cols)
@@ -42,9 +50,9 @@ def plot_list(df: pd.DataFrame, list_to_plot: list, feature_list: list, tag: str
     # fig1.legend().set_in_layout(False)
     fig1.legend(handles, labels, loc='upper center')
 
-    if not os.path.exists(f'{DATA_PATH}/plots'):
-        os.makedirs(f'{DATA_PATH}/plots')
-    fig1.savefig(f'{DATA_PATH}/plots/{tag}_plots.png')
+    if not os.path.exists(f'{path}/plots'):
+        os.makedirs(f'{path}/plots')
+    fig1.savefig(f'{path}/plots/{tag}_plots.png')
     plt.close()
 
 
@@ -222,19 +230,33 @@ def weight_plots():
 
 def imp_coeff_comparison():
     
-    dataframes = {
-        's_0.5': f'{DATA_ROOT}/2023-11-28_varagg_CIFAR10/16-26-03_/varag_results.csv',
-        's_1.0': f'{DATA_ROOT}/2023-11-28_varagg_CIFAR10/16-24-19_/varag_results.csv',
-        's_2.0': f'{DATA_ROOT}/2023-11-27_varagg_CIFAR10/22-00-42_/varag_results.csv'
+    # dataframes = {
+    #     's_0.5': f'{DATA_ROOT}/2023-11-28_varagg_CIFAR10/16-26-03_/varag_results.csv',
+    #     's_1.0': f'{DATA_ROOT}/2023-11-28_varagg_CIFAR10/16-24-19_/varag_results.csv',
+    #     's_2.0': f'{DATA_ROOT}/2023-11-27_varagg_CIFAR10/22-00-42_/varag_results.csv'
+    # }
+
+    dataframes_label_flip = {
+        's_0.25': f'{DATA_ROOT}/2023-12-04_varagg_CIFAR10/12-11-27_/varag_results.csv',
+        's_0.5': f'{DATA_ROOT}/2023-12-04_varagg_CIFAR10/12-12-27_/varag_results.csv',
+        's_0.75': f'{DATA_ROOT}/2023-12-04_varagg_CIFAR10/12-12-54_/varag_results.csv',
+        's_1.0': f'{DATA_ROOT}/2023-12-04_varagg_CIFAR10/21-10-54_/varag_results.csv'
     }
+
+    dataframes_imbalance = {
+        'same_batch_size': '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-11-27_varagg_CIFAR10/10-56-18_/varag_results.csv',
+        'normalized_batcb_size': '/home/asim.ukaye/fed_learning/feduciary/outputs/2023-12-04_varagg_CIFAR10/22-19-14_/varag_results.csv'
+    }
+    # dataframes = dataframes_label_flip
+    dataframes = dataframes_imbalance
+    df = pd.read_csv(list(dataframes.values())[0])
+
 
     list_to_plot = list(dataframes.keys())
 
     ds_dict = {}
     feature_list = []
-
     client_list = []
-    df = pd.read_csv(dataframes['s_1.0'])
 
     for val in df.keys().str.split('.'):
         if val[0] == 'round':
@@ -249,22 +271,22 @@ def imp_coeff_comparison():
     
     for key, val in dataframes.items():
         df = pd.read_csv(val)
-        ic(df.keys())
+        # ic(df.keys())
         for i, feature in enumerate(feature_list):
-            ic(df[f'imp_coeffs.0000.{feature}'])
+            # ic(df[f'imp_coeffs.0000.{feature}'])
 
             ds_dict[f'{key}.{feature}'] = df[f'imp_coeffs.0000.{feature}']
     
     df_sig = pd.DataFrame(ds_dict)
-    ic(df_sig.keys())
+    # ic(df_sig.keys())
     # imp_coeff_list.append(f'imp_coeffs.0000')
 
-    # plot_list(df_sig, list_to_plot, feature_list, tag='sigmas')
+    plot_list(df_sig, list_to_plot, feature_list, tag='imbalance_comparison', path=f'{DATA_ROOT}/custom_plots/')
 
     # f1 = f'{DATA_ROOT}/2023-11-28_varagg_CIFAR10/16-24-19_'
 
 
 if __name__=='__main__':
 #    histogram_plots()
-#    weight_plots()
-   imp_coeff_comparison()
+   weight_plots()
+#    imp_coeff_comparison()

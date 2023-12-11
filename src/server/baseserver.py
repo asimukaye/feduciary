@@ -1,12 +1,14 @@
 from abc import ABC, abstractmethod
-from typing import List, Tuple
+from collections import OrderedDict, defaultdict
+from typing import Any, Dict, List, Tuple
 import logging
 import torch
 import random
 import gc
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
-from torch.nn import Module
+from torch.nn import Module, ParameterDict, Parameter
+from torch import Tensor
 
 import torch.multiprocessing as torch_mp
 from torch.multiprocessing import Queue
@@ -15,9 +17,9 @@ from torch.optim.lr_scheduler import LRScheduler
 
 from src.client.baseclient import BaseClient, model_eval_helper
 from src.metrics.metricmanager import MetricManager
-from src.utils  import log_tqdm, log_instance
+from src.utils  import log_tqdm, log_instance, ClientParams
 from src.results.resultmanager import AllResults, ResultManager, ClientResult, Result
-import wandb
+
 
 # from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -45,12 +47,68 @@ def update_client(client: BaseClient):
     update_result, model = client.train()
     return {'id':client.id, 'result':update_result, 'model':model}
 
-class BaseOptimizer(torch.optim.Optimizer, ABC):
-    # FIXME: LR is a required parameter as per current implementation
+class BaseStrategy(torch.optim.Optimizer, ABC):
+    # A strategy is a server strategy used to aggregate the server weights
+    # It is based on the torch optimizer class to support smooth integrations of Pytorch LR schedulers
     # loss: Tensor
+
+    def __init__(self, params: OrderedDict, client_lr: float, cfg: ServerConfig) -> None:
+
+        # self.cfg = cfg
+        # NOTE: Client LR is required to make sure correct LR scheduling over rounds
+        defaults = dict(lr=client_lr)
+
+        super().__init__(params.values(), defaults)
+        assert len(self.param_groups) == 1, f'Multi param group yet to be implemented'
+        self._server_params: OrderedDict[str, Parameter] = params
+        self._server_deltas: OrderedDict[str, Tensor] = defaultdict()
+
+        self._client_params: ClientParams = defaultdict(dict)
+        self._client_weights: dict[str, float] = defaultdict()
+
+
+    def zero_grad(self, set_to_none: bool = ...) -> None:
+        for key in self._server_deltas.keys():
+            self._server_deltas[key] = None
+        # Maybe we need to add seting server param grads to NOne as well
+        super().zero_grad(set_to_none)
+
+    def step(self) -> None:
+        
+        ic(type(self.param_groups[0]['params']))
+        # Let's check for the object reference
+        ic(id(self.param_groups[0]['params'][0]))
+        ic(id(list(self._server_params.values())[0]))
+
+        # Apply the update rule
+        self.param_update_rule()
+
+        # Map the server param dictionary back to the optimizer classes params
+        self.param_groups[0]['params'] = list(self._server_params.values())
+
+        ic(id(self.param_groups[0]['params'][0]))
+        ic(id(list(self._server_params)[0]))
+
+        
+    def set_client_params(self, cid: str, params: OrderedDict) -> None:
+        self._client_params[cid] = params
+    
     @abstractmethod
-    def accumulate(self, **kwargs):
+    def param_update_rule(self) -> None:
+        '''Define how to update the server parameters from the server deltas.
+        Needs to modify the server params'''
+
+        # Example of server param update with unit learning rate, child classes need to implement this individually
+        for key, delta in self._server_deltas.items():
+            self._server_params[key].data.add_(delta)
         raise NotImplementedError
+
+    @abstractmethod
+    def aggregate(self, **kwargs):
+        '''Fill in client parameter aggregation logic here'''
+        raise NotImplementedError
+    
+    
 
 class BaseServer(ABC):
     """Centeral server orchestrating the whole process of federated learning.
@@ -64,7 +122,7 @@ class BaseServer(ABC):
         # self.writer = writer
         self.cfg = cfg
         self.client_cfg = client_cfg
-        self.server_optimizer: BaseOptimizer = None
+        self.server_optimizer: BaseStrategy = None
         self.loss: torch.Tensor = None
         self.lr_scheduler: LRScheduler = None
 
@@ -85,16 +143,18 @@ class BaseServer(ABC):
             ids (_type_): client ids
         """
         def __broadcast_model(client: BaseClient):
-            client.download(self.round, self.model)
-        
-        self.model.to('cpu')
+            # NOTE: Consider setting keep vars to true later if gradients are required
+            client.download(self.round, self.model.state_dict())
+
+        # Uncomment this when adding GPU support to server
+        # self.model.to('cpu')
 
         for idx in log_tqdm(ids, desc=f'broadcasting models: ', logger=logger):
             __broadcast_model(self.clients[idx])
 
 
     @log_instance(attrs=['round'], m_logger=logger)
-    def _sample_random_clients(self):
+    def _sample_random_clients(self)-> list[str]:
         # NOTE: Update does not use the logic of C+ 0 meaning all clients
 
         # Update - randomly select max(floor(C * K), 1) clients
@@ -105,7 +165,7 @@ class BaseServer(ABC):
         return sampled_client_ids
 
     
-    def _sample_selected_clients(self, exclude: list[str]):
+    def _sample_selected_clients(self, exclude: list[str]) -> list[str]:
         # FIXME: Rewrite this for clarity of usage
         num_unparticipated_clients = self.num_clients - len(exclude)
         if num_unparticipated_clients == 0: # when C = 1, i.e., need to evaluate on all clients
@@ -124,9 +184,9 @@ class BaseServer(ABC):
             # getter function for client update
             update_result = client.train()
             return {'id':client.id, 'result':update_result}
-        
         results_list = []
   
+        # Set the LRs for each client before training
         # TODO: does lr scheduling need to be done for select ids ??
         if self.lr_scheduler:
             current_lr = self.lr_scheduler.get_last_lr()[-1]
@@ -142,6 +202,7 @@ class BaseServer(ABC):
                 results_list = pool.map(update_client, [self.clients[idx]  for idx in ids])
             ql.stop()
             q.close()
+            # FIXME: Changing implementation to use state dictionary rather than modules
             [self.clients[item['id']].set_model(item['model']) for item in results_list]
         else:
              for idx in ids:
@@ -187,7 +248,7 @@ class BaseServer(ABC):
         logger.debug(f'[{self.name}] [Round: {self.round:03}] Client Models are reset')
         gc.collect()
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def _central_evaluate(self):
 
         server_loader = DataLoader(dataset=self.server_dataset, batch_size=self.client_cfg.batch_size, shuffle=False)
@@ -240,7 +301,6 @@ class BaseServer(ABC):
         # return all_results
         
    
-    # @abstractmethod
     def update(self):
         """Update the global model through federated learning.
         """
@@ -263,8 +323,7 @@ class BaseServer(ABC):
 
         # self.result_manager.log_client_eval_pre_result(eval_result)
 
-
-        self._aggregate(selected_ids, train_results) # aggregate local updates
+        self._run_strategy(selected_ids, train_results) # aggregate local updates
 
 
         # remove model copy in clients
@@ -275,18 +334,19 @@ class BaseServer(ABC):
     
     # Every server needs to implement this function uniquely
     @abstractmethod
-    def _aggregate(self, indices:int, train_results:ClientResult):
+    def _run_strategy(self, client_ids: list[str], *args):
         # receive updates and aggregate into a new weights
+        # Below is a template for how aggregation might work
+
 
         #### INSERT ACCUMULATION INIT HERE #####
 
         self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
 
-        for id in indices:
-            #### INSERT ACCUMULATION LOGIC HERE #####
+        for cid in client_ids:
+            self.server_optimizer.set_client_params(cid, self.clients[cid].upload())
 
-            pass
-
+        self.server_optimizer.aggregate()
         self.server_optimizer.step() # update global model with the aggregated update
         self.lr_scheduler.step() # update learning rate
         raise NotImplementedError

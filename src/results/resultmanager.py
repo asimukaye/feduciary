@@ -67,7 +67,8 @@ class ClientParameters:
     params: dict[str, Tensor]
 
 
-# TODO: Add nesting later to improve the 
+# TODO: Add plotting function for wandb
+# 
 
 # @dataclass
 # class ClientStats
@@ -137,27 +138,6 @@ class ResultManager:
         self.result.participants[key] = list(result.keys())
         return client_result
 
-    # def log_client_eval_result(self, result:dict[Result]):
-    #     key = 'client_eval'
-    #     client_result = self.get_client_results(key, result)
-    #     self.result.clients_eval = client_result
-    #     self.result.participants[key] = list(result.keys())
-    #     return client_result
-
-    # def log_client_eval_pre_result(self, result:dict[Result]):
-    #     key = 'client_eval_pre'
-    #     client_result = self.get_client_results(key, result)
-    #     self.result.clients_eval_pre = client_result
-    #     self.result.participants[key] = list(result.keys())
-    #     return client_result
-    
-    # def log_client_train_result(self, result:dict[Result]):
-    #     key = 'client_train'
-    #     client_result = self.get_client_results(key, result)
-    #     self.result.clients_train = client_result
-    #     self.result.participants[key] = list(result.keys())
-    #     return client_result
-    
 
     def update_round_and_flush(self, rnd:int):
         self.result.round = self._round

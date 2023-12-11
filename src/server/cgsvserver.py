@@ -1,15 +1,16 @@
 import logging
+from collections import OrderedDict
 # from torch.optim.lr_scheduler import ExponentialLR
-from torch.nn import CosineSimilarity
+from torch.nn import CosineSimilarity, Parameter
 from torch.nn.utils import parameters_to_vector
 
 from src.config import ClientConfig, CGSVConfig
 from src.results.resultmanager import ClientResult
-from .baseserver import BaseServer, BaseOptimizer
+from .baseserver import BaseServer, BaseStrategy
 logger = logging.getLogger(__name__)
 
 
-class CgsvOptimizer(BaseOptimizer):
+class CgsvOptimizer(BaseStrategy):
     def __init__(self, params, client_ids, **kwargs):
         self.gamma = kwargs.get('gamma')
         self.lr = kwargs.get('lr')
@@ -73,7 +74,7 @@ class CgsvOptimizer(BaseOptimizer):
             self._importance_coefficients[key] = val/total
 
         
-    def accumulate(self, local_params_itr, client_id):
+    def accumulate(self, local_params_dict: OrderedDict[str, Parameter], client_id):
         # THis function is called per client. i.e. n clients means n calls
         # TODO: Rewrite this function to match gradient aggregate step
         # NOTE: Note that accumulate is called before step
@@ -82,7 +83,7 @@ class CgsvOptimizer(BaseOptimizer):
         # NOTE: Currently supporting only one param group
         self._server_params = self.param_groups[0]['params']
 
-        local_params = [param.data.float() for _, param in local_params_itr]
+        local_params = [param.data.float() for _, param in local_params_dict.items()]
         assert len(self._server_params) == len(local_params), f'Mismatch in parameter lengths'
 
         # print(local_params[0])
@@ -123,7 +124,7 @@ class CgsvOptimizer(BaseOptimizer):
 class CgsvServer(BaseServer):
     name:str = 'CgsvServer'
 
-    def __init__(self, cfg:CGSVConfig, *args, **kwargs):
+    def __init__(self, cfg: CGSVConfig, *args, **kwargs):
         super(CgsvServer, self).__init__(cfg, *args, **kwargs)
         
         # self.server_optimizer = self._get_algorithm(self.model, lr=self.args.lr, gamma=self.args.gamma)
@@ -139,21 +140,16 @@ class CgsvServer(BaseServer):
 
  
 
-    def _aggregate(self, ids, train_results:ClientResult):
+    def _run_strategy(self, ids, train_results: ClientResult):
         # Calls client upload and server accumulate
         logger.debug(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
         self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
 
         # accumulate weights
         for identifier in ids:
-            local_weights_itr = self.clients[identifier].upload()
-            # print(f'client dictionary: {self.clients[identifier].__dict__}')
-            # print(f'client debug param: {self.clients[identifier].debug_param}')
-
-
-            # print(f'client debug norm: {self.clients[identifier].debug_param.norm()}')
+            local_params_dict = self.clients[identifier].upload()
             
-            self.server_optimizer.accumulate(local_weights_itr, identifier)
+            self.server_optimizer.accumulate(local_params_dict, identifier)
 
         self.server_optimizer.normalize_coefficients()
         self.server_optimizer.step() # update global model with the aggregated update

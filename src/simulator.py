@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from hydra.utils import instantiate
 from src.server.baseserver import BaseServer
 from src.client.baseclient import BaseClient, model_eval_helper
-from src.datasets.utils.data import load_vision_dataset
+from src.data import load_vision_dataset
 from src.config import Config, SimConfig
 from src.utils  import log_tqdm, log_instance
 from src.postprocess import post_process
@@ -29,6 +29,7 @@ logger = logging.getLogger('SIMULATOR')
 class Simulator:
     """Simulator orchestrating the whole process of federated learning.
     """
+    # TODO: Split into federated, standalone, and centralized simulator
     def __init__(self, cfg:Config):
         self.start_time = time.time()
         self.round: int = 0
@@ -56,19 +57,7 @@ class Simulator:
         self.set_fn_overloads_for_mode()
 
         self.init_sim()
-        # server_partial: partial = instantiate(cfg.server)
-        # self.clients: dict[str, BaseClient] = defaultdict(BaseClient)
 
-        # # NOTE: THe model spec is being modified in place here.
-        # server_dataset, client_datasets = load_vision_dataset(cfg.dataset, cfg.model.model_spec)
-
-
-        # # NOTE:IMPORTANT Sharing models without deepcopy could potentially have same references to parameters
-        # self.clients = self._create_clients(client_datasets, copy.deepcopy(self.model_instance))
-
-        # # NOTE: later, consider making a copy of client to avoid simultaneous edits to clients dictionary
-
-        # self.server: BaseServer = server_partial(model=self.model_instance, dataset=server_dataset, clients= self.clients, result_manager=self.result_manager)
 
         self.make_checkpoint_dirs()
         self.is_resumed =False
@@ -252,15 +241,14 @@ class Simulator:
         client_partial = instantiate(self.master_cfg.client)
 
         def __create_client(idx, datasets, model):
-            client:BaseClient = client_partial(id_seed=idx, dataset=datasets, model=model)
+            client: BaseClient = client_partial(id_seed=idx, dataset=datasets, model=model)
             return client.id, client
 
         clients = {}
         # think of a better way to id the clients
         for idx, datasets in log_tqdm(enumerate(client_datasets), logger=logger, desc=f'[Round: {self.round:03}] creating clients '):
             client_id, client = __create_client(idx, datasets, model)
-            clients[client_id] = client       
-
+            clients[client_id] = client
         return clients
 
        

@@ -1,1 +1,1 @@
-from .data import load_vision_dataset
+from ...data import load_vision_dataset

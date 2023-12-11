@@ -11,7 +11,7 @@ from hydra.utils import instantiate
 
 from src.utils  import TqdmToLogger
 from src.datasets import *
-from src.datasets.utils.split import get_client_datasets
+from src.split import get_client_datasets
 import torchvision.transforms as tvt
 from typing import Optional
 logger = logging.getLogger(__name__)

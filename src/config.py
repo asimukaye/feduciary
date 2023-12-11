@@ -81,6 +81,7 @@ class ClientConfig:
 
 def default_seed():
     return [1,2,3]
+
 @dataclass
 class VaraggClientConfig(ClientConfig):
     seeds: list[int] = field(default_factory=default_seed)
@@ -123,10 +124,13 @@ class CGSVConfig(ServerConfig):
 @dataclass
 class FedavgConfig(ServerConfig):
     momentum: float = float('nan')
+    update_rule: str = field(default='param_average')
 
     def __post_init__(self):
         super().__post_init__()
         assert self.momentum >= 0.0
+        assert self.update_rule in ['param_average', 'gradient_average']
+
 
 @dataclass
 class VaraggServerConfig(ServerConfig):
@@ -214,6 +218,7 @@ class ModelConfig:
 
 # modes 
 #  possible enum debug
+
 ########## Master Configurations ##########
 @dataclass
 class Config():
@@ -248,12 +253,11 @@ def set_debug_mode(cfg: Config):
     cfg.client.cfg.epochs = 1
     logger.debug(f'[Debug Override] Setting epochs to: {cfg.client.cfg.epochs}')
 
-    cfg.simulator.num_clients = 3
-    cfg.dataset.K = 3
+    # cfg.simulator.num_clients = 3
+    # cfg.dataset.num_clients = 3
     logger.debug(f'[Debug Override] Setting num clients to: {cfg.simulator.num_clients}')
 
-
-    cfg.dataset.subsample = 0.01
+    cfg.dataset.subsample = 0.1
 
 
 def register_configs():

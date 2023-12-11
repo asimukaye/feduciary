@@ -8,7 +8,7 @@ from src.config import ClientConfig, VaraggServerConfig
 # from .fedavgserver import FedavgServer
 from collections import defaultdict
 from src.results.resultmanager import ClientResult
-from .baseserver import BaseServer, BaseOptimizer
+from .baseserver import BaseServer, BaseStrategy
 from src.client.varaggclient import VaraggClient
 from typing import Iterator, Tuple, Iterable
 from torch.nn import Parameter
@@ -20,7 +20,7 @@ import os
 logger = logging.getLogger(__name__)
 
 
-class VaraggOptimizer(BaseOptimizer):
+class VaraggOptimizer(BaseStrategy):
     def __init__(self, params: Iterator[Parameter], param_keys: Iterable,  client_ids, **kwargs):
         self.lr = kwargs.get('lr')
         defaults = dict(lr= self.lr)
@@ -229,7 +229,7 @@ class VaraggServer(BaseServer):
         np.savez_compressed(f'varagg_debug/varagg_{self.round:03}.npz', **result)
         # self.result_manager.save_as_csv(result, 'varagg_full.csv')
 
-    def _aggregate(self, ids, train_results: ClientResult):
+    def _run_strategy(self, ids, train_results: ClientResult):
         
         # Calls client upload and server accumulate
         self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
@@ -276,6 +276,7 @@ class VaraggServer(BaseServer):
             client_params = self.clients[identifier].upload()
             self.server_optimizer.accumulate(client_params, identifier)
             client_results[identifier].param = self.detorch_params(client_params)
+            
             client_mus[identifier] = self.detorch_params_no_reduce(client_params)
             client_deltas[identifier] = self.detorch_params_no_reduce(self.server_optimizer._client_deltas[identifier])
         

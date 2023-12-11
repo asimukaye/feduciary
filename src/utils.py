@@ -1,19 +1,21 @@
 import os
 import sys
 import torch
-import random
+
 import logging
 import numpy as np
 import functools
 import inspect
 from tqdm import tqdm
-
+from typing import Dict
 from importlib import import_module
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from multiprocessing import Process
 
 logger = logging.getLogger(__name__)
 
+
+ClientParams = Dict[str, OrderedDict[str, torch.nn.Parameter]]
 def log_instance(attrs:list=[], m_logger=logger):
     def decorator(func):
         @functools.wraps(func)
@@ -234,5 +236,4 @@ class log_tqdm(std_tqdm):  # pylint: disable=invalid-name
         if self._mode == 'debug':
             self._get_logger().debug('%s', msg)
         else:
-            ic(msg)
             self._get_logger().info('%s', msg)
