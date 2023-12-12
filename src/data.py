@@ -51,9 +51,14 @@ def load_vision_dataset(cfg: DatasetConfig, model_cfg: ModelSpecConfig):
     raw_train, raw_test, model_cfg = fetch_torchvision_dataset(dataset_name=cfg.name, root=cfg.data_path, transforms= transforms, model_cfg=model_cfg)
 
     if cfg.subsample:
+        # FIXME: Something seems fishy here. The sizes yielded possibly incorrect
         get_subset = lambda set, fraction: data.Subset(set, np.random.randint(0, len(set)-1, int(fraction * len(set))))
-        raw_train = get_subset(raw_train, cfg.subsample)
-        raw_test = get_subset(raw_test, cfg.subsample)
+        
+        raw_train = get_subset(raw_train, cfg.subsample_fraction)
+        ic(len(raw_train))
+        raw_test = get_subset(raw_test, cfg.subsample_fraction)
+        ic(len(raw_test))
+
 
     # print(f'test len: {len(raw_test)}')
 

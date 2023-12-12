@@ -343,7 +343,10 @@ def get_split_map(cfg: DatasetConfig, dataset: data.Dataset) -> dict[int, np.nda
 def construct_client_dataset(raw_train: data.Dataset, client_test_fraction, client_idx, sample_indices) ->tuple[data.Subset, data.Subset]:
     subset = data.Subset(raw_train, sample_indices)
     test_size = int(len(subset) * client_test_fraction)
+    ic(len(subset))
+    ic(test_size)
     training_set, test_set = data.random_split(subset, [len(subset) - test_size, test_size])
+    ic(len(training_set))
     # traininig_set = data.Subset(training_set, f'< {str(client_idx).zfill(8)} > (train)')
     # test_set = data.Subset(test_set, f'< {str(client_idx).zfill(8)} > (test)')
     return (training_set, test_set)

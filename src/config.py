@@ -189,7 +189,8 @@ class DatasetConfig:
     num_clients: int  # num_clients
     noise: Optional[NoiseConfig]
     transforms: Optional[TransformsConfig]
-    subsample: float = 0.0  # subsample the dataset with the given fraction
+    subsample_fraction: float = 0.0  # subsample the dataset with the given fraction
+    subsample: bool = False
 
 
     def __post_init__(self):
@@ -259,8 +260,9 @@ def set_debug_mode(cfg: Config):
     # cfg.simulator.num_clients = 3
     # cfg.dataset.num_clients = 3
     logger.debug(f'[Debug Override] Setting num clients to: {cfg.simulator.num_clients}')
-
-    cfg.dataset.subsample = 0.1
+    
+    cfg.dataset.subsample = True
+    cfg.dataset.subsample_fraction = 0.1
 
 
 def register_configs():

@@ -26,7 +26,8 @@ class VisionClassificationDataset(data.Subset):
         return f'[{self.dataset_name}] {self.suffix}'
 
 # helper method to fetch dataset from `torchvision.datasets`
-def fetch_torchvision_dataset(dataset_name:str, root, model_cfg:ModelSpecConfig, transforms):
+# FIXME: Factorize this for clarity
+def fetch_torchvision_dataset(dataset_name:str, root, model_cfg: ModelSpecConfig, transforms):
     logger.info(f'[LOAD] [{dataset_name.upper()}] Fetching dataset!')
     
     # default arguments

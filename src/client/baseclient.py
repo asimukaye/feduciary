@@ -113,9 +113,10 @@ class BaseClient:
         # logger.info(f'CLIENT {self.id} Starting update')
         # mm = MetricManager(self.cfg.eval_metrics, self._round, actor=self._identifier)
         self.mm._round = self._round
+        # ic('started_training')
         self._model.train()
         self._model.to(self.cfg.device)
-
+        # ic(self.id, id(self._model.state_dict()))
         # set optimizer parameters again
         if not self._is_resumed:
             self.optimizer: Optimizer = self.optim_partial(self._model.parameters())
@@ -131,6 +132,7 @@ class BaseClient:
                 loss: Tensor = self.criterion(outputs, targets)
                 loss.backward()
                 self.optimizer.step()
+                # ic(loss.item())
 
                 # accumulate metrics
                 self.mm.track(loss.item(), outputs, targets)

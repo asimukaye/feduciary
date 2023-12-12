@@ -151,6 +151,7 @@ class Simulator:
     
     def central_evaluate_clients(self, cids: list[str]):
         '''Evaluate the clients on servers holdout set'''
+        # NOTE: this is useless if the central evaluation is done after the last aggregation
         test_loader = DataLoader(dataset=self.server_dataset, batch_size=self.master_cfg.client.cfg.batch_size)
         eval_result = {}
         # FIXME: Might need to instantiate globally elsewhere
@@ -210,7 +211,9 @@ class Simulator:
                 eval_ids = self.all_client_ids
                 self.server._broadcast_models(eval_ids)
                 self.local_evaluate_clients(eval_ids)
-                self.central_evaluate_clients(eval_ids)
+                # self.central_evaluate_clients(eval_ids)
+                # self.server.reset_client_models(eval_ids)
+
 
                 self.server.server_evaluate()
 
@@ -218,7 +221,6 @@ class Simulator:
                 self.save_checkpoints()
             
             # This is weird, needs some rearch
-            self.server.reset_client_models(self.all_client_ids)
             self.result_manager.update_round_and_flush(curr_round)
 
             loop_end = time.time() - loop_start

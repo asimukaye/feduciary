@@ -1,6 +1,6 @@
 from collections import OrderedDict
-import torch
-from torch import Tensor
+
+from torch.nn import Module
 from typing import Iterator, Tuple, Iterable
 import logging
 from .baseserver import BaseServer, BaseStrategy
@@ -13,26 +13,10 @@ from torch.optim import SGD
 
 class FedavgOptimizer(BaseStrategy):
 
-    def __init__(self, params: OrderedDict, client_lr: float, cfg: FedavgConfig) -> None:
-
-        super().__init__(params, client_lr, cfg)
+    def __init__(self, model: Module, client_lr: float, cfg: FedavgConfig) -> None:
+        super().__init__(model, client_lr, cfg)
         self.cfg = cfg
 
-    # def step(self):
-    #     # param groups is list of params. Initialized in the torch optimizer class 
-
-    #     for group in self.param_groups:
-    #         beta = group['momentum']
-    #         for param in group['params']:
-    #             if param.grad is None:
-    #                 continue
-    #             delta = param.grad.data
-    #             if beta > 0.:
-    #                 if 'momentum_buffer' not in self.state[param]:
-    #                     self.state[param]['momentum_buffer'] = torch.zeros_like(param).detach()
-    #                 self.state[param]['momentum_buffer'].mul_(beta).add_(delta.mul(1. - beta)) # \beta * v + (1 - \beta) * grad
-    #                 delta = self.state[param]['momentum_buffer']
-    #             param.data.sub_(delta)
 
     def param_update_rule(self) -> None:
         if self.cfg.update_rule == 'param_average':
@@ -47,8 +31,20 @@ class FedavgOptimizer(BaseStrategy):
         for key, server_param in self._server_params.items():
             for cid, client_param in self._client_params.items():
                 # Using FedNova Notation of delta (Δ) as (-grad ∇)
-                client_delta = -1 * (client_param[key] - server_param)
-                self._server_deltas[key] += self._client_weights[cid] * client_delta
+                # client delta =  client param(w_k+1,i) - server param (w_k)
+                client_delta = client_param[key].data.sub(server_param.data)
+                
+                # if self.gradient_normalize:
+                #     norm = client_delta.norm() 
+                #     if norm == 0:
+                #         logger.warning(f"CLIENT [{cid}]: Got a zero norm")
+                #         client_delta_norm = client_delta.mul(self.gamma)
+                #     else:
+                #         client_delta_norm = client_delta.div(norm).mul(self.gamma)
+                if self._server_deltas[key] is None:
+                    self._server_deltas[key] = self._client_weights[cid] * client_delta
+                else:
+                    self._server_deltas[key].add_(self._client_weights[cid] * client_delta)
 
         for key, delta in self._server_deltas.items():
             self._server_params[key].data.add_(delta)
@@ -56,10 +52,16 @@ class FedavgOptimizer(BaseStrategy):
 
     def param_average_update(self) -> None:
          for key in self._server_params.keys():
-            for cid, client_param in self._client_params.items():
-                self._server_params[key].data += self._client_weights[cid] * client_param[key].data
+            temp_parameter = None
 
-    # def accumulate(self, mixing_coefficient, local_param_iterator: Iterator[Tuple[str, Parameter]]):
+            for cid, client_param in self._client_params.items():
+                if temp_parameter is None:
+                    temp_parameter = self._client_weights[cid] * client_param[key].data
+                else:
+                    temp_parameter.data.add_(self._client_weights[cid] * client_param[key].data)
+            
+            self._server_params[key].data = temp_parameter.data
+
 
     def aggregate(self, client_data_sizes: dict[str, int]):
         # calculate client weights according to sample sizes
@@ -77,7 +79,7 @@ class FedavgServer(BaseServer):
         self.round = 0
         self.cfg = cfg
         
-        self.server_optimizer = FedavgOptimizer(self.model.state_dict(), self.client_cfg.lr, self.cfg)
+        self.server_optimizer = FedavgOptimizer(self.model, self.client_cfg.lr, self.cfg)
 
         # Global lr scheduler
         self.lr_scheduler = self.client_cfg.lr_scheduler(optimizer=self.server_optimizer)
@@ -96,7 +98,7 @@ class FedavgServer(BaseServer):
         for cid in client_ids:
             client_params = self.clients[cid].upload()
             self.server_optimizer.set_client_params(cid, client_params)
-            self.result_manager.log_parameters(client_params, 'pre_agg', cid)
+            self.result_manager.log_parameters(client_params, 'pre_agg', cid, verbose=False)
             # locally_updated_weights_iterator = self.clients[cid].upload()
             # # Accumulate weights
             # self.server_optimizer.accumulate(coefficients[cid], locally_updated_weights_iterator)
@@ -106,8 +108,9 @@ class FedavgServer(BaseServer):
         self.lr_scheduler.step() # update learning rate
 
         # Full parameter debugging
+        self.result_manager.log_general_metric(self.server_optimizer._client_weights, 'client_weights', 'post_agg', 'server')
         self.result_manager.log_parameters(self.model.state_dict(), 'post_agg', 'server')
-        for cid in client_ids:
-            self.result_manager.log_parameters(client_params, 'post_agg', cid)
+        # for cid in client_ids:
+        #     self.result_manager.log_parameters(client_params, 'post_agg', cid)
 
         logger.info(f'[{self.name}] [Round: {self.round:03}] successfully aggregated into a new global model!')

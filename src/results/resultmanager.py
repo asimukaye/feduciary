@@ -154,19 +154,20 @@ class ResultManager:
         # self.result.participants[key] = list(result.keys())
         return client_result
 
-    def log_parameters(self, model_params: dict[str, Parameter], event: str, actor: str):
+    def log_parameters(self, model_params: dict[str, Parameter], event: str, actor: str, verbose=False):
         out_dict = {}
         avg = 0.0
         weighted_avg = 0.0
         layer_dims = 0
         for name, param in model_params.items():
             param_detached = param.detach().cpu()
-            out_dict[name]= param.abs().mean().item()
-            avg += out_dict[name]
+            layer_wise_abs_mean = param_detached.abs().mean().item()
+            avg +=layer_wise_abs_mean
             layer_dim = np.prod(param_detached.size())
-            weighted_avg += out_dict[name]*layer_dim
+            weighted_avg += layer_wise_abs_mean*layer_dim
             layer_dims += layer_dim
-
+            if verbose:
+                out_dict[name]= layer_wise_abs_mean
 
         avg = avg/len(model_params)
         weighted_avg = weighted_avg/layer_dims
@@ -181,7 +182,10 @@ class ResultManager:
         # return out_dict
 
     def log_general_metric(self, metric, metric_name: str, event: str, actor: str):
-        if isinstance(metric, (dict, float, int)):
+        if isinstance(metric, dict):
+            for key, val in metric.items():
+                self.metric_event_actor_dict[f'{metric_name}/{key}'][event][actor] = val
+        elif isinstance(metric, (float, int)):
             self.metric_event_actor_dict[metric_name][event][actor] = metric
         else:
             logger.error(f'Metric logging of type: {type(metric)} is not supported')

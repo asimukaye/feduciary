@@ -52,16 +52,17 @@ class BaseStrategy(torch.optim.Optimizer, ABC):
     # It is based on the torch optimizer class to support smooth integrations of Pytorch LR schedulers
     # loss: Tensor
 
-    def __init__(self, params: OrderedDict, client_lr: float, cfg: ServerConfig) -> None:
+    def __init__(self,  model: Module, client_lr: float, cfg: ServerConfig) -> None:
 
         # self.cfg = cfg
         # NOTE: Client LR is required to make sure correct LR scheduling over rounds
         defaults = dict(lr=client_lr)
+        
 
-        super().__init__(params.values(), defaults)
+        super().__init__(model.parameters(), defaults)
         assert len(self.param_groups) == 1, f'Multi param group yet to be implemented'
-        self._server_params: OrderedDict[str, Parameter] = params
-        self._server_deltas: OrderedDict[str, Tensor] = defaultdict()
+        self._server_params: OrderedDict[str, Parameter] = model.state_dict()
+        self._server_deltas: OrderedDict[str, Tensor] = dict.fromkeys(self._server_params)
 
         self._client_params: ClientParams = defaultdict(dict)
         self._client_weights: dict[str, float] = defaultdict()
@@ -73,14 +74,15 @@ class BaseStrategy(torch.optim.Optimizer, ABC):
         # Maybe we need to add seting server param grads to NOne as well
         super().zero_grad(set_to_none)
 
-    
-    def step(self) -> None:
-
+    # Overriding the optimizer classes step function
+    def step(self, closure=None) -> None:
         # Apply the update rule
         self.param_update_rule()
 
         # Map the server param dictionary back to the optimizer classes params
-        self.param_groups[0]['params'] = list(self._server_params.values())
+        # NOTE: This is a quirk of using the optimizer as a base class. Changing this implementation might break the entire logic
+        for optim_param, new_param in zip(self.param_groups[0]['params'], self._server_params.values()):
+            optim_param.data = new_param.data
 
         
     def set_client_params(self, cid: str, params: OrderedDict) -> None:
@@ -305,7 +307,6 @@ class BaseServer(ABC):
         # broadcast the current model at the server to selected clients
         self._broadcast_models(selected_ids)
 
-        # ic(self.clients[selected_ids[0]].optim_partial)
         # request update to selected clients
         train_results = self._train_request(selected_ids)
     
@@ -317,9 +318,8 @@ class BaseServer(ABC):
 
         self._run_strategy(selected_ids, train_results) # aggregate local updates
 
-
         # remove model copy in clients
-        self.reset_client_models(selected_ids)
+        # self.reset_client_models(selected_ids)
 
         return selected_ids
 
