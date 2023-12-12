@@ -1,12 +1,11 @@
 import hydra
-from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf
 from src.simulator import Simulator
 from src.config import Config, register_configs
 import logging
 import torch.multiprocessing as torch_mp
-import wandb
 
+# Icecream debugger
 from icecream import install, ic
 install()
 ic.configureOutput(includeContext=True)
@@ -18,7 +17,6 @@ def run_feduciary(cfg: Config):
 
     cfg_obj: Config = OmegaConf.to_object(cfg)
     logger.debug((OmegaConf.to_yaml(cfg_obj)))
-
 
     sim = Simulator(cfg_obj)
     sim.run_simulation()

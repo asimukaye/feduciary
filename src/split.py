@@ -394,7 +394,7 @@ def get_client_datasets(cfg: DatasetConfig, dataset: data.Dataset) -> list[tuple
 #         return f'{repr(self.subset.dataset)} {self.suffix}'
 
 
-# FIXME: Deprecated..
+
 # def get_data_split(args:DatasetConfig, dataset: data.Dataset):
 #     """Split data indices using labels.
     

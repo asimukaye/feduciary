@@ -40,7 +40,7 @@ class VaraggClient(BaseClient):
 
         return loader_dict
     
-    def upload(self)->OrderedDict[str, Parameter]:
+    def upload(self) -> OrderedDict[str, Parameter]:
         # Upload the model back to the server
         self._model.to('cpu')
         return self._model.state_dict()
@@ -50,8 +50,7 @@ class VaraggClient(BaseClient):
         return deepcopy(self._param_std)
         # for name, param in self._param_std.items():
         #     yield name, param
-
-
+        
     def get_average_model_and_std(self, model_map:dict[int, Module]):
 
         for name, param in self._model.named_parameters():

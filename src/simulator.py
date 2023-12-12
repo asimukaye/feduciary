@@ -19,7 +19,7 @@ from src.config import Config, SimConfig
 from src.utils  import log_tqdm, log_instance
 from src.postprocess import post_process
 from src.models.model import init_model
-from src.results.resultmanager import AllResults, ResultManager
+from src.results.resultmanager import ResultManager
 from src.metrics.metricmanager import MetricManager, Result
 from functools import partial
 import wandb
@@ -50,6 +50,7 @@ class Simulator:
         self.server_dataset, self.client_datasets = load_vision_dataset(cfg.dataset, cfg.model.model_spec)
         self.model_instance: Module = instantiate(cfg.model.model_spec)
 
+        self.metric_manager = MetricManager(self.master_cfg.client.cfg.eval_metrics, self.round, actor='simulator')
         init_model(cfg.model, self.model_instance)
         self.result_manager = ResultManager(cfg.simulator, logger=logger)
         self.server = None
@@ -57,7 +58,6 @@ class Simulator:
         self.set_fn_overloads_for_mode()
 
         self.init_sim()
-
 
         self.make_checkpoint_dirs()
         self.is_resumed =False
@@ -90,13 +90,11 @@ class Simulator:
         server_partial: partial = instantiate(self.master_cfg.server)
         self.clients: dict[str, BaseClient] = defaultdict(BaseClient)
 
-        # # NOTE: THe model spec is being modified in place here.
-        # server_dataset, client_datasets = load_vision_dataset(self.master_cfg.dataset, self.master_cfg.model.model_spec)
-
-
+        
         # NOTE:IMPORTANT Sharing models without deepcopy could potentially have same references to parameters
         self.clients = self._create_clients(self.client_datasets, copy.deepcopy(self.model_instance))
 
+        self.all_client_ids = list(self.clients.keys())
         # NOTE: later, consider making a copy of client to avoid simultaneous edits to clients dictionary
         self.server: BaseServer = server_partial(model=self.model_instance, dataset=self.server_dataset, clients= self.clients, result_manager=self.result_manager)
 
@@ -105,8 +103,6 @@ class Simulator:
 
         # NOTE: THe model spec is being modified in place here.
         # self.central_dataset, client_datasets= load_vision_dataset(self.master_cfg.dataset, self.master_cfg.model.model_spec)
-
-        self.metric_manager = MetricManager(self.master_cfg.client.cfg.eval_metrics, self.round, caller='simulator')
 
 
         # NOTE:IMPORTANT Sharing models without deepcopy could potentially have same references to parameters
@@ -153,15 +149,23 @@ class Simulator:
         
         logger.info(f'[SEED] ...seed is set: {seed}!')
     
-    def central_evaluate_clients(self):
+    def central_evaluate_clients(self, cids: list[str]):
+        '''Evaluate the clients on servers holdout set'''
         test_loader = DataLoader(dataset=self.server_dataset, batch_size=self.master_cfg.client.cfg.batch_size)
         eval_result = {}
-        for cid, client in self.clients.items():
-            eval_result[cid] = model_eval_helper(client.model, test_loader, self.master_cfg.client.cfg, self.metric_manager)
+        # FIXME: Might need to instantiate globally elsewhere
+        client_cfg_inst = instantiate(self.master_cfg.client.cfg)
+        for cid in cids:
+            eval_result[cid] = model_eval_helper(self.clients[cid].model, test_loader, client_cfg_inst, self.metric_manager, self.round)
         
-        self.result_manager.log_client_result(eval_result, 'client_central_eval')
+        self.result_manager.log_client_result(eval_result, 'central_eval')
         
-        
+    def local_evaluate_clients(self, cids: list[str]):
+        # Local evaluate the clients on their test sets
+        eval_results = self.server._eval_request(cids)
+
+        self.result_manager.log_client_result(eval_results, event='client_eval_post')
+
     def run_standalone_simulation(self):
         for curr_round in range(self.round, self.cfg.num_rounds + 1):
             train_result = {}
@@ -185,7 +189,7 @@ class Simulator:
         pass
 
     def run_federated_simulation(self):
-        '''Runs the simulation'''
+        '''Runs the simulation in federated mode'''
         # self.clients = self._create_clients(self.client_datasets)
         # self.server.initialize(clients, )
 
@@ -202,14 +206,19 @@ class Simulator:
 
             ## evaluate on clients not sampled (for measuring generalization performance)
             if curr_round % self.master_cfg.server.cfg.eval_every == 0:
-                eval_ids = self.server.evaluate(excluded_ids=update_ids)
+                # Can have specific evaluations later
+                eval_ids = self.all_client_ids
+                self.server._broadcast_models(eval_ids)
+                self.local_evaluate_clients(eval_ids)
+                self.central_evaluate_clients(eval_ids)
+
+                self.server.server_evaluate()
 
             if curr_round % self.cfg.checkpoint_every == 0:
                 self.save_checkpoints()
             
-            # This is weird, needs some rearch]
-            self.server.reset_client_models(eval_ids)
-            
+            # This is weird, needs some rearch
+            self.server.reset_client_models(self.all_client_ids)
             self.result_manager.update_round_and_flush(curr_round)
 
             loop_end = time.time() - loop_start
@@ -223,7 +232,7 @@ class Simulator:
             for client in self.clients.values():
                 client.save_checkpoint()
 
-    # TODO: Add method to load client checkpoints also
+    # TODO: Test method to load client checkpoints
     def load_state(self, server_ckpt_path: str, client_ckpts: dict):
         if server_ckpt_path:
             self.server.load_checkpoint(server_ckpt_path)
@@ -236,7 +245,7 @@ class Simulator:
 
 
     @log_instance(attrs=['round', 'num_clients'], m_logger=logger)
-    def _create_clients(self, client_datasets, model: Module):
+    def _create_clients(self, client_datasets, model: Module) -> dict[str, BaseClient]:
         # Acess the client clas
         client_partial = instantiate(self.master_cfg.client)
 
@@ -247,8 +256,8 @@ class Simulator:
         clients = {}
         # think of a better way to id the clients
         for idx, datasets in log_tqdm(enumerate(client_datasets), logger=logger, desc=f'[Round: {self.round:03}] creating clients '):
-            client_id, client = __create_client(idx, datasets, model)
-            clients[client_id] = client
+            client_id, client_obj = __create_client(idx, datasets, model)
+            clients[client_id] = client_obj
         return clients
 
        
@@ -262,4 +271,4 @@ class Simulator:
 
         del self.clients
         del self.server
-        logger.info('Closing Feduciary')
+        logger.info('Closing Feduciary Simulator')

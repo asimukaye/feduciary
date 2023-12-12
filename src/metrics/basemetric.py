@@ -1,13 +1,5 @@
 from abc import ABC, abstractmethod
 from torch import Tensor
-from dataclasses import dataclass
-
-
-# @dataclass
-# class MetricConfig:
-#     eval_metrics: list
-#     fairness_metrics: list
-
 
 
 class BaseMetric(ABC):

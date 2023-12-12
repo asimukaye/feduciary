@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def model_eval_helper(model: Module, dataloader: DataLoader, cfg: ClientConfig, mm: MetricManager, round: int)->Result:
-    # mm = MetricManager(cfg.eval_metrics, round, caller)
+    # mm = MetricManager(cfg.eval_metrics, round, actor)
     mm._round = round
     model.eval()
     model.to(cfg.device)
@@ -49,7 +49,7 @@ class BaseClient:
         self.test_set = dataset[1]
 
         
-        self.mm = MetricManager(self.cfg.eval_metrics, self._round, caller=self._identifier)
+        self.mm = MetricManager(self.cfg.eval_metrics, self._round, actor=self._identifier)
         self.optim_partial: Optimizer = self.cfg.optimizer
         self.criterion = self.cfg.criterion
 
@@ -94,7 +94,6 @@ class BaseClient:
         return DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, shuffle=shuffle)
     
 
-    # TODO: Migrate to using parameter state dictionaries
     def download(self, round:int, model_dict: OrderedDict):
         # Copy the model from the server
         self._round = round
@@ -112,7 +111,7 @@ class BaseClient:
     def train(self, return_model=False):
         # Run an round on the client
         # logger.info(f'CLIENT {self.id} Starting update')
-        # mm = MetricManager(self.cfg.eval_metrics, self._round, caller=self._identifier)
+        # mm = MetricManager(self.cfg.eval_metrics, self._round, actor=self._identifier)
         self.mm._round = self._round
         self._model.train()
         self._model.to(self.cfg.device)
@@ -142,7 +141,7 @@ class BaseClient:
                 self.save_checkpoint()
 
         self._epoch = 0
-        # logger.info(f'CLIENT {self.id} Completed update')
+
         if return_model:
             return out_result, self._model.to('cpu')
         else:

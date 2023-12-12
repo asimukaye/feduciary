@@ -86,7 +86,7 @@ def load_vision_dataset(cfg: DatasetConfig, model_cfg: ModelSpecConfig):
     return raw_test, client_datasets
 
 
-# FIXME: Broken usage as of now
+# TODO: Remove me Broken usage as of now
 # DEPRECATED
 def get_transform(cfg: TransformsConfig, train=False):
     transform = tvt.Compose(
@@ -102,8 +102,10 @@ def get_transform(cfg: TransformsConfig, train=False):
     )
     return transform
 
+
+# DEPRECATED: Kept for code retrieval only
+
 # def load_dataset(cfg:DatasetConfig):
-#     # FIXME: This can be split into multiple functions
 #     """Fetch and split requested datasets.
     
 #     Args:
@@ -137,7 +139,7 @@ def get_transform(cfg: TransformsConfig, train=False):
 #                 raise AssertionError(err)
 
 #     # method to get transformation chain
-#     # FIXME: make this type annotated and cleaner
+
 #     def _get_transform(args, train=False):
 #         transform = tvt.Compose(
 #             [

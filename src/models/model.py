@@ -56,9 +56,8 @@ def init_model(cfg: ModelConfig, model:Module):
     return model
 
 
-# OVERRIDING THIS FUNCTION for lack of clarity here
+#DEPRECATED: OVERRIDING THIS FUNCTION for lack of clarity here
 def load_model(args: ModelConfig):
-    # FIXME: Break down the roles in this function
     # retrieve model skeleton
     model_class = importlib.import_module('src.models', package=__package__).__dict__[args.name]
 

@@ -1,10 +1,10 @@
 %YAML 1.2
 ---
 # Experiment mode: Switch between debug and experiment mode
-mode: debug
+mode: fedavg
 
 # Description: A string to describe the intent of the run
-desc: 'Fixing oscillations and smoothness issue'
+desc: 'Testing parameters for fedavg'
 
 # Log Configuration: Additional configurations to be copied in the results summary section. Must be a valid configuration from the config tree.
 log_conf: [client.cfg.lr]
@@ -19,10 +19,11 @@ defaults:
 
 simulator:
   seed: 42
-  use_tensorboard: true
+  use_tensorboard: false
   use_wandb: true
+  save_csv: false
   num_clients: 5
-  num_rounds: 150
+  num_rounds: 50
   checkpoint_every: 10
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized'
   mode: federated

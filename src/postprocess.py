@@ -1,5 +1,5 @@
 from src.config import Config
-from src.results.resultmanager import Stats, AllResults
+from src.results.resultmanager import Stats
 from hydra.utils import to_absolute_path
 from dataclasses import asdict, field, dataclass
 import pandas as pd
@@ -21,7 +21,7 @@ class FinalResults:
     dataset: str = field(default='')
     split: str = field(default='')
     n_clients: int = field(default=-1)
-    rounds: int = field(default=-1)
+    total_rounds: int = field(default=-1)
     steps: int = field(default=-1)
     opt_cfg: list = field(default_factory=list)
     clients: dict[str, Stats] = field(default_factory=dict)
@@ -46,7 +46,7 @@ def compute_correlatation(arr_1, arr_2):
     assert len(arr_1) ==len(arr_2), "Mismatching array sizes for correlation"
     return pearsonr(arr_1, arr_2)[0]
 
-def post_process(cfg: Config, result:AllResults, total_time=0.0):
+def post_process(cfg: Config, result: dict, total_time=0.0):
 
     # Maybe just an omegaconf object would be fine
 
@@ -54,17 +54,17 @@ def post_process(cfg: Config, result:AllResults, total_time=0.0):
     final.out_dir = os.getcwd()
     final.runtime = total_time
     final.runtime_str = str(timedelta(seconds=total_time))
-    final.server = result.server_eval.metrics
-    final.clients = result.clients_eval.stats
+    final.server = result['server_eval']['metrics']
+    final.clients = result['client_eval_post']['stats']
     final.n_clients = cfg.simulator.num_clients
     final.dataset = cfg.dataset.name
     final.split = cfg.dataset.split_type
-    final.rounds = cfg.simulator.num_rounds
+    final.total_rounds = cfg.simulator.num_rounds
     final.steps = cfg.simulator.num_rounds * cfg.client.cfg.epochs
     final.mode = cfg.mode
-    final.eval_sizes = result.clients_eval.sizes
-    final.train_sizes = result.clients_train.sizes
-    final.server_size = result.server_eval.size
+    final.eval_sizes = result['client_eval_post']['sizes']
+    final.train_sizes = result['client_train']['sizes']
+    final.server_size = result['server_eval']['size']
 
     final.server_id = cfg.server._target_.split('.')[-1].removesuffix('Server').lower()
     final.client_id = cfg.client._target_.split('.')[-1].removesuffix('Client').lower()
@@ -74,6 +74,7 @@ def post_process(cfg: Config, result:AllResults, total_time=0.0):
         final.opt_cfg = [f'{key}:{flat_cfg.get(key).values[0]}' for key in cfg.log_conf]        
 
     result_dictionary = asdict(final)
+
     if cfg.simulator.use_wandb:
         for key, val in result_dictionary.items():
             wandb.run.summary[key] = val

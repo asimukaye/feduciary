@@ -2,7 +2,6 @@ from collections import OrderedDict
 import torch
 from torch import Tensor
 from typing import Iterator, Tuple, Iterable
-from torch.nn import Parameter
 import logging
 from .baseserver import BaseServer, BaseStrategy
 from src.config import FedavgConfig, ServerConfig
@@ -12,26 +11,12 @@ from src.results.resultmanager import ClientResult
 logger = logging.getLogger(__name__)
 from torch.optim import SGD
 
-# FIXME: rewrite this to match the paper's implementation
 class FedavgOptimizer(BaseStrategy):
 
     def __init__(self, params: OrderedDict, client_lr: float, cfg: FedavgConfig) -> None:
 
         super().__init__(params, client_lr, cfg)
         self.cfg = cfg
-
-        # if cfg.update_rule == 'param_average':
-        #     self.param_update_rule =  self.param_average_update
-        # if cfg.update_rule == 'param_average':
-        #     self.param_update_rule =  self.param_gradient_update
-        # else:
-        #     raise ValueError('Unkown param update rule')
-        
-
-        # self.lr = kwargs.get('lr')
-        # self.momentum = kwargs.get('momentum', 0.)
-        # defaults = dict(lr=self.lr, momentum=self.momentum)
-        # super(FedavgOptimizer, self).__init__(params=params, defaults=defaults)
 
     # def step(self):
     #     # param groups is list of params. Initialized in the torch optimizer class 
@@ -77,27 +62,11 @@ class FedavgOptimizer(BaseStrategy):
     # def accumulate(self, mixing_coefficient, local_param_iterator: Iterator[Tuple[str, Parameter]]):
 
     def aggregate(self, client_data_sizes: dict[str, int]):
-        # calculate mixing coefficients according to sample sizes
+        # calculate client weights according to sample sizes
         self._client_weights = {}
         for cid, data_size in client_data_sizes.items():
             self._client_weights[cid] = float(data_size / sum(client_data_sizes.values())) 
-                                
-        # for key, server_param in self._server_params.items():
-        #     for cid, client_param in self._client_params.items():
-        #         # Using FedNova Notation of delta (Δ) as (-grad ∇)
-        #         client_delta = -1 * (client_param - server_param)
-        #         self._server_deltas[key] += self._client_weights[cid] * client_delta
 
-
-        # for group in self.param_groups:
-
-        #     for server_param, (name, local_param) in zip(group['params'], local_param_iterator):
-
-        #         if server_param.grad is None: # NOTE: grad is used as buffer to accumulate local updates!
-        #             server_param.grad = server_param.data.sub(local_param.data).mul(mixing_coefficient)
-        #         else:
-        #             server_param.grad.add_(server_param.data.sub(local_param.data).mul(mixing_coefficient))
-        
 
 class FedavgServer(BaseServer):
     name:str = 'FedAvgServer'
@@ -118,15 +87,16 @@ class FedavgServer(BaseServer):
         # updated_sizes = train_results.sizes
         # Calls client upload and server accumulate
         logger.debug(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
+        self.result_manager.log_parameters(self.model.state_dict(), 'pre_agg', 'server')
 
-        # # calculate mixing coefficients according to sample sizes
-        # coefficients = {identifier: float(coefficient / sum(updated_sizes.values())) for identifier, coefficient in updated_sizes.items()}
-        
-            # receive updates and aggregate into a new weights
+
+        # receive updates and aggregate into a new weights
         self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
         # accumulate weights
         for cid in client_ids:
-            self.server_optimizer.set_client_params(cid, self.clients[cid].upload())
+            client_params = self.clients[cid].upload()
+            self.server_optimizer.set_client_params(cid, client_params)
+            self.result_manager.log_parameters(client_params, 'pre_agg', cid)
             # locally_updated_weights_iterator = self.clients[cid].upload()
             # # Accumulate weights
             # self.server_optimizer.accumulate(coefficients[cid], locally_updated_weights_iterator)
@@ -134,4 +104,10 @@ class FedavgServer(BaseServer):
         self.server_optimizer.aggregate(train_results.sizes)
         self.server_optimizer.step() # update global model with the aggregated update
         self.lr_scheduler.step() # update learning rate
+
+        # Full parameter debugging
+        self.result_manager.log_parameters(self.model.state_dict(), 'post_agg', 'server')
+        for cid in client_ids:
+            self.result_manager.log_parameters(client_params, 'post_agg', cid)
+
         logger.info(f'[{self.name}] [Round: {self.round:03}] successfully aggregated into a new global model!')

@@ -3,7 +3,7 @@ import copy
 from .baseclient import BaseClient
 from src.metrics.metricmanager import MetricManager
 
-# FIXME: Broken file
+# FIXME: Broken Implementation
 class FedproxClient(BaseClient):
     def __init__(self, **kwargs):
         super(FedproxClient, self).__init__(**kwargs)

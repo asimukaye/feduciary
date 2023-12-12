@@ -18,7 +18,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from src.client.baseclient import BaseClient, model_eval_helper
 from src.metrics.metricmanager import MetricManager
 from src.utils  import log_tqdm, log_instance, ClientParams
-from src.results.resultmanager import AllResults, ResultManager, ClientResult, Result
+from src.results.resultmanager import ResultManager, ClientResult, Result
 
 
 # from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -73,21 +73,14 @@ class BaseStrategy(torch.optim.Optimizer, ABC):
         # Maybe we need to add seting server param grads to NOne as well
         super().zero_grad(set_to_none)
 
+    
     def step(self) -> None:
-        
-        ic(type(self.param_groups[0]['params']))
-        # Let's check for the object reference
-        ic(id(self.param_groups[0]['params'][0]))
-        ic(id(list(self._server_params.values())[0]))
 
         # Apply the update rule
         self.param_update_rule()
 
         # Map the server param dictionary back to the optimizer classes params
         self.param_groups[0]['params'] = list(self._server_params.values())
-
-        ic(id(self.param_groups[0]['params'][0]))
-        ic(id(list(self._server_params)[0]))
 
         
     def set_client_params(self, cid: str, params: OrderedDict) -> None:
@@ -111,7 +104,7 @@ class BaseStrategy(torch.optim.Optimizer, ABC):
     
 
 class BaseServer(ABC):
-    """Centeral server orchestrating the whole process of federated learning.
+    """Central server orchestrating the whole process of federated learning.
     """
     name: str = 'BaseServer'
     def __init__(self, cfg: ServerConfig, client_cfg: ClientConfig, model: Module, dataset: Dataset, clients: list[BaseClient], result_manager: ResultManager):
@@ -128,7 +121,7 @@ class BaseServer(ABC):
 
 
         self.result_manager = result_manager
-        self.metric_manager = MetricManager(eval_metrics=client_cfg.eval_metrics,round= 0, caller='server')
+        self.metric_manager = MetricManager(eval_metrics=client_cfg.eval_metrics,round= 0, actor='server')
 
         # global holdout set
         # wandb.watch(self.model, log='all', log_freq=5)
@@ -137,7 +130,7 @@ class BaseServer(ABC):
 
     
     # @log_instance(attrs=['round'], m_logger=logger)
-    def _broadcast_models(self, ids:list[str]):
+    def _broadcast_models(self, ids: list[str]):
         """broadcast the global model to all the clients.
         Args:
             ids (_type_): client ids
@@ -155,6 +148,7 @@ class BaseServer(ABC):
 
     @log_instance(attrs=['round'], m_logger=logger)
     def _sample_random_clients(self)-> list[str]:
+        # Server sampling the clients
         # NOTE: Update does not use the logic of C+ 0 meaning all clients
 
         # Update - randomly select max(floor(C * K), 1) clients
@@ -179,15 +173,15 @@ class BaseServer(ABC):
         return sampled_client_ids
     
 
-    def _update_request(self, ids:list[str]) -> ClientResult:
-        def __update_client(client: BaseClient):
+    def _train_request(self, ids:list[str]) -> ClientResult:
+        def __train_client(client: BaseClient):
             # getter function for client update
             update_result = client.train()
             return {'id':client.id, 'result':update_result}
         results_list = []
   
         # Set the LRs for each client before training
-        # TODO: does lr scheduling need to be done for select ids ??
+        # HACK: does lr scheduling need to be done for select ids ??
         if self.lr_scheduler:
             current_lr = self.lr_scheduler.get_last_lr()[-1]
             [client.set_lr(current_lr) for client in self.clients.values()]
@@ -206,16 +200,16 @@ class BaseServer(ABC):
             [self.clients[item['id']].set_model(item['model']) for item in results_list]
         else:
              for idx in ids:
-                results_list.append(__update_client(self.clients[idx]))
+                results_list.append(__train_client(self.clients[idx]))
 
         # results_dict = dict(results_list)
         results_dict = {item['id']: item['result'] for item in results_list}
         # update_result = self.result_manager.log_client_train_result(results_dict)
-        update_result = self.result_manager.log_client_result(results_dict, key='client_eval')
+        client_train_result = self.result_manager.log_client_result(results_dict, event='client_train')
 
         logger.info(f'[{self.name}] [Round: {self.round:03}] ...completed updates of {"all" if ids is None else len(ids)} clients.')
 
-        return update_result
+        return client_train_result
 
     
     def _eval_request(self, ids)->dict[str, Result]:
@@ -246,34 +240,33 @@ class BaseServer(ABC):
                 logger.exception(err)
                 raise AssertionError(err)
         logger.debug(f'[{self.name}] [Round: {self.round:03}] Client Models are reset')
-        gc.collect()
+        # gc.collect()
 
     @torch.no_grad()
-    def _central_evaluate(self):
-
+    def server_evaluate(self):
+        """Evaluate the global model located at the server.
+        """
         server_loader = DataLoader(dataset=self.server_dataset, batch_size=self.client_cfg.batch_size, shuffle=False)
         # log result
         result = model_eval_helper(self.model, server_loader, self.client_cfg, self.metric_manager, self.round)
+        self.result_manager.log_server_eval_result(result)
         return result
 
+    # def evaluate(self, client_ids) -> None:
 
-
-    def evaluate(self, excluded_ids):
-        # FIXME: Rewrite this for clarity of usage
-        """Evaluate the global model located at the server.
-        """
         # randomly select all remaining clients not participated in current round
-        selected_ids = self._sample_selected_clients(exclude=excluded_ids)
-        self._broadcast_models(selected_ids)
-        eval_results = self._eval_request(selected_ids)
-        server_results = self._central_evaluate()
+        # selected_ids = self._sample_selected_clients(exclude=excluded_ids)
+        # self._broadcast_models(client_ids)
+        # Local evaluate the clients on their test sets
+        # eval_results = self._eval_request(client_ids)
 
-        self.result_manager.log_client_result(eval_results, key='client_eval')
+        # server_results = self._central_evaluate()
+
+        # self.result_manager.log_client_result(eval_results, event='client_eval_post')
         self.result_manager.log_server_eval_result(server_results)
 
         # remove model copy in clients
         # self.reset_client_models(selected_ids)
-        return selected_ids
 
     def load_checkpoint(self, ckpt_path):
         checkpoint = torch.load(ckpt_path)
@@ -295,7 +288,6 @@ class BaseServer(ABC):
 
     
     def finalize(self) -> None:
-        # all_results: AllResults = self.result_manager.finalize()
         # save checkpoint
         torch.save(self.model.state_dict(), f'final_model.pt')
         # return all_results
@@ -315,11 +307,11 @@ class BaseServer(ABC):
 
         # ic(self.clients[selected_ids[0]].optim_partial)
         # request update to selected clients
-        train_results = self._update_request(selected_ids)
+        train_results = self._train_request(selected_ids)
     
         # request evaluation to selected clients
         eval_result = self._eval_request(selected_ids)
-        self.result_manager.log_client_result(eval_result, key='client_eval_pre')
+        self.result_manager.log_client_result(eval_result, event='client_eval_pre')
 
         # self.result_manager.log_client_eval_pre_result(eval_result)
 

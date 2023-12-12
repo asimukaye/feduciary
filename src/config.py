@@ -41,11 +41,14 @@ class SimConfig:
     use_tensorboard: bool
     num_rounds: int
     use_wandb: bool
+    save_csv: bool
     checkpoint_every: int = field(default=10)
     mode: str = field(default='federated')
 
     def __post_init__(self):
         assert self.mode in ['federated', 'standalone', 'centralized'], f'Unknown simulator mode: {self.mode}'
+        assert (self.use_tensorboard or self.use_wandb or self.save_csv), f'Select any one logging method atleast to avoid losing results'
+
 
 
 ########## Client Configurations ##########
@@ -157,8 +160,8 @@ class ServerSchema:
 @dataclass
 class TransformsConfig:
     resize: Optional[dict] = field(default_factory=dict)
-    normalize:Optional[dict] = field(default_factory=dict)
-    train_cfg:Optional[list] = field(default_factory=list)
+    normalize: Optional[dict] = field(default_factory=dict)
+    train_cfg: Optional[list] = field(default_factory=list)
 
     def __post_init__(self):
         train_tf = []
@@ -216,9 +219,6 @@ class ModelConfig:
 #     eval_metrics: list
 #     fairness_metrics: list
 
-# modes 
-#  possible enum debug
-
 ########## Master Configurations ##########
 @dataclass
 class Config():
@@ -247,8 +247,11 @@ def set_debug_mode(cfg: Config):
 
     logger.root.setLevel(logging.DEBUG)
     cfg.simulator.use_wandb = False
+    cfg.simulator.use_tensorboard = False
+    cfg.simulator.save_csv = True
+
     logger.debug(f'[Debug Override] Setting use_wandb to: {cfg.simulator.use_wandb}')
-    cfg.simulator.num_rounds = 2
+    cfg.simulator.num_rounds = 5
     logger.debug(f'[Debug Override] Setting rounds to: {cfg.simulator.num_rounds}')
     cfg.client.cfg.epochs = 1
     logger.debug(f'[Debug Override] Setting epochs to: {cfg.client.cfg.epochs}')

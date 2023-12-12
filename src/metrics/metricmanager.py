@@ -11,13 +11,13 @@ from src.results.resultmanager import Result
 class MetricManager:
     """Managing metrics to be used.
     """
-    def __init__(self, eval_metrics: list[str], round: int, caller: str):
+    def __init__(self, eval_metrics: list[str], round: int, actor: str):
         self.metric_funcs: dict[str, BaseMetric] = {
             name: import_module(f'.metricszoo', package=__package__).__dict__[name.title()]() for name in eval_metrics}
         self.figures = defaultdict(int) 
-        self._result = Result(round=round, caller=caller)
+        self._result = Result(round=round, actor=actor)
         self._round = round
-        self._caller = caller
+        self._actor = actor
 
     def track(self, loss, pred, true):
         # update running loss
@@ -44,7 +44,7 @@ class MetricManager:
 
     def flush(self):
         self.figures = defaultdict(int)
-        self._result = Result(round=self._round, caller=self._caller)
+        self._result = Result(round=self._round, actor=self._actor)
     
     # @property
     # def result(self):
