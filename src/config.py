@@ -87,7 +87,7 @@ def default_seed():
     return [1,2,3]
 
 @dataclass
-class VaraggClientConfig(ClientConfig):
+class FedstdevClientConfig(ClientConfig):
     seeds: list[int] = field(default_factory=default_seed)
     
     def __post_init__(self):
@@ -137,11 +137,12 @@ class FedavgConfig(ServerConfig):
 
 
 @dataclass
-class VaraggServerConfig(ServerConfig):
+class FedstdevServerConfig(ServerConfig):
     alpha: float = 0.95
     gamma: float = 0.5
     betas: list = field(default_factory=list)
     weight_scaling: str = field(default='tanh')
+    delta_normalize: bool = False
     
     def __post_init__(self):
         super().__post_init__()
@@ -248,7 +249,7 @@ class Config():
 def set_debug_mode(cfg: Config):
 
     logger.root.setLevel(logging.DEBUG)
-    cfg.simulator.use_wandb = True
+    cfg.simulator.use_wandb = False
     cfg.simulator.use_tensorboard = False
     cfg.simulator.save_csv = True
 
@@ -274,6 +275,6 @@ def register_configs():
     cs.store(group='server', name='base_server', node=ServerSchema)
     cs.store(group='server/cfg', name='base_cgsv', node=CGSVConfig)
     cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
-    cs.store(group='server/cfg', name='varagg_server', node=VaraggServerConfig)
-    cs.store(group='client/cfg', name='varagg_client', node=VaraggClientConfig)
+    cs.store(group='server/cfg', name='fedstdev_server', node=FedstdevServerConfig)
+    cs.store(group='client/cfg', name='fedstdev_client', node=FedstdevClientConfig)
 

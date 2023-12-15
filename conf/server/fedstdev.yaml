@@ -1,9 +1,9 @@
 defaults:
   - base_server
-  - cfg: varagg_server
+  - cfg: fedstdev_server
   - _self_
 
-_target_: src.server.varaggserver.VaraggServer
+_target_: src.server.fedstdevserver.FedstdevServer
 _partial_: true
 cfg:
   sampling_fraction: 1.0
@@ -13,6 +13,7 @@ cfg:
   eval_every: 1
   alpha: 0.8
   gamma: 0.95
+  delta_normalize: False
   betas: 
     - 1e3
     - 1e3

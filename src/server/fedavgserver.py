@@ -25,7 +25,7 @@ class FedavgOptimizer(BaseStrategy):
         else:
             raise ValueError('Unkown param update rule')
     
-    def update_normalize(self, delta: Tensor, gamma: float) -> Tensor:
+    def _delta_normalize(self, delta: Tensor, gamma: float) -> Tensor:
         '''Normalize the parameter delta update and scale to prevent potential gradient explosion'''
         norm = delta.norm() 
         if norm == 0:
@@ -43,7 +43,7 @@ class FedavgOptimizer(BaseStrategy):
                 client_delta = client_param[key].data.sub(server_param.data)
                 
                 # if self.gradient_normalize:
-                    # self.update_normalize(client_delta, self.gamma)
+                    # self._delta_normalize(client_delta, self.gamma)
 
                 if self._server_deltas[key] is None:
                     self._server_deltas[key] = self._client_weights[cid] * client_delta
@@ -92,7 +92,8 @@ class FedavgServer(BaseServer):
     def _run_strategy(self, client_ids: list[str], train_results: ClientResult):
         # updated_sizes = train_results.sizes
         # Calls client upload and server accumulate
-        logger.debug(f'[{self.name}] [Round: {self.round:03}] Aggregate updated signals!')
+    
+    
         self.result_manager.log_parameters(self.model.state_dict(), phase='pre_agg', actor='server', verbose=False)
 
 

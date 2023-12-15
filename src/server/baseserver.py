@@ -17,7 +17,7 @@ from torch.optim.lr_scheduler import LRScheduler
 
 from src.client.baseclient import BaseClient, model_eval_helper
 from src.metrics.metricmanager import MetricManager
-from src.utils  import log_tqdm, log_instance, ClientParams
+from src.utils  import log_tqdm, log_instance, ClientParams_t
 from src.results.resultmanager import ResultManager, ClientResult, Result
 
 
@@ -60,7 +60,7 @@ class BaseStrategy(torch.optim.Optimizer, ABC):
         self._server_params: OrderedDict[str, Parameter] = model.state_dict()
         self._server_deltas: OrderedDict[str, Tensor] = dict.fromkeys(self._server_params)
 
-        self._client_params: ClientParams = defaultdict(dict)
+        self._client_params: ClientParams_t = defaultdict(dict)
         self._client_weights: dict[str, float] = defaultdict()
 
 
@@ -105,6 +105,8 @@ class BaseServer(ABC):
     """Central server orchestrating the whole process of federated learning.
     """
     name: str = 'BaseServer'
+
+    # NOTE: It is must to redefine the init function for child classes with a call to super.__init__()
     def __init__(self, cfg: ServerConfig, client_cfg: ClientConfig, model: Module, dataset: Dataset, clients: list[BaseClient], result_manager: ResultManager):
         self.round = 0
         self.model = model
@@ -114,7 +116,7 @@ class BaseServer(ABC):
         self.cfg = cfg
         self.client_cfg = client_cfg
         self.server_optimizer: BaseStrategy = None
-        self.loss: torch.Tensor = None
+        # self.loss: torch.Tensor = None
         self.lr_scheduler: LRScheduler = None
 
         self.result_manager = result_manager
@@ -250,21 +252,6 @@ class BaseServer(ABC):
         self.result_manager.log_server_result(result, phase='post_agg')
         return result
 
-    # def evaluate(self, client_ids) -> None:
-
-        # randomly select all remaining clients not participated in current round
-        # selected_ids = self._sample_selected_clients(exclude=excluded_ids)
-        # self._broadcast_models(client_ids)
-        # Local evaluate the clients on their test sets
-        # eval_results = self._eval_request(client_ids)
-
-        # server_results = self._central_evaluate()
-
-        # self.result_manager.log_clients_result(eval_results, event='client_eval_post')
-        # self.result_manager.log_server_eval_result(server_results)
-
-        # remove model copy in clients
-        # self.reset_client_models(selected_ids)
 
     def load_checkpoint(self, ckpt_path):
         checkpoint = torch.load(ckpt_path)
@@ -292,6 +279,8 @@ class BaseServer(ABC):
         
    
     def update(self):
+        # TODO: Ideally, the clients keep running their training and server should only initiate a downlink transfer request. For synced federation, the server needs to wait on clients to finish their tasks before proceeding
+
         """Update the global model through federated learning.
         """
         # randomly select clients
@@ -302,13 +291,15 @@ class BaseServer(ABC):
         self._broadcast_models(selected_ids)
 
         # request update to selected clients
+        # TODO: Client training should ideally auto-initiate on model broadcast and only the results should be awaited in an update request. The server in theory only has control over broadcast and not on the inner train loop of the client. For all logging purposes, a 
         train_results = self._train_request(selected_ids)
     
         # request evaluation to selected clients
-        # TODO: Formalize client evaluation method
+        # TODO: Formalize client evaluation method; Can be possibly clubbed with the broadcast request along with train request. 
         eval_result = self._eval_request(selected_ids)
         self.result_manager.log_clients_result(eval_result, event='local_eval', phase='pre_agg')
 
+        # TODO: Pipe the update with the strategy
         self._run_strategy(selected_ids, train_results) # aggregate local updates
         # remove model copy in clients
         # self.reset_client_models(selected_ids)
@@ -326,6 +317,7 @@ class BaseServer(ABC):
 
         self.server_optimizer.zero_grad(set_to_none=True) # empty out buffer
 
+        # Once below for loop gets standardized, this method can be made common with only optimizer requiring modifications
         for cid in client_ids:
             self.server_optimizer.set_client_params(cid, self.clients[cid].upload())
 

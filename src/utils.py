@@ -15,7 +15,7 @@ from multiprocessing import Process
 logger = logging.getLogger(__name__)
 
 
-ClientParams = Dict[str, OrderedDict[str, torch.nn.Parameter]]
+ClientParams_t = Dict[str, OrderedDict[str, torch.nn.Parameter]]
 def log_instance(attrs:list=[], m_logger=logger):
     def decorator(func):
         @functools.wraps(func)

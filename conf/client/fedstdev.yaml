@@ -1,9 +1,9 @@
 defaults:
   - client_schema
-  - cfg: varagg_client
+  - cfg: fedstdev_client
   - _self_
 
-_target_: src.client.varaggclient.VaraggClient
+_target_: src.client.fedstdevclient.FedstdevClient
 _partial_: true
 cfg:
   epochs: 5

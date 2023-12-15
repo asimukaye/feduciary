@@ -83,6 +83,7 @@ class ResultManager:
 
     _round: int = 0
     # TODO: Migrate to metric event actor dictionaries everywhere
+    # TODO: Evolve into a singleton class for evaluation purposes.
 
     def __init__(self, cfg: SimConfig, logger: Logger) -> None:
         # Event actor metric form dictionaries
@@ -195,21 +196,15 @@ class ResultManager:
         if isinstance(cids, str):
             cids = [cids]
 
-        # ic(self.metric_event_actor_phase_dict)
-
         for metric in self.metric_event_actor_dict.keys():
             if 'param'in metric.split('/'):
                 reference_value = self.metric_event_actor_dict[metric][f'{event}/{phase}'][reference_actor]
-                # ic(reference_value)
-                # ic(phase)
+    
                 for cid in cids:
                     self._add_metric(metric, event, phase, cid, reference_value)
-                # ic(reference_value, phase)
-                # ic(self.metric_event_actor_dict[metric][f'{event}/{phase}'][cids[0]])
-        
-        # ic(self.metric_event_actor_dict)
 
-    def log_parameters(self, model_params: dict[str, Parameter], phase: str, actor: str, event: str = '' ,verbose=False) -> None:
+
+    def log_parameters(self, model_params: dict[str, Parameter], phase: str, actor: str, event: str = '' , metric= 'param', verbose=False) -> None:
 
         out_dict = {}
         avg = 0.0
@@ -232,14 +227,9 @@ class ResultManager:
         out_dict['avg'] = avg
         out_dict['wtd_avg'] = weighted_avg
 
-        # if phase == 'pre_agg':
-        #     ic(actor,avg)
-
         # self.result_dict[event] = out_dict
         for k, val in out_dict.items():
-            self._add_metric(f'param/{k}', event, phase, actor, val)
-
-        # return out_dict
+            self._add_metric(f'{metric}/{k}', event, phase, actor, val)
 
     
     def _add_metric(self, metric, event, phase, actor, value):
@@ -252,26 +242,25 @@ class ResultManager:
             self._phase_counter += 1
         self.metric_event_actor_dict[metric][f'{event}/{phase}'][actor] = value
 
-    
+
 
     def log_general_metric(self, metric_val, metric_name: str, actor: str, phase: str, event: str = ''):
         
         if isinstance(metric_val, dict):
             for key, val in metric_val.items():
-                self._add_metric(f'{metric_name}/{key}', event, phase, actor, val)
-                # self.metric_event_actor_dict[f'{metric_name}/{key}'][f'{event}/{phase}'][actor] = val
+                # HACK: Experimenting recursion for logging nested dictionaries
+                self.log_general_metric(val, f'{metric_name}/{key}', actor, phase, event)
+                # self._add_metric(f'{metric_name}/{key}', event, phase, actor, val)
         elif isinstance(metric_val, (float, int)):
-            self._add_metric(metric_name, event, phase, actor, val)
-            # self.metric_event_actor_phase_dict[metric_name][event][actor][phase] = metric_val
-            # self.metric_event_actor_dict[metric_name][f'{event}/{phase}'][actor] = metric_val
+            self._add_metric(metric_name, event, phase, actor, metric_val)
         else:
-            logger.error(f'Metric logging of type: {type(metric_val)} is not supported')
-            raise TypeError
+            err_str = f'Metric logging for {metric_name} of type: {type(metric_val)} is not supported'
+            logger.error(err_str)
+            raise TypeError(err_str)
     
     def update_round_and_flush(self, rnd:int):
         self.result_dict['round'] = self._round
         self.metric_event_actor_dict['round'] = self._round
-
 
         self.last_result = deepcopy(self.result_dict)
         self.save_results(self.result_dict)

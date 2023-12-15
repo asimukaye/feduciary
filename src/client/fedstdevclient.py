@@ -4,18 +4,19 @@ from .baseclient import  *
 from torch.utils.data import Dataset, RandomSampler, DataLoader
 from torch import Generator
 from torch.nn import Module, Parameter
-from src.config import VaraggClientConfig
+from src.config import FedstdevClientConfig
 import logging
 from copy import deepcopy
 logger = logging.getLogger(__name__)
 
-class VaraggClient(BaseClient):
-    def __init__(self, cfg:VaraggClientConfig, **kwargs):
+class FedstdevClient(BaseClient):
+    def __init__(self, cfg:FedstdevClientConfig, **kwargs):
         super().__init__(cfg, **kwargs)
 
-        # self.cfg = cfg
+        self.cfg = cfg
 
         self.train_loader_map = self._create_shuffled_loaders(self.training_set, cfg.seeds)
+        # Make m copies of the model for independent train iterations
         self._model_map: dict[int, Module] = {seed: deepcopy(self._model) for seed in cfg.seeds}
         
         self._param_std :OrderedDict[str, Parameter] = OrderedDict(self._model.named_parameters())
@@ -43,7 +44,7 @@ class VaraggClient(BaseClient):
     def upload(self) -> OrderedDict[str, Parameter]:
         # Upload the model back to the server
         self._model.to('cpu')
-        return self._model.state_dict()
+        return self._model.state_dict(keep_vars=True)
         # return OrderedDict(self._model.named_parameters())
     
     def parameter_std_dev(self)->OrderedDict[str, Tensor]:
@@ -51,7 +52,7 @@ class VaraggClient(BaseClient):
         # for name, param in self._param_std.items():
         #     yield name, param
         
-    def get_average_model_and_std(self, model_map:dict[int, Module]):
+    def get_average_model_and_std(self, model_map: dict[int, Module]):
 
         for name, param in self._model.named_parameters():
             tmp_param_list = []

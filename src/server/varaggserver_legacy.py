@@ -4,12 +4,12 @@ import torch
 from torch.nn.utils import parameters_to_vector
 from collections import OrderedDict
 from dataclasses import dataclass, field, asdict
-from src.config import ClientConfig, VaraggServerConfig
+from src.config import ClientConfig, FedstdevServerConfig
 # from .fedavgserver import FedavgServer
 from collections import defaultdict
 from src.results.resultmanager import ClientResult
 from .baseserver import BaseServer, BaseStrategy
-from src.client.varaggclient import VaraggClient
+from src.client.fedstdevclient import FedstdevClient
 from typing import Iterator, Tuple, Iterable
 from torch.nn import Parameter
 from torch import Tensor
@@ -20,7 +20,7 @@ import os
 logger = logging.getLogger(__name__)
 
 
-class VaraggOptimizer(BaseStrategy):
+class FedstdevOptimizer(BaseStrategy):
     def __init__(self, params: Iterator[Parameter], param_keys: Iterable,  client_ids, **kwargs):
         self.lr = kwargs.get('lr')
         defaults = dict(lr= self.lr)
@@ -161,26 +161,26 @@ class PerClientResult:
 
 
 @dataclass
-class VaraggResult:
+class FedstdevResult:
     round: int
     clients: dict[str, PerClientResult]
     server_params: dict[str, np.ndarray]
     imp_coeffs : dict[str, dict[str, np.ndarray]]
 
 
-class VaraggServer(BaseServer):
-    name:str = 'VaraggServer'
+class FedstdevServer(BaseServer):
+    name:str = 'FedstdevServer'
 
-    def __init__(self, cfg:VaraggServerConfig, *args, **kwargs):
-        self.clients: dict[str, VaraggClient]
+    def __init__(self, cfg:FedstdevServerConfig, *args, **kwargs):
+        self.clients: dict[str, FedstdevClient]
 
-        super(VaraggServer, self).__init__(cfg, *args, **kwargs)
+        super(FedstdevServer, self).__init__(cfg, *args, **kwargs)
         self.round = 0
         self.cfg = cfg
         
         self.importance_coefficients = dict.fromkeys(self.clients, 0.0)
 
-        self.server_optimizer: VaraggOptimizer = VaraggOptimizer(params=self.model.parameters(), param_keys=dict(self.model.named_parameters()).keys(), client_ids=self.clients.keys(), lr= self.client_cfg.lr,
+        self.server_optimizer: FedstdevOptimizer = FedstdevOptimizer(params=self.model.parameters(), param_keys=dict(self.model.named_parameters()).keys(), client_ids=self.clients.keys(), lr= self.client_cfg.lr,
          gamma=self.cfg.gamma, alpha=self.cfg.alpha, betas=self.cfg.betas)
         
         # lr scheduler
@@ -220,14 +220,14 @@ class VaraggServer(BaseServer):
             clients_del_sigma[clnt] = self._compute_delta_sigma(delta, clients_std[clnt])
         result['clients_del_sigma'] = clients_del_sigma
 
-        if not os.path.exists('varagg_debug'):
-            os.makedirs('varagg_debug')
+        if not os.path.exists('fedstdev_debug'):
+            os.makedirs('fedstdev_debug')
         
-        # with open(f'varagg_debug/varagg_full_{self.round}.json', 'w') as f:
+        # with open(f'fedstdev_debug/fedstdev_full_{self.round}.json', 'w') as f:
         #     json.dump(result, f, indent=4)
         # ic(result['clients_delta'])
-        np.savez_compressed(f'varagg_debug/varagg_{self.round:03}.npz', **result)
-        # self.result_manager.save_as_csv(result, 'varagg_full.csv')
+        np.savez_compressed(f'fedstdev_debug/fedstdev_{self.round:03}.npz', **result)
+        # self.result_manager.save_as_csv(result, 'fedstdev_full.csv')
 
     def _run_strategy(self, ids, train_results: ClientResult):
         
@@ -293,7 +293,7 @@ class VaraggServer(BaseServer):
         for cl, coeffs in self.server_optimizer._importance_coefficients.items():
             imp_coeffs[cl] = self.detorch_params(coeffs)
         # ic(imp_coeffs)
-        varag_result =  VaraggResult(clients=client_results, server_params=server_params_np, imp_coeffs=imp_coeffs, round=self.round)
+        varag_result =  FedstdevResult(clients=client_results, server_params=server_params_np, imp_coeffs=imp_coeffs, round=self.round)
 
         self.result_manager.save_as_csv(asdict(varag_result), filename='varag_results.csv')
 

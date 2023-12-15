@@ -9,7 +9,7 @@ import logging
 from src.metrics.metricmanager import MetricManager, Result
 from src.utils import log_tqdm
 from src.config import ClientConfig
-# from .varaggclient import VaraggClient
+# from .fedstdevclient import FedstdevClient
 
 logger = logging.getLogger(__name__)
 
