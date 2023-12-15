@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 from src.config import DatasetConfig, TransformsConfig, ModelSpecConfig
 
 
-
 def get_train_transform(cfg: TransformsConfig):
     train_list:list = instantiate(cfg.train_cfg)
     train_list.append(tvt.ToTensor())
@@ -36,14 +35,6 @@ def get_test_transform(cfg: TransformsConfig):
         tf_list.append(instantiate(cfg.normalize))
     transform = tvt.Compose(tf_list)
     return transform
-
-# def construct_client_dataset(raw_train: data.Dataset, client_test_fraction, client_idx, sample_indices) ->(SubsetWrapper, SubsetWrapper):
-#     subset = data.Subset(raw_train, sample_indices)
-#     test_size = int(len(subset) * client_test_fraction)
-#     training_set, test_set = data.random_split(subset, [len(subset) - test_size, test_size])
-#     traininig_set = SubsetWrapper(training_set, f'< {str(client_idx).zfill(8)} > (train)')
-#     test_set = SubsetWrapper(test_set, f'< {str(client_idx).zfill(8)} > (test)')
-#     return (traininig_set, test_set)
     
 def load_vision_dataset(cfg: DatasetConfig, model_cfg: ModelSpecConfig):
        
@@ -51,41 +42,15 @@ def load_vision_dataset(cfg: DatasetConfig, model_cfg: ModelSpecConfig):
     raw_train, raw_test, model_cfg = fetch_torchvision_dataset(dataset_name=cfg.name, root=cfg.data_path, transforms= transforms, model_cfg=model_cfg)
 
     if cfg.subsample:
-        # FIXME: Something seems fishy here. The sizes yielded possibly incorrect
         get_subset = lambda set, fraction: data.Subset(set, np.random.randint(0, len(set)-1, int(fraction * len(set))))
         
         raw_train = get_subset(raw_train, cfg.subsample_fraction)
-        ic(len(raw_train))
         raw_test = get_subset(raw_test, cfg.subsample_fraction)
-        ic(len(raw_test))
 
-
-    # print(f'test len: {len(raw_test)}')
-
-    ############
-    # finalize #
-    ############
     # adjust the number of classes in binary case
     if model_cfg.num_classes == 2:
         raise NotImplementedError()
 
-    # get split indices if None
-    # if split_map is None:
-    # logger.info(f'[DATA_SPLIT] dataset split: `{cfg.split_type.upper()}`')    
-    # split_map = get_data_split(cfg, raw_train)
-    # logger.info(f'[DATA_SPLIT] ...done simulating dataset split (split scenario: `{cfg.split_type.upper()}`)!')
-    
-    # # construct client datasets if None
-
-    # logger.info(f'[DATA_SPLIT] Create client datasets!')
-    # client_datasets = []
-    # for idx, sample_indices in TqdmToLogger(
-    #     enumerate(split_map.values()), 
-    #     logger=logger, desc=f'[DATA_SPLIT] ...creating client datasets... ',
-    #     total=len(split_map)):
-    #     client_datasets.append(construct_client_dataset(raw_train, cfg.test_fraction, idx, sample_indices))
-    # logger.info(f'[DATA_SPLIT] ...successfully created client datasets!')
-    # # print(model_cfg)
     client_datasets = get_client_datasets(cfg, raw_train)
 
     return raw_test, client_datasets

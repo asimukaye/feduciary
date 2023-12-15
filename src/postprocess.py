@@ -49,21 +49,23 @@ def compute_correlatation(arr_1, arr_2):
 def post_process(cfg: Config, result: dict, total_time=0.0):
 
     # Maybe just an omegaconf object would be fine
+    # FIXME: Migrate to using new format of dictionary
 
     final = FinalResults(timestamp = datetime.now().strftime("%d/%m/%y, %H:%M:%S"))
     final.out_dir = os.getcwd()
     final.runtime = total_time
     final.runtime_str = str(timedelta(seconds=total_time))
     final.server = result['server_eval']['metrics']
-    final.clients = result['client_eval_post']['stats']
+    final.clients = result['local_eval/post_agg']['stats']
     final.n_clients = cfg.simulator.num_clients
     final.dataset = cfg.dataset.name
     final.split = cfg.dataset.split_type
     final.total_rounds = cfg.simulator.num_rounds
     final.steps = cfg.simulator.num_rounds * cfg.client.cfg.epochs
     final.mode = cfg.mode
-    final.eval_sizes = result['client_eval_post']['sizes']
-    final.train_sizes = result['client_train']['sizes']
+    # FIXME: Find a cleaner way to avoid key errors
+    final.eval_sizes = result['local_eval/post_agg']['sizes']
+    final.train_sizes = result['local_train/pre_agg']['sizes']
     final.server_size = result['server_eval']['size']
 
     final.server_id = cfg.server._target_.split('.')[-1].removesuffix('Server').lower()

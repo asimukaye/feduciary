@@ -43,6 +43,7 @@ class SimConfig:
     use_wandb: bool
     save_csv: bool
     checkpoint_every: int = field(default=10)
+    plot_every: int = field(default=10)
     mode: str = field(default='federated')
 
     def __post_init__(self):
@@ -247,14 +248,14 @@ class Config():
 def set_debug_mode(cfg: Config):
 
     logger.root.setLevel(logging.DEBUG)
-    cfg.simulator.use_wandb = False
+    cfg.simulator.use_wandb = True
     cfg.simulator.use_tensorboard = False
     cfg.simulator.save_csv = True
 
     logger.debug(f'[Debug Override] Setting use_wandb to: {cfg.simulator.use_wandb}')
-    cfg.simulator.num_rounds = 5
+    cfg.simulator.num_rounds = 10
     logger.debug(f'[Debug Override] Setting rounds to: {cfg.simulator.num_rounds}')
-    cfg.client.cfg.epochs = 1
+    cfg.client.cfg.epochs = 2
     logger.debug(f'[Debug Override] Setting epochs to: {cfg.client.cfg.epochs}')
 
     # cfg.simulator.num_clients = 3

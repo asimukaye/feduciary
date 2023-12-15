@@ -159,13 +159,13 @@ class Simulator:
         for cid in cids:
             eval_result[cid] = model_eval_helper(self.clients[cid].model, test_loader, client_cfg_inst, self.metric_manager, self.round)
         
-        self.result_manager.log_client_result(eval_result, 'central_eval')
+        self.result_manager.log_clients_result(eval_result, phase='post_agg', event='central_eval')
         
     def local_evaluate_clients(self, cids: list[str]):
         # Local evaluate the clients on their test sets
         eval_results = self.server._eval_request(cids)
 
-        self.result_manager.log_client_result(eval_results, event='client_eval_post')
+        self.result_manager.log_clients_result(eval_results, phase='post_agg', event='local_eval')
 
     def run_standalone_simulation(self):
         for curr_round in range(self.round, self.cfg.num_rounds + 1):
@@ -180,8 +180,8 @@ class Simulator:
             if curr_round % self.cfg.checkpoint_every == 0:
                 self.save_checkpoints()
 
-            self.result_manager.log_client_result(train_result, 'client_train')
-            self.result_manager.log_client_result(eval_result, 'client_eval')
+            self.result_manager.log_clients_result(train_result, phase='post_train', event='local_train')
+            self.result_manager.log_clients_result(eval_result, phase='post_train', event='local_eval')
 
             self.result_manager.update_round_and_flush(curr_round)
 

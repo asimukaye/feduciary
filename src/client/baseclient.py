@@ -2,7 +2,7 @@ from collections import OrderedDict
 from torch.utils.data import DataLoader
 from torch.nn import Module
 from torch.optim import Optimizer
-import copy
+from copy import deepcopy
 import torch
 from torch import Tensor
 import logging
@@ -27,7 +27,7 @@ def model_eval_helper(model: Module, dataloader: DataLoader, cfg: ClientConfig, 
         loss:Tensor = criterion(outputs, targets)
         mm.track(loss.item(), outputs, targets)
     else:
-        result = mm.aggregate(len(dataloader), -1)
+        result = mm.aggregate(len(dataloader.dataset), -1)
         mm.flush()
     return result
 
@@ -37,14 +37,16 @@ class BaseClient:
     """
     def __init__(self, cfg: ClientConfig, id_seed: int, dataset: tuple, model: Module):
         self._identifier:str = f'{id_seed:04}' # potential to convert to hash
-        self._model: Module = model
+        # Always deepcopy the model_
+        self._model: Module = deepcopy(model)
+
         self._init_state_dict: OrderedDict = model.state_dict()
 
         
         self._round = 0
         self._epoch = 0
         self._is_resumed = False
-        self.cfg = copy.deepcopy(cfg)
+        self.cfg = deepcopy(cfg)
         self.training_set = dataset[0]
         self.test_set = dataset[1]
 
@@ -104,6 +106,7 @@ class BaseClient:
     def upload(self) -> OrderedDict:
         # Upload the model back to the server
         self._model.to('cpu')
+
         return self.model.state_dict(keep_vars=True)
         # return self._model.named_parameters()
     

@@ -49,16 +49,12 @@ def update_client(client: BaseClient):
 
 class BaseStrategy(torch.optim.Optimizer, ABC):
     # A strategy is a server strategy used to aggregate the server weights
-    # It is based on the torch optimizer class to support smooth integrations of Pytorch LR schedulers
-    # loss: Tensor
+    # It is based on the torch optimizer class to support direct integration with Pytorch LR schedulers.
 
     def __init__(self,  model: Module, client_lr: float, cfg: ServerConfig) -> None:
-
-        # self.cfg = cfg
-        # NOTE: Client LR is required to make sure correct LR scheduling over rounds
+        self.cfg = cfg
+        # NOTE: Client LR is required to make sure correct LR scheduling over rounds, Other parameters pertinent to LR Scheduling can be added here
         defaults = dict(lr=client_lr)
-        
-
         super().__init__(model.parameters(), defaults)
         assert len(self.param_groups) == 1, f'Multi param group yet to be implemented'
         self._server_params: OrderedDict[str, Parameter] = model.state_dict()
@@ -80,7 +76,7 @@ class BaseStrategy(torch.optim.Optimizer, ABC):
         self.param_update_rule()
 
         # Map the server param dictionary back to the optimizer classes params
-        # NOTE: This is a quirk of using the optimizer as a base class. Changing this implementation might break the entire logic
+        # NOTE: This is a quirk of using the optimizer as a base class. Changing this implementation might break the entire strategy workflow
         for optim_param, new_param in zip(self.param_groups[0]['params'], self._server_params.values()):
             optim_param.data = new_param.data
 
@@ -100,7 +96,7 @@ class BaseStrategy(torch.optim.Optimizer, ABC):
 
     @abstractmethod
     def aggregate(self, **kwargs):
-        '''Fill in client parameter aggregation logic here'''
+        '''Fill in client aggregation weighting strategy and logic here'''
         raise NotImplementedError
     
     
@@ -121,12 +117,11 @@ class BaseServer(ABC):
         self.loss: torch.Tensor = None
         self.lr_scheduler: LRScheduler = None
 
-
         self.result_manager = result_manager
         self.metric_manager = MetricManager(eval_metrics=client_cfg.eval_metrics,round= 0, actor='server')
 
         # global holdout set
-        # wandb.watch(self.model, log='all', log_freq=5)
+
         # if self.cfg.eval_type != 'local':
         self.server_dataset = dataset
 
@@ -206,8 +201,8 @@ class BaseServer(ABC):
 
         # results_dict = dict(results_list)
         results_dict = {item['id']: item['result'] for item in results_list}
-        # update_result = self.result_manager.log_client_train_result(results_dict)
-        client_train_result = self.result_manager.log_client_result(results_dict, event='client_train')
+  
+        client_train_result = self.result_manager.log_clients_result(results_dict, phase='pre_agg', event='local_train')
 
         logger.info(f'[{self.name}] [Round: {self.round:03}] ...completed updates of {"all" if ids is None else len(ids)} clients.')
 
@@ -221,7 +216,7 @@ class BaseServer(ABC):
             return (client.id, eval_result)
 
         # if self.args._train_only: return
-        results = []
+        results: List[Tuple[str, Result]] = []
         for idx in log_tqdm(ids, desc='eval clients: ', logger=logger):
             results.append(__evaluate_clients(self.clients[idx]))
 
@@ -248,10 +243,11 @@ class BaseServer(ABC):
     def server_evaluate(self):
         """Evaluate the global model located at the server.
         """
+        # FIXME: Formalize phase argument passing
         server_loader = DataLoader(dataset=self.server_dataset, batch_size=self.client_cfg.batch_size, shuffle=False)
         # log result
         result = model_eval_helper(self.model, server_loader, self.client_cfg, self.metric_manager, self.round)
-        self.result_manager.log_server_eval_result(result)
+        self.result_manager.log_server_result(result, phase='post_agg')
         return result
 
     # def evaluate(self, client_ids) -> None:
@@ -264,8 +260,8 @@ class BaseServer(ABC):
 
         # server_results = self._central_evaluate()
 
-        # self.result_manager.log_client_result(eval_results, event='client_eval_post')
-        self.result_manager.log_server_eval_result(server_results)
+        # self.result_manager.log_clients_result(eval_results, event='client_eval_post')
+        # self.result_manager.log_server_eval_result(server_results)
 
         # remove model copy in clients
         # self.reset_client_models(selected_ids)
@@ -300,8 +296,6 @@ class BaseServer(ABC):
         """
         # randomly select clients
 
-        # for name, param in self.model.named_parameters():
-        #     ic(name, param.requires_grad)
         selected_ids = self._sample_random_clients()
 
         # broadcast the current model at the server to selected clients
@@ -311,13 +305,11 @@ class BaseServer(ABC):
         train_results = self._train_request(selected_ids)
     
         # request evaluation to selected clients
+        # TODO: Formalize client evaluation method
         eval_result = self._eval_request(selected_ids)
-        self.result_manager.log_client_result(eval_result, event='client_eval_pre')
-
-        # self.result_manager.log_client_eval_pre_result(eval_result)
+        self.result_manager.log_clients_result(eval_result, event='local_eval', phase='pre_agg')
 
         self._run_strategy(selected_ids, train_results) # aggregate local updates
-
         # remove model copy in clients
         # self.reset_client_models(selected_ids)
 
@@ -329,7 +321,6 @@ class BaseServer(ABC):
     def _run_strategy(self, client_ids: list[str], *args):
         # receive updates and aggregate into a new weights
         # Below is a template for how aggregation might work
-
 
         #### INSERT ACCUMULATION INIT HERE #####
 

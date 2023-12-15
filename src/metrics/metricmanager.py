@@ -4,7 +4,7 @@ from importlib import import_module
 from .basemetric import BaseMetric
 from src.results.resultmanager import Result
 
-
+# TODO: Consider merging with Result Manager Later
 ##################
 # Metric manager #
 ##################

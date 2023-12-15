@@ -282,8 +282,8 @@ class VaraggServer(BaseServer):
         
         # ic(client_deltas.keys())
         # ic(client_mus.keys())
-        if self.round in [0, 10, 20, 30, 50, 75, 100, 125, 149]:
-            self.save_full_param_dict(clients_mu=client_mus, clients_delta=client_deltas, clients_std=client_stds)
+        # if self.round in [0, 10, 20, 30, 50, 75, 100, 125, 149]:
+        #     self.save_full_param_dict(clients_mu=client_mus, clients_delta=client_deltas, clients_std=client_stds)
 
         self.server_optimizer.step()
         self.lr_scheduler.step()    # update learning rate

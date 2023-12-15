@@ -4,7 +4,7 @@
 mode: fedavg
 
 # Description: A string to describe the intent of the run
-desc: 'Testing parameters with gradient average for 100 iterations'
+desc: 'Testing parameters with gradient average for 150 iterations, after the deepcopy fix'
 
 # Log Configuration: Additional configurations to be copied in the results summary section. Must be a valid configuration from the config tree.
 log_conf: [client.cfg.lr]
@@ -27,8 +27,9 @@ simulator:
   use_wandb: true
   save_csv: false
   num_clients: 5
-  num_rounds: 100
+  num_rounds: 150
   checkpoint_every: 20
+  plot_every: 2
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized'
   mode: federated
 
@@ -36,7 +37,7 @@ dataset:
   name: CIFAR10
   data_path: data/
   test_fraction: 0.2
-  split_type: iid
+  split_type: one_imbalanced_client
   num_clients: ${simulator.num_clients}
   subsample: false
   subsample_fraction: 1.0
