@@ -126,7 +126,7 @@ def fetch_torchtext_dataset(args, dataset_name, root, tokenizer, seq_len):
         return inputs, targets
 
     # download files
-    logger.info(f'[LOAD] [{dataset_name.upper()}] Start downloading files!')
+    logger.info(f'[DATA LOAD] [{dataset_name.upper()}] Start downloading files!')
     root = os.path.expanduser(root)
     raw_files = []
     raw_files = torchtext.utils.download_from_url(
@@ -135,13 +135,13 @@ def fetch_torchtext_dataset(args, dataset_name, root, tokenizer, seq_len):
         hash_value=MD5[dataset_name], 
         hash_type='md5'
     )
-    logger.info(f'[LOAD] [{dataset_name.upper()}] ...downloaded files!')
+    logger.info(f'[DATA LOAD] [{dataset_name.upper()}] ...downloaded files!')
     
     
     # extract archive
-    logger.info(f'[LOAD] [{dataset_name.upper()}] Extract archived files!')
+    logger.info(f'[DATA LOAD] [{dataset_name.upper()}] Extract archived files!')
     raw_files = torchtext.utils.extract_archive(raw_files)
-    logger.info(f'[LOAD] [{dataset_name.upper()}] ...successfully extracted archived files!')
+    logger.info(f'[DATA LOAD] [{dataset_name.upper()}] ...successfully extracted archived files!')
     
     # retrieve split files
     for fname in raw_files:
@@ -152,14 +152,14 @@ def fetch_torchtext_dataset(args, dataset_name, root, tokenizer, seq_len):
     
     # build vocabularies using training set
     if tokenizer is None:
-        logger.info(f'[LOAD] [{dataset_name.upper()}] Build vocabularies!')
+        logger.info(f'[DATA LOAD] [{dataset_name.upper()}] Build vocabularies!')
         vocab = torchtext.vocab.build_vocab_from_iterator(_csv_iterator(train_csv_path), specials=['<unk>'])
         vocab.set_default_index(vocab['<unk>'])
         vocab.vocab.insert_token('<pad>', 0)
-        logger.info(f'[LOAD] [{dataset_name.upper()}] ...vocabularies are built!')
+        logger.info(f'[DATA LOAD] [{dataset_name.upper()}] ...vocabularies are built!')
 
     # tokenize training & test data and parse inputs/targets
-    logger.info(f'[LOAD] [{dataset_name.upper()}] Create trainig & test set!')
+    logger.info(f'[DATA LOAD] [{dataset_name.upper()}] Create trainig & test set!')
     if tokenizer is None:
         tr_inputs, tr_targets = _create_data_from_iterator(vocab, _csv_iterator(train_csv_path, yield_cls=True), seq_len)
         te_inputs, te_targets = _create_data_from_iterator(vocab, _csv_iterator(test_csv_path, yield_cls=True), seq_len)
@@ -171,7 +171,7 @@ def fetch_torchtext_dataset(args, dataset_name, root, tokenizer, seq_len):
     min_label_tr, min_label_te = min(tr_targets), min(te_targets)
     tr_targets = torch.tensor([l - min_label_tr for l in tr_targets]).long()
     te_targets = torch.tensor([l - min_label_te for l in te_targets]).long()
-    logger.info(f'[LOAD] [{dataset_name.upper()}] ...created training & test set!')
+    logger.info(f'[DATA LOAD] [{dataset_name.upper()}] ...created training & test set!')
     
     # adjust arguments
     args.num_embeddings = len(vocab) if tokenizer is None else tokenizer.vocab_size

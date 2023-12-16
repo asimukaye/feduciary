@@ -50,9 +50,8 @@ def init_weights(model, init_type, init_gain):
 
 def init_model(cfg: ModelConfig, model:Module):
     # initialize the model class 
-    logger.info(f'[Model] Initialize a model!')
     init_weights(model, cfg.init_type, cfg.init_gain)
-    logger.info(f'[Model] sucessfully initialized the model ({cfg.name}; (Initialization type: {cfg.init_type.upper()}))!')
+    logger.info(f'[MODEL] Initialized model: {cfg.name}; (Initialization type: {cfg.init_type.upper()}))!')
     return model
 
 

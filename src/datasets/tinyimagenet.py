@@ -83,7 +83,7 @@ class TinyImageNet(torchvision.datasets.ImageFolder):
     
 # helper method to fetch Tiny ImageNet dataset
 def fetch_tinyimagenet(args, root, transforms): 
-    logger.info('[LOAD] [TINYIMAGENET] Fetching dataset!')
+    logger.info('[DATA LOAD] [TINYIMAGENET] Fetching dataset!')
     
     # default arguments
     DEFAULT_ARGS = {'root': root, 'transform': None, 'download': True}
@@ -104,7 +104,7 @@ def fetch_tinyimagenet(args, root, transforms):
     # create test dataset instance
     raw_test = TinyImageNet(**test_args)
     
-    logger.info('[LOAD] [CINIC10] ...fetched dataset!')
+    logger.info('[DATA LOAD] [CINIC10] ...fetched dataset!')
     
     # adjust argument
     args.in_channels = 3

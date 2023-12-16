@@ -130,16 +130,16 @@ def preprocess(root):
         os.makedirs(os.path.join(path, 'vocab'))
     
     # get GloVe vocabulary
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Process GloVe embeddings (300 dim.)...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Process GloVe embeddings (300 dim.)...!')
     glove_vocab = _get_glove_vocab(path)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished processing GloVe embeddings!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished processing GloVe embeddings!')
     
     # combine raw data
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Combine raw data...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Combine raw data...!')
     raw_all = _combine_data(os.path.join(path, 'raw'))
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished combining raw data!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished combining raw data!')
     
     # convert to json format 
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Convert data to json format... (this may take several minutes)!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Convert data to json format... (this may take several minutes)!')
     _convert_to_json(path, raw_all, glove_vocab)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished converting data to json format!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished converting data to json format!')

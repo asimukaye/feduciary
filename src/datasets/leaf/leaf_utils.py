@@ -70,7 +70,7 @@ def download_data(download_root, dataset_name):
             print(f'...successfully extracted `{file_name}` at `{download_root}`!')
                 
     # download data from web
-    logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] Start downloading data...!')
+    logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] Start downloading data...!')
     try:
         for (url, opt) in zip(URL[dataset_name], OPT[dataset_name]):
             if 'http' not in url:

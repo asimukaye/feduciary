@@ -42,8 +42,8 @@ class FedavgOptimizer(BaseStrategy):
                 # client delta =  client param(w_k+1,i) - server param (w_k)
                 client_delta = client_param[key].data.sub(server_param.data)
                 
-                # if self.gradient_normalize:
-                    # self._delta_normalize(client_delta, self.gamma)
+                if self.cfg.delta_normalize:
+                    client_delta = self._delta_normalize(client_delta, self.cfg.gamma)
 
                 if self._server_deltas[key] is None:
                     self._server_deltas[key] = self._client_weights[cid] * client_delta

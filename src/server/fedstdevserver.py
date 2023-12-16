@@ -54,17 +54,19 @@ class FedstdevOptimizer(BaseStrategy):
         self.beta = {param: beta for param, beta in zip(param_keys, betas)}
   
         # TODO: Think of ways to support dynamic client allocation
-        # self._client_weights: dict[str, dict[str, Tensor]] = {cid: {param: 1.0/len(client_ids) for param in param_keys} for cid in client_ids}
         per_client_per_param_imp =  1.0/len(client_ids)
-        self._client_weights: ClientParamWeight_t  = dict.fromkeys(client_ids, dict.fromkeys(param_keys, per_client_per_param_imp))
+        self._client_weights: ClientParamWeight_t = {cid: {param: per_client_per_param_imp for param in param_keys} for cid in client_ids}
 
-        self._client_omegas: ClientParamWeight_t = dict.fromkeys(client_ids, dict.fromkeys(param_keys, per_client_per_param_imp))
+        # NOTE: IMPORTANT: Dict.fromkeys() creates copies with same memory, bad idea for creating nested dictionaries
+        # self._client_weights: ClientParamWeight_t  = dict.fromkeys(client_ids, dict.fromkeys(param_keys, per_client_per_param_imp))
+
+        self._client_omegas: ClientParamWeight_t = {cid: {param: per_client_per_param_imp for param in param_keys} for cid in client_ids}
 
 
         # Additional dictionaries required for this approach
-        self._client_params_std: ClientParams_t = dict.fromkeys(client_ids, dict.fromkeys(param_keys))
+        self._client_params_std: ClientParams_t = {cid: {param: None for param in param_keys} for cid in client_ids}
         # tracking client deltas for logging
-        self._client_deltas: ClientParams_t = dict.fromkeys(client_ids, dict.fromkeys(param_keys))
+        self._client_deltas: ClientParams_t = {cid: {param: None for param in param_keys} for cid in client_ids}
 
         
     def _compute_scaled_weights(self, std_dict: dict[str, Parameter]) -> dict[str, float]:
@@ -119,16 +121,18 @@ class FedstdevOptimizer(BaseStrategy):
 
 
     def _normalize_weights(self):
-        total_coeff = dict.fromkeys(self.param_keys, 0.0)
+        total_coeff = {param:0.0 for param in self.param_keys}
 
-        for client, coeff in self._client_weights.items():
+        for cid, coeff in self._client_weights.items():
             for layer, tensor in coeff.items():
                 total_coeff[layer] += tensor
-            # ic(total_coeff)
-        for client, coeff in self._client_weights.items():
+        for cid, coeff in self._client_weights.items():
             for layer, tensor in coeff.items():
                 assert total_coeff[layer] > 1e-9, f'Coefficient total is too small'
-                self._client_weights[client][layer] = tensor/total_coeff[layer]
+                self._client_weights[cid][layer] = tensor/total_coeff[layer]
+
+
+
         
     def set_client_param_stds(self, cid, param_std: OrderedDict)-> None:
         self._client_params_std[cid] = param_std
@@ -143,7 +147,7 @@ class FedstdevOptimizer(BaseStrategy):
                 # client delta =  client param(w_k+1,i) - server param (w_k)
                 client_delta = client_param[key].data.sub(server_param.data)              
                 if self.cfg.delta_normalize:
-                    self._delta_normalize(client_delta, self.gamma)
+                    client_delta = self._delta_normalize(client_delta, self.gamma)
 
                 self._client_deltas[cid][key] = client_delta
                 if self._server_deltas[key] is None:
@@ -167,7 +171,7 @@ class FedstdevOptimizer(BaseStrategy):
             for cid in client_ids:
                 omega = self._compute_scaled_weights(self._client_params_std[cid])
                 self._add_weight_momentum(cid, omega)
-                self._client_omegas = omega
+                self._client_omegas[cid] = omega
 
         elif self.cfg.weight_scaling == 'min_max':
             # Normalize twice version
@@ -198,7 +202,6 @@ class FedstdevServer(BaseServer):
         self.round = 0
         self.cfg = cfg
         
-        # self.importance_coefficients = dict.fromkeys(self.clients, 0.0)
 
         self.server_optimizer: FedstdevOptimizer = FedstdevOptimizer(model=self.model, client_lr=self.client_cfg.lr, cfg=cfg, client_ids=list(self.clients.keys()), res_man=self.result_manager)
         

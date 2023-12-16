@@ -98,16 +98,16 @@ def fetch_cover(args, root, seed, test_fraction):
             )
         return client_datasets
 
-    logger.info(f'[LOAD] [COVER] Check if raw data exists; if not, start downloading!')
+    logger.info(f'[DATA LOAD] [COVER] Check if raw data exists; if not, start downloading!')
     if not os.path.exists(os.path.join(root, 'covertype')):
         _download(root=os.path.join(root, 'covertype'))
-        logger.info(f'[LOAD] [COVER] ...raw data is successfully downloaded!')
+        logger.info(f'[DATA LOAD] [COVER] ...raw data is successfully downloaded!')
     else:
-        logger.info(f'[LOAD] [COVER] ...raw data already exists!')
+        logger.info(f'[DATA LOAD] [COVER] ...raw data already exists!')
     
-    logger.info(f'[LOAD] [COVER] Munging and splitting dataset!')
+    logger.info(f'[DATA LOAD] [COVER] Munging and splitting dataset!')
     client_datasets = _munge_and_split(os.path.join(root, 'covertype'), seed, test_fraction)
-    logger.info('[LOAD] [COVER] ...munged and splitted dataset!')
+    logger.info('[DATA LOAD] [COVER] ...munged and splitted dataset!')
     
     args.in_features = 51
     args.num_classes = 7

@@ -51,7 +51,7 @@ class CINIC10(torchvision.datasets.ImageFolder):
         
 # helper method to fetch CINIC-10 dataset
 def fetch_cinic10(args, root, transforms):
-    logger.info('[LOAD] [CINIC10] Fetching dataset!')
+    logger.info('[DATA LOAD] [CINIC10] Fetching dataset!')
     
     # default arguments
     DEFAULT_ARGS = {'root': root, 'transform': None, 'download': True}
@@ -72,7 +72,7 @@ def fetch_cinic10(args, root, transforms):
     # create test dataset instance
     raw_test = CINIC10(**test_args)
     
-    logger.info('[LOAD] [CINIC10] ...fetched dataset!')
+    logger.info('[DATA LOAD] [CINIC10] ...fetched dataset!')
     
     # adjust arguments
     args.in_channels = 3

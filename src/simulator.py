@@ -39,6 +39,10 @@ class Simulator:
         if self.cfg.use_wandb:
             wandb.init(project='fed_ml', job_type=cfg.mode, config=asdict(cfg), resume=True, notes=cfg.desc)
 
+        logger.info(f'[RUN MODE] : {self.cfg.mode}')
+        logger.info(f'[SERVER] : {self.master_cfg.server._target_.split(".")[-1]}')
+        logger.info(f'[CLIENT] : {self.master_cfg.client._target_.split(".")[-1]}')
+
         logger.info(f'[NUM ROUNDS] : {self.cfg.num_rounds}')
 
         self.num_clients = cfg.simulator.num_clients
@@ -147,7 +151,7 @@ class Simulator:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
         
-        logger.info(f'[SEED] ...seed is set: {seed}!')
+        logger.info(f'[SEED] Simulator global seed is set to: {seed}!')
     
     def central_evaluate_clients(self, cids: list[str]):
         '''Evaluate the clients on servers holdout set'''
@@ -213,7 +217,6 @@ class Simulator:
                 self.local_evaluate_clients(eval_ids)
                 # self.central_evaluate_clients(eval_ids)
                 # self.server.reset_client_models(eval_ids)
-
 
                 self.server.server_evaluate()
 

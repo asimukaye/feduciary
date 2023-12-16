@@ -2,12 +2,9 @@
 ---
 # Experiment mode: Switch between debug and experiment mode
 mode: fedstdev
-
 # Description: A string to describe the intent of the run
-desc: 'Fedstdev full run '
+desc: 'FedStdev rerun with fix of nested dictionary problem, iid, with delta_normalize'
 
-# Log Configuration: Additional configurations to be copied in the results summary section. Must be a valid configuration from the config tree.
-log_conf: [client.cfg.lr]
 
 defaults:
   - base_config
@@ -17,9 +14,16 @@ defaults:
   # - train: base_trainer
   - _self_
 
+# Overrides
+client:
+  cfg:
+    batch_size: 256
+    epochs: 1
+    device: auto
+
 server:
   cfg:
-    delta_normalize: false
+    delta_normalize: true
 
 simulator:
   seed: 42
@@ -29,7 +33,7 @@ simulator:
   num_clients: 5
   num_rounds: 150
   checkpoint_every: 20
-  plot_every: 2
+  plot_every: 2  # REMOVE ME
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized'
   mode: federated
 
@@ -65,13 +69,8 @@ model:
     in_channels: null
     num_classes: null 
 
-# Overrides
-client:
-  cfg:
-    batch_size: 256
-    epochs: 1
-    device: cuda:1
-#     shuffle: false
-#     eval_metrics: ['acc1']
+
+# Log Configuration: Additional configurations to be copied in the results summary section. Must be a valid configuration from the config tree.
+log_conf: []
 
 ...

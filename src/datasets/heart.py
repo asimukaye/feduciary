@@ -100,18 +100,18 @@ def fetch_heart(args, root, seed, test_fraction):
             Heart(f'[HEART] CLIENT < {hospital} > (test)', test_inputs, test_targets, scaler)
         ) 
         
-    logger.info(f'[LOAD] [HEART] Check if raw data exists; if not, start downloading!')
+    logger.info(f'[DATA LOAD] [HEART] Check if raw data exists; if not, start downloading!')
     if not os.path.exists(os.path.join(root, 'heart')):
         _download(root=os.path.join(root, 'heart'))
-        logger.info(f'[LOAD] [HEART] ...raw data is successfully downloaded!')
+        logger.info(f'[DATA LOAD] [HEART] ...raw data is successfully downloaded!')
     else:
-        logger.info(f'[LOAD] [HEART] ...raw data already exists!')
+        logger.info(f'[DATA LOAD] [HEART] ...raw data already exists!')
     
-    logger.info(f'[LOAD] [HEART] Munging and splitting dataset!')
+    logger.info(f'[DATA LOAD] [HEART] Munging and splitting dataset!')
     client_datasets = []
     for hospital in URL.keys():
         client_datasets.append(_munge_and_split(os.path.join(root, 'heart'), hospital, seed, test_fraction))
-    logger.info('[LOAD] [HEART] ...munged and splitted dataset!')
+    logger.info('[DATA LOAD] [HEART] ...munged and splitted dataset!')
     
     args.in_features = 13
     args.num_classes = 2

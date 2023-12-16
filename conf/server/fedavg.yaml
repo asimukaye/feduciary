@@ -8,12 +8,13 @@ _partial_: true
 cfg:
   sampling_fraction: 1.0
   # server_lr: 1.0
+  delta_normalize: false
   update_rule: param_average
   rounds: ${simulator.num_rounds}
   eval_type: both
   eval_fraction: 1.0
   eval_every: 1
-  # gamma: 1.0
+  gamma: 1.0
   momentum: 0.0
   multiprocessing: false
 client_cfg: ${client.cfg}

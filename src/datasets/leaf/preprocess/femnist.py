@@ -216,26 +216,26 @@ def preprocess(root):
         os.makedirs(os.path.join(path, 'intermediate'))
     
     # parse files
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Extract files of raw images...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Extract files of raw images...!')
     _parse_files(path)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished extracting files of raw images!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished extracting files of raw images!')
     
     # get file hashes
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Calculate image hashes...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Calculate image hashes...!')
     _get_hashes(path)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished calculating image hashes!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished calculating image hashes!')
     
     # match by hashes
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Assign class labels to write images...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Assign class labels to write images...!')
     _match_by_hashes(path)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished assigning class labels to write images!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished assigning class labels to write images!')
     
     # group images by writer
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Group images by write...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Group images by write...!')
     _group_by_write(path)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished grouping images by writer!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished grouping images by writer!')
     
     # convert to json format
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Convert data to json format...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Convert data to json format...!')
     _convert_to_json(path)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished converting data to json format!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished converting data to json format!')

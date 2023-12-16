@@ -85,21 +85,21 @@ def preprocess(root):
         return
     
     # get IDs and attributes
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Get meta-data...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Get meta-data...!')
     identities, attributes = _get_metadata(path)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished parsing meta-data (IDs and attributes)!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished parsing meta-data (IDs and attributes)!')
     
     # filter out celebs
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Construct celeb-image hashmap...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Construct celeb-image hashmap...!')
     celebrities = _get_celebrities_and_images(identities)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...constructed celeb-image hashmap!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...constructed celeb-image hashmap!')
     
     # filter out targets
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Construct inputs-targets hashmap...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Construct inputs-targets hashmap...!')
     targets = _get_celebrities_and_target(celebrities, attributes)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...constructed inputs-targets hashmap!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...constructed inputs-targets hashmap!')
     
     # convert to json format
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Convert data to json format...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Convert data to json format...!')
     _convert_to_json(path, celebrities, targets)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished converting data to json format!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished converting data to json format!')

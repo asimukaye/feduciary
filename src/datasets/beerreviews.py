@@ -110,7 +110,7 @@ class BeerReviews(torch.utils.data.Dataset):
     
 # helper method to fetch Beer Reviews dataset
 def fetch_beerreviews(args, root, aspect='look', tokenizer=None):
-    logger.info(f'[LOAD] [BEERREVIEWS] Fetching dataset!')
+    logger.info(f'[DATA LOAD] [BEERREVIEWS] Fetching dataset!')
     
     # create training dataset instance
     raw_train = BeerReviews(root, aspect, tokenizer)
@@ -118,7 +118,7 @@ def fetch_beerreviews(args, root, aspect='look', tokenizer=None):
     # create test dataset instance
     raw_test = None
     
-    logger.info('[LOAD] [BEERREVIEWS] ...fetched dataset!')
+    logger.info('[DATA LOAD] [BEERREVIEWS] ...fetched dataset!')
     
     # adjust argument
     args.in_features = 2

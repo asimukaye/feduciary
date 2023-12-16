@@ -267,7 +267,7 @@ def get_dirichlet_split(dataset: data.Dataset, num_clients, num_classes, cncntrt
     for k in log_tqdm(
         range(num_clients), 
         logger=logger,
-        desc='[DATA_SPLIT] ...assigning to clients... '
+        desc='[DATA_SPLIT] assigning to clients '
         ):
         # update mask according to the count of reamining samples per class
         # i.e., do NOT sample from class having no remaining samples
@@ -369,7 +369,7 @@ def get_client_datasets(cfg: DatasetConfig, dataset: data.Dataset) -> list[tuple
         patho_train = LabelFlippedSubset(train, cfg.noise.flip_percent)
         client_datasets[0] = patho_train, test
 
-    logger.info(f'[DATA_SPLIT] ...successfully created client datasets!')
+    logger.debug(f'[DATA_SPLIT] Created client datasets!')
     # exit(0)
 
     return client_datasets

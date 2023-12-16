@@ -12,8 +12,8 @@ cfg:
   eval_fraction: 1.0
   eval_every: 1
   alpha: 0.8
-  gamma: 0.95
-  delta_normalize: False
+  gamma: 1.0
+  delta_normalize: false
   betas: 
     - 1e3
     - 1e3

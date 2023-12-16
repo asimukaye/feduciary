@@ -28,7 +28,7 @@ class VisionClassificationDataset(data.Subset):
 # helper method to fetch dataset from `torchvision.datasets`
 # FIXME: Factorize this for clarity
 def fetch_torchvision_dataset(dataset_name:str, root, model_cfg: ModelSpecConfig, transforms):
-    logger.info(f'[LOAD] [{dataset_name.upper()}] Fetching dataset!')
+    logger.debug(f'[DATA LOAD] Fetching dataset: {dataset_name.upper()}')
     
     # default arguments
     DEFAULT_ARGS = {'root': root, 'transform': None, 'download': True}
@@ -184,10 +184,10 @@ def fetch_torchvision_dataset(dataset_name:str, root, model_cfg: ModelSpecConfig
         else:
             model_cfg.in_channels = 3
     else:
-        err = f'[LOAD] Dataset `{dataset_name}` is not supported!'
+        err = f'[DATA LOAD] Dataset `{dataset_name}` is not supported!'
         logger.exception(err)
         raise Exception(err)
 
     model_cfg.num_classes = len(torch.unique(torch.as_tensor(raw_train.dataset.targets)))  
-    logger.info(f'[LOAD] [{dataset_name.upper()}] ...fetched dataset!')
+    logger.info(f'[DATA LOAD] Fetched dataset: {dataset_name.upper()}')
     return raw_train, raw_test, model_cfg

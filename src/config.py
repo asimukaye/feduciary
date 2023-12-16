@@ -1,8 +1,9 @@
 # Master config file to store config dataclasses and do validation
 from dataclasses import dataclass, field, asdict
 from typing import Optional
-import hydra
-from omegaconf import OmegaConf, DictConfig
+import subprocess
+from io import StringIO
+import pandas as pd
 from hydra.core.config_store import ConfigStore
 from torch import cuda
 from hydra.utils import to_absolute_path, get_object
@@ -32,6 +33,19 @@ def arg_check(args:dict, fn:str =None):
             else:
                 logger.error(f'Missing required argument: {argument}')
                 raise ValueError(f'Missing required argument: {argument}')
+
+
+
+def get_free_gpu():
+    gpu_stats = subprocess.check_output(["nvidia-smi", "--format=csv", "--query-gpu=memory.used,memory.free"])
+    gpu_df = pd.read_csv(StringIO(gpu_stats.decode()),
+                         names=['memory.used', 'memory.free'],
+                         skiprows=1)
+    # print('GPU usage:\n{}'.format(gpu_df))
+    gpu_df['memory.free'] = gpu_df['memory.free'].map(lambda x: int(x.rstrip(' [MiB]')))
+    idx = gpu_df['memory.free'].idxmax()
+    print('Returning GPU:{} with {} free MiB'.format(idx, gpu_df.iloc[idx]['memory.free']))
+    return idx
 
 ########## Simulator Configurations ##########
 @dataclass
@@ -73,7 +87,11 @@ class ClientConfig:
         assert self.batch_size >= 1
         if self.device == 'auto':
             if cuda.is_available():
-                self.device = 'cuda'
+                if cuda.device_count() > 1:
+                    self.device = f'cuda:{get_free_gpu()}'
+                else:
+                    self.device = 'cuda'
+
             elif mps.is_available():
                 self.device = 'mps'
             else:
@@ -120,6 +138,8 @@ class CGSVConfig(ServerConfig):
     beta: float = 1.5
     alpha: float = 0.95
     gamma: float = 0.5
+    delta_normalize: bool = False
+
     
     def __post_init__(self):
         super().__post_init__()
@@ -129,6 +149,8 @@ class CGSVConfig(ServerConfig):
 class FedavgConfig(ServerConfig):
     momentum: float = float('nan')
     update_rule: str = field(default='param_average')
+    delta_normalize: bool = False
+    gamma: float = 1.0
 
     def __post_init__(self):
         super().__post_init__()

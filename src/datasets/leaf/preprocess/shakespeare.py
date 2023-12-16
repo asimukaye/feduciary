@@ -224,15 +224,15 @@ def preprocess(root):
         return
     
     # load raw data
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Read raw data...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Read raw data...!')
     with open(os.path.join(path, 'raw', RAW_FILENAME), 'r') as input_file:
         shakespeare_full = input_file.read()
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...loaded raw data!')    
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...loaded raw data!')    
     
     # split raw data into plays
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Split raw data into plays...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Split raw data into plays...!')
     plays, discarded_lines = _split_into_plays(shakespeare_full)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...done splitting raw data into plays (discarded lines: {len(discarded_lines)})!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...done splitting raw data into plays (discarded lines: {len(discarded_lines)})!')
     
     # get all examples by character
     ## check if path exists
@@ -240,20 +240,20 @@ def preprocess(root):
         os.makedirs(os.path.join(path, 'intermediate'))
     
     ## get all examples and users-plays pair
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Collect all examples...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Collect all examples...!')
     users_and_plays, all_examples = _get_all_examples(plays)
     
     ## save users-plays pair
     with open(os.path.join(path, 'intermediate', 'users_and_plays.json'), 'w') as outfile:
         json.dump(users_and_plays, outfile)
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...collected all examples!')    
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...collected all examples!')    
     
     # save all examples
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Write as files...!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Write as files...!')
     _write_data(all_examples, os.path.join(path, 'by_play_and_character'))
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...wrote files!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...wrote files!')
     
     # prase and convert to json format
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] Convert data to json format... (this may take several minutes)!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] Convert data to json format... (this may take several minutes)!')
     _convert_to_json(path) 
-    logger.info(f'[LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished converting data to json format!')
+    logger.info(f'[DATA LOAD] [LEAF - {DATASET_NAME.upper()}] ...finished converting data to json format!')

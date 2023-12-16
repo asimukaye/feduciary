@@ -152,13 +152,13 @@ def fetch_leaf(args, dataset_name, root, seed, raw_data_fraction, test_fraction,
             tr_dset, te_dset = dataset_class(**CONFIG[dataset_name]), dataset_class(**CONFIG[dataset_name])
             
             # set essential attributes for training
-            tr_dset.identifier = f'[LOAD] [{dataset_name.upper()}] CLIENT < {str(user).zfill(8)} > (train)'
+            tr_dset.identifier = f'[DATA LOAD] [{dataset_name.upper()}] CLIENT < {str(user).zfill(8)} > (train)'
             tr_dset.data = raw_train['user_data'][user]
             tr_dset.num_samples = raw_train['num_samples'][idx]
             tr_dset.make_dataset()
             
             # set essential attributes for test
-            te_dset.identifier = f'[LOAD] [{dataset_name.upper()}] CLIENT < {str(user).zfill(8)} > (test)'
+            te_dset.identifier = f'[DATA LOAD] [{dataset_name.upper()}] CLIENT < {str(user).zfill(8)} > (test)'
             te_dset.data = raw_test['user_data'][user]
             te_dset.num_samples = raw_test['num_samples'][idx]
             te_dset.make_dataset()
@@ -173,7 +173,7 @@ def fetch_leaf(args, dataset_name, root, seed, raw_data_fraction, test_fraction,
             for idx, user in TqdmToLogger(
                 enumerate(raw_train['users']), 
                 logger=logger, 
-                desc=f'[LOAD] [LEAF - {dataset_name.upper()}] ...assigning... ',
+                desc=f'[DATA LOAD] [LEAF - {dataset_name.upper()}] ...assigning... ',
                 total=len(raw_train['users'])
                 ):
                 datasets.append(workhorse.submit(_construct_dataset, idx, user).result()) 
@@ -183,34 +183,34 @@ def fetch_leaf(args, dataset_name, root, seed, raw_data_fraction, test_fraction,
     dataset_class = getattr(sys.modules[__name__], dataset_name)
     
     # download data
-    logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] Check if raw data exists; if not, start downloading!')
+    logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] Check if raw data exists; if not, start downloading!')
     if not os.path.exists(f'{root}/{dataset_name.lower()}/raw'):
         os.makedirs(f'{root}/{dataset_name.lower()}/raw')
         download_data(download_root=f'{root}/{dataset_name.lower()}/raw', dataset_name=dataset_name.lower())
-        logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] ...raw data is successfully downloaded!')
+        logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] ...raw data is successfully downloaded!')
     else:
-        logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] ...raw data already exists!')
+        logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] ...raw data already exists!')
     
     # pre-process raw data (fetch all raw data into json format)
-    logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] Pre-process raw data into json format!')
+    logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] Pre-process raw data into json format!')
     importlib.import_module(f'.leaf.preprocess.{dataset_name.lower()}', package=__package__).preprocess(root=root)
-    logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] ...done pre-processing raw data into json format!')
+    logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] ...done pre-processing raw data into json format!')
     
     # post-process raw data (split data)
-    logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] Post-process raw data to be split into train & test!')
+    logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] Post-process raw data to be split into train & test!')
     args.num_clients = postprocess_leaf(dataset_name.lower(), root, seed, raw_data_fraction=raw_data_fraction, min_samples_per_clients=0, test_fraction=test_fraction)
-    logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] ...done post-processing raw data into train & test splits!')
+    logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] ...done post-processing raw data into train & test splits!')
     
     # get raw data
-    logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] Load training & test datasets...!')
+    logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] Load training & test datasets...!')
     raw_train = _load_processed(os.path.join(root, dataset_name.lower()), 'train')
     raw_test = _load_processed(os.path.join(root, dataset_name.lower()), 'test')
-    logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] ...done parsing trainig & test datasets!')
+    logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] ...done parsing trainig & test datasets!')
     
     # make dataset for each client
-    logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] Instantiate client datasets and create split hashmap...!')
+    logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] Instantiate client datasets and create split hashmap...!')
     client_datasets = _assign_to_clients(dataset_name.lower(), dataset_class, raw_train, raw_test, transforms)
-    logger.info(f'[LOAD] [LEAF - {dataset_name.upper()}] ...instantiated client datasets and created split hashmap!')
+    logger.info(f'[DATA LOAD] [LEAF - {dataset_name.upper()}] ...instantiated client datasets and created split hashmap!')
     
     # adjust arguments
     args.num_classes = CONFIG[dataset_name.lower()]['num_classes']

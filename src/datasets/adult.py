@@ -103,22 +103,22 @@ def fetch_adult(args, root, seed, test_fraction):
             Adult(f'[ADULT] CLIENT < Edu{str(edu).zfill(2)} > (test)', test_inputs, test_targets, scaler)
         ) 
         
-    logger.info(f'[LOAD] [ADULT] Check if raw data exists; if not, start downloading!')
+    logger.info(f'[DATA LOAD] [ADULT] Check if raw data exists; if not, start downloading!')
     if not os.path.exists(os.path.join(root, 'adult')):
         _download(root=os.path.join(root, 'adult'))
-        logger.info(f'[LOAD] [ADULT] ...raw data is successfully downloaded!')
+        logger.info(f'[DATA LOAD] [ADULT] ...raw data is successfully downloaded!')
     else:
-        logger.info(f'[LOAD] [ADULT] ...raw data already exists!')
+        logger.info(f'[DATA LOAD] [ADULT] ...raw data already exists!')
     
-    logger.info(f'[LOAD] [ADULT] Munging dataset and create clients!')
+    logger.info(f'[DATA LOAD] [ADULT] Munging dataset and create clients!')
     raw_clients = _munge_and_create_clients(os.path.join(root, 'adult'))
-    logger.info('[LOAD] [ADULT] ...munged dataset and created clients!!')
+    logger.info('[DATA LOAD] [ADULT] ...munged dataset and created clients!!')
     
-    logger.info(f'[LOAD] [ADULT] Processing client datsets!')
+    logger.info(f'[DATA LOAD] [ADULT] Processing client datsets!')
     client_datasets = []
     for dataset in raw_clients.values():
         client_datasets.apend(_process_client_datasets(dataset, seed, test_fraction))
-    logger.info('[LOAD] [ADULT] ...processed client datasets!')
+    logger.info('[DATA LOAD] [ADULT] ...processed client datasets!')
     
     args.in_features = 84
     args.num_classes = 2

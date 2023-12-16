@@ -160,7 +160,7 @@ def get_transform(cfg: TransformsConfig, train=False):
 #     #################
 #     # fetch dataset #
 #     #################
-#     logger.info(f'[LOAD] Fetch dataset!')
+#     logger.info(f'[DATA LOAD] Fetch dataset!')
     
 #     if cfg.name in ['FEMNIST', 'Shakespeare', 'Sent140', 'CelebA', 'Reddit']: # 1) for a special dataset - LEAF benchmark...
 #         _check_and_raise_error(cfg.split_type, 'pre', 'split scenario', False)
@@ -170,7 +170,7 @@ def get_transform(cfg: TransformsConfig, train=False):
 #         if cfg.name in ['FEMNIST', 'CelebA']:
 #             # check if `resize` is required
 #             if cfg.resize is None:
-#                 logger.info(f'[LOAD] Dataset `{cfg.name}` may require `resize` argument; (recommended: `FEMNIST` - 28, `CelebA` - 84)!')
+#                 logger.info(f'[DATA LOAD] Dataset `{cfg.name}` may require `resize` argument; (recommended: `FEMNIST` - 28, `CelebA` - 84)!')
 #             transforms = [_get_transform(args, train=True), _get_transform(args, train=False)]
 #         elif cfg.name == 'Reddit':
 #             cfg.rawsmpl = 1.0
@@ -216,7 +216,7 @@ def get_transform(cfg: TransformsConfig, train=False):
 #         if parsed_type in ['A', 'L']:
 #             aspect = aspect_type[parsed_type]
 #         else:
-#             err = '[LOAD] Please check dataset name!'
+#             err = '[DATA LOAD] Please check dataset name!'
 #             logger.exception(err)
 #             raise Exception(err)
 #         raw_train, raw_test, args = fetch_beerreviews(args=args, root=cfg.data_path, aspect=aspect, tokenizer=tokenizer)  
@@ -242,10 +242,10 @@ def get_transform(cfg: TransformsConfig, train=False):
 #         split_map, client_datasets, args = fetch_gleam(args=args, root=cfg.data_path, seed=cfg.seed, test_fraction=cfg.test_fraction, seq_len=cfg.seq_len)
 
 #     else: # x) for a dataset with no support yet or incorrectly entered...
-#         err = f'[LOAD] Dataset `{cfg.name}` is not supported or seems incorrectly entered... please check!'
+#         err = f'[DATA LOAD] Dataset `{cfg.name}` is not supported or seems incorrectly entered... please check!'
 #         logger.exception(err)
 #         raise Exception(err)     
-#     logger.info(f'[LOAD] ...successfully fetched dataset!')
+#     logger.info(f'[DATA LOAD] ...successfully fetched dataset!')
     
 #     ############
 #     # finalize #
@@ -260,7 +260,7 @@ def get_transform(cfg: TransformsConfig, train=False):
 #         raw_test = None
 #     else:
 #         if raw_test is None:
-#             err = f'[LOAD] Dataset `{cfg.name.upper()}` does not support pre-defined validation/test set, which can be used for `global` evluation... please check! (current `eval_type`=`{cfg.eval_type}`)'
+#             err = f'[DATA LOAD] Dataset `{cfg.name.upper()}` does not support pre-defined validation/test set, which can be used for `global` evluation... please check! (current `eval_type`=`{cfg.eval_type}`)'
 #             logger.exception(err)
 #             raise AssertionError(err)
             

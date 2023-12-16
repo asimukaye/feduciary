@@ -181,16 +181,16 @@ def fetch_gleam(args, root, seed, test_fraction, seq_len):
                 )
         return client_datasets
 
-    logger.info(f'[LOAD] [GLEAM] Check if raw data exists; if not, start downloading!')
+    logger.info(f'[DATA LOAD] [GLEAM] Check if raw data exists; if not, start downloading!')
     if not os.path.exists(os.path.join(root, 'gleam')):
         _download(root=os.path.join(root, 'gleam'))
-        logger.info(f'[LOAD] [GLEAM] ...raw data is successfully downloaded!')
+        logger.info(f'[DATA LOAD] [GLEAM] ...raw data is successfully downloaded!')
     else:
-        logger.info(f'[LOAD] [GLEAM] ...raw data already exists!')
+        logger.info(f'[DATA LOAD] [GLEAM] ...raw data already exists!')
     
-    logger.info(f'[LOAD] [GLEAM] Munging and splitting dataset!')
+    logger.info(f'[DATA LOAD] [GLEAM] Munging and splitting dataset!')
     client_datasets = _munge_and_split(os.path.join(root, 'gleam'), seed, test_fraction)
-    logger.info('[LOAD] [GLEAM] ...munged and splitted dataset!')
+    logger.info('[DATA LOAD] [GLEAM] ...munged and splitted dataset!')
     
     args.in_features = 14
     args.num_classes = 8

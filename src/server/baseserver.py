@@ -58,7 +58,7 @@ class BaseStrategy(torch.optim.Optimizer, ABC):
         super().__init__(model.parameters(), defaults)
         assert len(self.param_groups) == 1, f'Multi param group yet to be implemented'
         self._server_params: OrderedDict[str, Parameter] = model.state_dict()
-        self._server_deltas: OrderedDict[str, Tensor] = dict.fromkeys(self._server_params)
+        self._server_deltas: OrderedDict[str, Tensor] = {param:torch.tensor(0.0) for param in self._server_params.keys()}
 
         self._client_params: ClientParams_t = defaultdict(dict)
         self._client_weights: dict[str, float] = defaultdict()
