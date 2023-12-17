@@ -163,12 +163,12 @@ class FedstdevServerConfig(ServerConfig):
     alpha: float = 0.95
     gamma: float = 0.5
     betas: list = field(default_factory=list)
-    weight_scaling: str = field(default='tanh')
+    weighting_strategy: str = field(default='tanh')
     delta_normalize: bool = False
     
     def __post_init__(self):
         super().__post_init__()
-        assert self.weight_scaling in ['tanh', 'min_max'], 'Incorrect weight scaling type'
+        assert self.weighting_strategy in ['tanh', 'min_max', 'tanh_sigma_by_mu'], 'Incorrect weight scaling type'
         
 
 @dataclass
@@ -276,9 +276,9 @@ def set_debug_mode(cfg: Config):
     cfg.simulator.save_csv = True
 
     logger.debug(f'[Debug Override] Setting use_wandb to: {cfg.simulator.use_wandb}')
-    cfg.simulator.num_rounds = 4
+    cfg.simulator.num_rounds = 3
     logger.debug(f'[Debug Override] Setting rounds to: {cfg.simulator.num_rounds}')
-    cfg.client.cfg.epochs = 2
+    cfg.client.cfg.epochs = 1
     logger.debug(f'[Debug Override] Setting epochs to: {cfg.client.cfg.epochs}')
 
     # cfg.simulator.num_clients = 3
@@ -286,7 +286,7 @@ def set_debug_mode(cfg: Config):
     logger.debug(f'[Debug Override] Setting num clients to: {cfg.simulator.num_clients}')
     
     cfg.dataset.subsample = True
-    cfg.dataset.subsample_fraction = 0.1
+    cfg.dataset.subsample_fraction = 0.05
 
 
 def register_configs():

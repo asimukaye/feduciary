@@ -66,19 +66,29 @@ class FedstdevOptimizer(BaseStrategy):
 
         # Additional dictionaries required for this approach
         self._client_params_std: ClientParams_t = {cid: {param: None for param in param_keys} for cid in client_ids}
+        self._clnt_sigma_by_mu: ClientParams_t = {cid: {param: None for param in param_keys} for cid in client_ids}
         # tracking client deltas for logging
         self._client_deltas: ClientParams_t = {cid: {param: None for param in param_keys} for cid in client_ids}
 
+    def _compute_sigma_by_mu(self, sigmas: dict[str, Parameter], mus: dict[str, Parameter]) -> dict[str, Tensor]:
+        assert(sigmas.keys() == mus.keys())
+        sigma_by_mu = {}
+        for (key, sigma), mu in zip (sigmas.items(), mus.values()):
+            mask = (mu.data!=0)
+            sbm = sigma
+            sbm[mask] = sigma.data[mask].div(mu.data[mask].abs())
+            sigma_by_mu[key] = sbm
+        return sigma_by_mu
         
     def _compute_scaled_weights(self, std_dict: dict[str, Parameter]) -> dict[str, float]:
         weights = {}
         for key, val in std_dict.items():
-            # ic(val)
+            # # HACK to support Tensors and parameters both
+            # if isinstance(val, Parameter):
+            #     val = val.data
             sigma_scaled = self.beta[key]*val.data
             tanh_std = 1 - torch.tanh(sigma_scaled)
-            # ic(tanh_std)
             weights[key] = tanh_std.mean().item()
-            # ic(key, weights[key])
         return weights
 
     def _compute_mean_weights(self, std_dict: dict[str, Parameter]) -> dict[str, float]:
@@ -176,13 +186,19 @@ class FedstdevOptimizer(BaseStrategy):
 
     def aggregate(self, client_ids):
         
-        if self.cfg.weight_scaling == 'tanh':
+        if self.cfg.weighting_strategy == 'tanh':
             for cid in client_ids:
                 omega = self._compute_scaled_weights(self._client_params_std[cid])
                 self._add_weight_momentum(cid, omega)
                 self._client_omegas[cid] = omega
-
-        elif self.cfg.weight_scaling == 'min_max':
+        elif self.cfg.weighting_strategy =='tanh_sigma_by_mu':
+            for cid in client_ids:
+                self._clnt_sigma_by_mu[cid] = self._compute_sigma_by_mu(self._client_params_std[cid], self._client_params[cid])
+                omega = self._compute_scaled_weights(self._clnt_sigma_by_mu[cid])
+                self._add_weight_momentum(cid, omega)
+                self._client_omegas[cid] = omega
+            
+        elif self.cfg.weighting_strategy == 'min_max':
             # Normalize twice version
             int_weights = {}
             for cid in client_ids:
@@ -193,7 +209,7 @@ class FedstdevOptimizer(BaseStrategy):
                 self._add_weight_momentum(cid, normalized_weights[cid])
        
         else:
-            logger.error(f'Unknown weight scaling type: {self.cfg.weight_scaling}')
+            logger.error(f'Unknown weight scaling type: {self.cfg.weighting_strategy}')
 
         self._normalize_weights()
 
@@ -203,6 +219,7 @@ class FedstdevOptimizer(BaseStrategy):
             self.res_man.log_general_metric(self.get_dict_avg(self._client_omegas[cid]), f'omegas/{cid}', 'server', 'post_agg')
             self.res_man.log_general_metric(self.get_dict_avg(self._client_weights[cid]), metric_name=f'client_weights/{cid}', phase='post_agg', actor='server')
 
+            self.res_man.log_parameters(self._clnt_sigma_by_mu[cid], 'post_agg', 'server', metric=f'sigma_by_mu/{cid}', verbose=True)
 
         self.res_man.log_general_metric(self._client_omegas, 'omegas', 'server', 'post_agg')
         self.res_man.log_general_metric(self._client_weights, metric_name='client_weights', phase='post_agg', actor='server')
