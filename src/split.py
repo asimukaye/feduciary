@@ -334,7 +334,7 @@ def get_split_map(cfg: DatasetConfig, dataset: data.Dataset) -> dict[int, np.nda
         case 'leaf' |'fedvis':
             logger.info('[DATA_SPLIT] Using pre-defined split.')
         case _ :
-            logger.error('[DATA_SPLIT] Unknow datasplit type')
+            logger.error('[DATA_SPLIT] Unknown datasplit type')
             raise NotImplementedError
 
     return split_map

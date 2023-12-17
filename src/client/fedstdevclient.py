@@ -7,7 +7,32 @@ from torch.nn import Module, Parameter
 from src.config import FedstdevClientConfig
 import logging
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor, as_completed
 logger = logging.getLogger(__name__)
+ # NOTE: Multithreading causes atleast 3x slowdown for 2 epoch case. DO not use until necessary
+def train_one_model(model:Module, dataloader: DataLoader, seed: int, cfg: ClientConfig, optim_partial, criterion, mm: MetricManager)->Tuple[int,Module,Result]:
+    optimizer: Optimizer = optim_partial(model.parameters())
+    model.train()
+    model.to(cfg.device)
+    # iterate over epochs and then on the batches
+    for _epoch in range(cfg.epochs):
+        for inputs, targets in dataloader:
+            inputs, targets = inputs.to(cfg.device), targets.to(cfg.device)
+
+            model.zero_grad(set_to_none=True)
+
+            outputs: Tensor = model(inputs)
+            loss: Tensor = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+
+            # accumulate metrics
+            mm.track(loss.item(), outputs, targets)
+        else:
+            out_result = mm.aggregate(len(
+                dataloader.dataset), _epoch)
+            mm.flush()
+    return (seed, model, out_result)
 
 class FedstdevClient(BaseClient):
     # TODO: Fix the argument ordering structure
@@ -24,6 +49,7 @@ class FedstdevClient(BaseClient):
         # self._param_std :OrderedDict[str, Parameter] = OrderedDict(self._model.named_parameters())
 
         self._param_std :OrderedDict[str, Parameter] = self._model.state_dict()
+        self.train = self.train_single_thread
 
 
     def _create_shuffled_loaders(self, dataset:Dataset, seeds:list[int]) -> dict[int, DataLoader]:
@@ -78,7 +104,7 @@ class FedstdevClient(BaseClient):
         # for name, param in self._model.named_parameters():
         #     ic(name, param.requires_grad)
 
-    def train(self, return_model=False):
+    def train_single_thread(self, return_model=False):
         # Run an round on the client
     
         self.mm._round = self._round
@@ -116,11 +142,36 @@ class FedstdevClient(BaseClient):
         
 
         logger.info(f'CLIENT {self.id} Completed update')
+
+        # FIXME: OUt result is only for the last client
         if return_model:
             return out_result, self._model.to('cpu')
         else:
             return out_result
+
+
+   
+    def train_multi_thread(self):
+        # Run an round on the client
+    
+        self.mm._round = self._round
+        self._model.train()
+        self._model.to(self.cfg.device)
+
+        # for seed, model in self._model_map.items():   
+        with ThreadPoolExecutor(max_workers=len(self._model_map)) as exec:
+            futures = {exec.submit(train_one_model, model, self.train_loader_map[seed], seed, self.cfg, self.optim_partial, self.criterion, deepcopy(self.mm)) for seed, model in self._model_map.items()}
+            for fut in as_completed(futures):
+                seed, model, out_result = fut.result()
+                self._model_map[seed] = model
+
         
+        self.get_average_model_and_std(self._model_map)
+        
+
+        logger.info(f'CLIENT {self.id} Completed update')
+        return out_result
     # def reset_model(self) -> None:
     #     self._model = None
-       
+    
+    

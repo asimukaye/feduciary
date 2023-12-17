@@ -284,7 +284,7 @@ class FedstdevServer(BaseServer):
             self.server_optimizer.set_client_param_stds(cid, client_param_stds)
 
             self.result_manager.log_parameters(client_params, phase='pre_agg', actor=cid, verbose=True)
-            self.result_manager.log_parameters(client_params, phase='pre_agg', actor=cid, verbose=True, metric='param_std')
+            self.result_manager.log_parameters(client_param_stds, phase='pre_agg', actor=cid, verbose=True, metric='param_std')
 
     
         # if self.round in [0, 10, 20, 30, 50, 75, 100, 125, 149]:

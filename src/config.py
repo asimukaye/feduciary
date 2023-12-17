@@ -276,7 +276,7 @@ def set_debug_mode(cfg: Config):
     cfg.simulator.save_csv = True
 
     logger.debug(f'[Debug Override] Setting use_wandb to: {cfg.simulator.use_wandb}')
-    cfg.simulator.num_rounds = 10
+    cfg.simulator.num_rounds = 4
     logger.debug(f'[Debug Override] Setting rounds to: {cfg.simulator.num_rounds}')
     cfg.client.cfg.epochs = 2
     logger.debug(f'[Debug Override] Setting epochs to: {cfg.client.cfg.epochs}')

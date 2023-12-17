@@ -3,7 +3,7 @@
 # Experiment mode: Switch between debug and experiment mode
 mode: fedstdev
 # Description: A string to describe the intent of the run
-desc: 'FedStdev rerun with delta normalize fix, client model download fix problem, iid'
+desc: 'FedStdev with 1 epoch, 100 % noisy label cl0, no del_norm'
 # desc: 'FedAvg rerun with fix delta normalize, iid, with delta_normalize'
 
 
@@ -25,7 +25,7 @@ client:
 
 server:
   cfg:
-    delta_normalize: true
+    delta_normalize: false
 
 simulator:
   seed: 42
@@ -43,7 +43,7 @@ dataset:
   name: CIFAR10
   data_path: data/
   test_fraction: 0.2
-  split_type: iid
+  split_type: one_label_flipped_client
   num_clients: ${simulator.num_clients}
   subsample: false
   subsample_fraction: 1.0
