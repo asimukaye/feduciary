@@ -3,7 +3,9 @@
 # Experiment mode: Switch between debug and experiment mode
 mode: fedstdev
 # Description: A string to describe the intent of the run
-desc: 'FedStdev rerun with fix of nested dictionary problem, iid, with delta_normalize'
+desc: 'FedStdev rerun with delta normalize fix, client model download fix problem, iid'
+# desc: 'FedAvg rerun with fix delta normalize, iid, with delta_normalize'
+
 
 
 defaults:

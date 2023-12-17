@@ -39,7 +39,7 @@ class Simulator:
         if self.cfg.use_wandb:
             wandb.init(project='fed_ml', job_type=cfg.mode, config=asdict(cfg), resume=True, notes=cfg.desc)
 
-        logger.info(f'[RUN MODE] : {self.cfg.mode}')
+        logger.info(f'[SIM MODE] : {self.cfg.mode}')
         logger.info(f'[SERVER] : {self.master_cfg.server._target_.split(".")[-1]}')
         logger.info(f'[CLIENT] : {self.master_cfg.client._target_.split(".")[-1]}')
 
@@ -190,6 +190,7 @@ class Simulator:
             self.result_manager.update_round_and_flush(curr_round)
 
     def run_centralized_simulation(self):
+        # TODO: Just initiate one client and pass all the data to that client
         # TBD
         pass
 
@@ -255,7 +256,7 @@ class Simulator:
         client_partial = instantiate(self.master_cfg.client)
 
         def __create_client(idx, datasets, model):
-            client: BaseClient = client_partial(id_seed=idx, dataset=datasets, model=model)
+            client: BaseClient = client_partial(id_seed=idx, dataset=datasets, model=model, res_man=self.result_manager)
             return client.id, client
 
         clients = {}

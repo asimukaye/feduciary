@@ -46,6 +46,7 @@ class FedstdevOptimizer(BaseStrategy):
         self.alpha = cfg.alpha
         param_keys = self._server_params.keys()
         self.param_keys = param_keys
+        self.param_dims = {p_key: np.prod(param.size()) for p_key, param in self._server_params.items()}
 
         betas = cfg.betas
         assert len(param_keys)==len(betas)
@@ -131,8 +132,6 @@ class FedstdevOptimizer(BaseStrategy):
                 assert total_coeff[layer] > 1e-9, f'Coefficient total is too small'
                 self._client_weights[cid][layer] = tensor/total_coeff[layer]
 
-
-
         
     def set_client_param_stds(self, cid, param_std: OrderedDict)-> None:
         self._client_params_std[cid] = param_std
@@ -153,7 +152,7 @@ class FedstdevOptimizer(BaseStrategy):
                 if self._server_deltas[key] is None:
                     self._server_deltas[key] = self._client_weights[cid][key] * client_delta
                 else:
-                    self._server_deltas[key].add_(self._client_weights[cid][key] * client_delta)
+                    self._server_deltas[key].add_(client_delta, alpha=self._client_weights[cid][key])
 
         for key, delta in self._server_deltas.items():
             self._server_params[key].data.add_(delta)
@@ -163,6 +162,16 @@ class FedstdevOptimizer(BaseStrategy):
             self.res_man.log_parameters(cl_delta, 'post_agg', cid, metric='param_delta', verbose=True)
 
         self.res_man.log_parameters(self._server_deltas, 'post_agg', 'server', metric='param_delta', verbose=True)
+
+    def get_dict_avg(self, param_dict: dict, wts= None) -> dict:
+        # Helper function to compute average of the last layer of the dictionary
+        # wtd_avg = 0.0
+        # wight_sums = np.sum(self.param_dims.values())
+
+        avg = np.mean(list(param_dict.values()))
+        wtd_avg = np.average(list(param_dict.values()), weights=list(self.param_dims.values()))
+
+        return {'avg':avg, 'wtd_avg':wtd_avg}
 
 
     def aggregate(self, client_ids):
@@ -188,7 +197,16 @@ class FedstdevOptimizer(BaseStrategy):
 
         self._normalize_weights()
 
+        # LOGGING CODE
+        for cid in client_ids:
+            # logging omega and weight averages
+            self.res_man.log_general_metric(self.get_dict_avg(self._client_omegas[cid]), f'omegas/{cid}', 'server', 'post_agg')
+            self.res_man.log_general_metric(self.get_dict_avg(self._client_weights[cid]), metric_name=f'client_weights/{cid}', phase='post_agg', actor='server')
+
+
         self.res_man.log_general_metric(self._client_omegas, 'omegas', 'server', 'post_agg')
+        self.res_man.log_general_metric(self._client_weights, metric_name='client_weights', phase='post_agg', actor='server')
+
 
 
 class FedstdevServer(BaseServer):
@@ -278,9 +296,9 @@ class FedstdevServer(BaseServer):
         self.lr_scheduler.step() # update learning rate
 
         # Full parameter debugging
-        self.result_manager.log_general_metric(self.server_optimizer._client_weights, metric_name='client_weights', phase='post_agg', actor='server')
+
 
         self.result_manager.log_parameters(self.model.state_dict(), phase='post_agg', actor='server', verbose=True)
-        self.result_manager.log_duplicate_parameters_for_clients(client_ids, phase='post_agg', reference_actor='server')
+        # self.result_manager.log_duplicate_parameters_for_clients(client_ids, phase='post_agg', reference_actor='server')
   
         logger.info(f'[{self.name}] [Round: {self.round:03}] successfully aggregated into a new global model!')

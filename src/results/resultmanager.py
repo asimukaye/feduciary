@@ -205,7 +205,7 @@ class ResultManager:
 
 
     def log_parameters(self, model_params: dict[str, Parameter], phase: str, actor: str, event: str = '' , metric= 'param', verbose=False) -> None:
-
+        # LUMP The parameters layer wise and add to the result dictionary
         out_dict = {}
         avg = 0.0
         weighted_avg = 0.0
@@ -243,14 +243,25 @@ class ResultManager:
         self.metric_event_actor_dict[metric][f'{event}/{phase}'][actor] = value
 
 
+    def log_general_metric_average(self, metrics: dict, metric_name: str, actor: str, phase: str, event: str = 'avg', weights=None):
+        # Helper function to compute a weighted average over dictionary values
+        assert isinstance(metrics, dict)
+        if weights is None:
+            weights = [1.0/len(metrics) for k in metrics.keys()]
+        
+        assert len(weights) == len(metrics)
+        average = 0.0
+        for w, v in zip(weights, metrics.values()):
+            average += w*v
+        
+        self._add_metric(metric_name, event, phase, actor, average)
+
 
     def log_general_metric(self, metric_val, metric_name: str, actor: str, phase: str, event: str = ''):
         
         if isinstance(metric_val, dict):
             for key, val in metric_val.items():
-                # HACK: Experimenting recursion for logging nested dictionaries
                 self.log_general_metric(val, f'{metric_name}/{key}', actor, phase, event)
-                # self._add_metric(f'{metric_name}/{key}', event, phase, actor, val)
         elif isinstance(metric_val, (float, int)):
             self._add_metric(metric_name, event, phase, actor, metric_val)
         else:

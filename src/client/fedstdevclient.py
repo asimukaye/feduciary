@@ -10,28 +10,34 @@ from copy import deepcopy
 logger = logging.getLogger(__name__)
 
 class FedstdevClient(BaseClient):
-    def __init__(self, cfg:FedstdevClientConfig, **kwargs):
+    # TODO: Fix the argument ordering structure
+    def __init__(self, cfg: FedstdevClientConfig, **kwargs):
         super().__init__(cfg, **kwargs)
 
         self.cfg = cfg
+        self.res_man: ResultManager = kwargs.get('res_man')
 
         self.train_loader_map = self._create_shuffled_loaders(self.training_set, cfg.seeds)
         # Make m copies of the model for independent train iterations
         self._model_map: dict[int, Module] = {seed: deepcopy(self._model) for seed in cfg.seeds}
         
-        self._param_std :OrderedDict[str, Parameter] = OrderedDict(self._model.named_parameters())
+        # self._param_std :OrderedDict[str, Parameter] = OrderedDict(self._model.named_parameters())
+
+        self._param_std :OrderedDict[str, Parameter] = self._model.state_dict()
+
 
     def _create_shuffled_loaders(self, dataset:Dataset, seeds:list[int]) -> dict[int, DataLoader]:
         loader_dict = {}
         # HACK: Hack to fix the batch size based on dataset size for imbalanced dataset
-        n_iters = len(dataset)/self.cfg.batch_size
+        # FIXME: IMPORTANT: Formalize the iteration to batch size correlation for imbalanced data experiments
+        # n_iters = len(dataset)/self.cfg.batch_size
         # ic(self._identifier, n_iters)
         # ic(len(dataset))
         # ic(self.cfg.batch_size)
 
-        if self._identifier == '0000':
-            self.cfg.batch_size =  int(self.cfg.batch_size/2.0)
-        new_iters = len(dataset)/self.cfg.batch_size
+        # if self._identifier == '0000':
+        #     self.cfg.batch_size =  int(self.cfg.batch_size/2.0)
+        # new_iters = len(dataset)/self.cfg.batch_size
         # ic(new_iters)
         for seed in seeds:
             gen = Generator()
@@ -41,6 +47,13 @@ class FedstdevClient(BaseClient):
 
         return loader_dict
     
+    def download(self, round: int, model_dict: OrderedDict):
+        super().download(round, model_dict)
+        # TODO: Debug logging to check the parameters on the client
+        self.res_man.log_parameters(self._model.state_dict(), 'post_agg', self._identifier, verbose=True)
+        for model in self._model_map.values():
+            model.load_state_dict(model_dict)
+
     def upload(self) -> OrderedDict[str, Parameter]:
         # Upload the model back to the server
         self._model.to('cpu')
@@ -49,9 +62,7 @@ class FedstdevClient(BaseClient):
     
     def parameter_std_dev(self)->OrderedDict[str, Tensor]:
         return deepcopy(self._param_std)
-        # for name, param in self._param_std.items():
-        #     yield name, param
-        
+
     def get_average_model_and_std(self, model_map: dict[int, Module]):
 
         for name, param in self._model.named_parameters():
@@ -110,6 +121,6 @@ class FedstdevClient(BaseClient):
         else:
             return out_result
         
-    def reset_model(self) -> None:
-        self._model = None
+    # def reset_model(self) -> None:
+    #     self._model = None
        

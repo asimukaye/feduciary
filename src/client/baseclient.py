@@ -9,7 +9,7 @@ import logging
 from src.metrics.metricmanager import MetricManager, Result
 from src.utils import log_tqdm
 from src.config import ClientConfig
-# from .fedstdevclient import FedstdevClient
+from src.results.resultmanager import ResultManager
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +35,12 @@ def model_eval_helper(model: Module, dataloader: DataLoader, cfg: ClientConfig, 
 class BaseClient:
     """Class for client object having its own (private) data and resources to train a model.
     """
-    def __init__(self, cfg: ClientConfig, id_seed: int, dataset: tuple, model: Module):
+    def __init__(self, cfg: ClientConfig, id_seed: int, dataset: tuple, model: Module, res_man: ResultManager = None):
         self._identifier:str = f'{id_seed:04}' # potential to convert to hash
         # Always deepcopy the model_
         self._model: Module = deepcopy(model)
 
+        self.res_man = res_man
         self._init_state_dict: OrderedDict = model.state_dict()
 
         
