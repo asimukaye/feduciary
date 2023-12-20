@@ -205,20 +205,30 @@ class NoiseConfig:
     flip_percent: float = 0.5
     
 @dataclass
+class SplitConfig:
+    split_type: str
+    noise: Optional[NoiseConfig]
+    num_splits: int  # should be equal to num_clients
+    # Train test split ratio within the client
+    test_fraction: float 
+    def __post_init__(self):
+        assert self.test_fraction == Range(0.0, 1.0), f'Invalid value {self.test_fraction} for test fraction'
+        known_splits =  ['one_noisy_client', 'one_label_flipped_client', 'iid', 'unbalanced', 'one_imbalanced_client' ]
+        assert self.split_type in known_splits, f'Invalid split type: {self.split_type}'
+
+
+@dataclass
 class DatasetConfig:
     name: str
     data_path: str
-    split_type: str
-    test_fraction: float
-    num_clients: int  # num_clients
-    noise: Optional[NoiseConfig]
     transforms: Optional[TransformsConfig]
+    split_conf: Optional[SplitConfig]
     subsample_fraction: float = 0.0  # subsample the dataset with the given fraction
     subsample: bool = False
 
 
     def __post_init__(self):
-        assert self.test_fraction == Range(0.0, 1.0), f'Invalid value {self.test_fraction} for test fraction'
+        # assert self.test_fraction == Range(0.0, 1.0), f'Invalid value {self.test_fraction} for test fraction'
         self.data_path = to_absolute_path(self.data_path)
 
 @dataclass
@@ -228,6 +238,11 @@ class ModelSpecConfig:
     hidden_size: Optional[int]
     num_classes: Optional[int]
     in_channels: Optional[int]
+
+@dataclass
+class DatasetModelSpec:
+    num_classes: int
+    in_channels: int
 
 @dataclass
 class ModelConfig:

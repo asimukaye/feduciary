@@ -15,6 +15,8 @@ from hydra.utils import instantiate
 from src.server.baseserver import BaseServer
 from src.client.baseclient import BaseClient, model_eval_helper
 from src.data import load_vision_dataset
+from src.split import get_client_datasets
+
 from src.config import Config, SimConfig
 from src.utils  import log_tqdm, log_instance
 from src.postprocess import post_process
@@ -35,9 +37,11 @@ class Simulator:
         self.round: int = 0
         self.master_cfg: Config = cfg
         self.cfg: SimConfig = cfg.simulator
+
         
         if self.cfg.use_wandb:
-            wandb.init(project='fed_ml', job_type=cfg.mode, config=asdict(cfg), resume=True, notes=cfg.desc)
+            wandb.init(project='fed_ml', job_type=cfg.mode,
+                        config=asdict(cfg), resume=True, notes=cfg.desc)
 
         logger.info(f'[SIM MODE] : {self.cfg.mode}')
         logger.info(f'[SERVER] : {self.master_cfg.server._target_.split(".")[-1]}')
@@ -49,19 +53,17 @@ class Simulator:
 
         self.set_seed(cfg.simulator.seed)
         # self.algo = cfg.server.algorithm.name
+        self.init_dataset_and_model()
 
-       # # NOTE: THe model spec is being modified in place here.
-        self.server_dataset, self.client_datasets = load_vision_dataset(cfg.dataset, cfg.model.model_spec)
-        self.model_instance: Module = instantiate(cfg.model.model_spec)
-
-        self.metric_manager = MetricManager(self.master_cfg.client.cfg.eval_metrics, self.round, actor='simulator')
-        init_model(cfg.model, self.model_instance)
+        self.metric_manager = MetricManager(cfg.client.cfg.eval_metrics, self.round, actor='simulator')
         self.result_manager = ResultManager(cfg.simulator, logger=logger)
         self.server = None
 
         self.set_fn_overloads_for_mode()
 
         self.init_sim()
+
+        # TODO: consolidate checkpointing and resuming logic systematically
 
         self.make_checkpoint_dirs()
         self.is_resumed =False
@@ -73,6 +75,34 @@ class Simulator:
             self.load_state(server_ckpt, client_ckpts)
         
         logger.debug(f'Init time: {time.time() - self.start_time} seconds')
+
+    def init_dataset_and_model(self):
+        '''Initialize the dataset and the model here'''
+        # NOTE: THe model spec is being modified in place here.
+        # TODO: Generalize this logic for all datasets
+        self.test_set, self.train_set, dataset_model_spec  = load_vision_dataset(self.master_cfg.dataset)
+
+        model_spec = self.master_cfg.model.model_spec
+        if model_spec.in_channels is None:
+            model_spec.in_channels = dataset_model_spec.in_channels
+            logger.info(f'[MODEL CONFIG] Setting model in channels to {model_spec.in_channels}')
+        else:
+            logger.info(f'[MODEL CONFIG] Overriding model in channels to {model_spec.in_channels}')
+
+        
+        if model_spec.num_classes is None:
+            model_spec.num_classes = dataset_model_spec.num_classes
+            logger.info(f'[MODEL CONFIG] Setting model num classes to {model_spec.num_classes}')
+        else:
+            logger.info(f'[MODEL CONFIG] Overriding model num classes to {model_spec.num_classes}')
+
+
+        self.master_cfg.model.model_spec = model_spec
+
+
+        # self.model_instance: Module = instantiate(cfg.model.model_spec)
+        self.model_instance = init_model(self.master_cfg.model)
+
 
     def set_fn_overloads_for_mode(self):
         match self.cfg.mode:
@@ -93,10 +123,22 @@ class Simulator:
 
         server_partial: partial = instantiate(self.master_cfg.server)
         self.clients: dict[str, BaseClient] = defaultdict(BaseClient)
+        
+        #  Server gets the test set
+        self.server_dataset = self.test_set
+        # Clients get the splits of the train set with an inbuilt test set
+        self.client_datasets =  get_client_datasets(self.master_cfg.dataset.split_conf, self.train_set)
 
         
         # NOTE:IMPORTANT Sharing models without deepcopy could potentially have same references to parameters
         self.clients = self._create_clients(self.client_datasets, copy.deepcopy(self.model_instance))
+
+        # HACK: Fixing batch size for imbalanced client case
+        # FIXME: Formalize this later
+        if self.master_cfg.dataset.split_conf.split_type == 'one_imbalanced_client':
+            self.clients['0000'].cfg.batch_size = int(self.clients['0000'].cfg.batch_size/2)
+            for cid, cl in self.clients.items():
+                logger.debug(f'[BATCH SIZES:] CID: {cid}, batch size: {cl.cfg.batch_size}')
 
         self.all_client_ids = list(self.clients.keys())
         # NOTE: later, consider making a copy of client to avoid simultaneous edits to clients dictionary
@@ -113,7 +155,7 @@ class Simulator:
         self.clients = self._create_clients(self.client_datasets, copy.deepcopy(self.model_instance))
 
     def init_centralized_mode(self):
-        pass
+        trainer: BaseClient = instantiate(self.master_cfg.client)
 
     def make_checkpoint_dirs(self):
         os.makedirs('server_ckpts', exist_ok = True)

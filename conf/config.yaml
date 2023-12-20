@@ -1,9 +1,9 @@
 %YAML 1.2
 ---
 # Experiment mode: Switch between debug and experiment mode
-mode: fedstdev
+mode: debug
 # Description: A string to describe the intent of the run
-desc: 'FedStdev with 1 epoch, noisy image cl0, changing to sigma_by_mod mu '
+desc: 'FedStdev rerun with 1 epoch, imbalanced cl0, sigma/mu weights'
 # desc: 'FedAvg rerun with fix delta normalize, iid, with delta_normalize'
 
 defaults:
@@ -24,7 +24,9 @@ client:
 server:
   cfg:
     delta_normalize: false
+    # weighting_strategy: tanh
     weighting_strategy: tanh_sigma_by_mu
+
 
 simulator:
   seed: 42
@@ -41,22 +43,28 @@ simulator:
 dataset:
   name: CIFAR10
   data_path: data/
-  test_fraction: 0.2
-  split_type: one_noisy_client
-  num_clients: ${simulator.num_clients}
   subsample: false
   subsample_fraction: 1.0
-  # Noise parameter is specific to one patho client
-  noise:
-    mu: 0.0
-    sigma: 0.5
-    flip_percent: 1.0
   transforms:
     resize:
       _target_: torchvision.transforms.Resize
       size: 
         - 28
         - 28
+
+  split_conf:
+    # split_type: one_label_flipped_client
+    split_type: one_imbalanced_client
+    # split_type: one_noisy_client
+    num_splits: ${simulator.num_clients}
+    # Noise parameter is specific to one patho client
+    test_fraction: 0.2 # Client train-test split
+
+    noise:
+      mu: 0.0
+      sigma: 0.5
+      flip_percent: 1.0
+  
 
 model:
   name: TwoCNN
@@ -67,6 +75,7 @@ model:
     _target_: src.models.twocnn.TwoCNN
     _partial_: false
     hidden_size: 200
+    # Option to override in_channels and num_classes. Otherwise auto set by the dataset
     in_channels: null
     num_classes: null 
 

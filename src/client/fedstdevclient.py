@@ -39,7 +39,7 @@ class FedstdevClient(BaseClient):
     def __init__(self, cfg: FedstdevClientConfig, **kwargs):
         super().__init__(cfg, **kwargs)
 
-        self.cfg = cfg
+        self.cfg = deepcopy(cfg)
         self.res_man: ResultManager = kwargs.get('res_man')
 
         self.train_loader_map = self._create_shuffled_loaders(self.training_set, cfg.seeds)

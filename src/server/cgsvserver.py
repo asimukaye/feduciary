@@ -97,7 +97,7 @@ class CgsvOptimizer(BaseStrategy):
         # print(len(self._server_params))
         for server_param, local_param in zip(self._server_params, local_params):
                 i += 1
-                local_delta = server_param - local_param
+                local_delta = local_param - server_param
 
                 norm = local_delta.norm() 
                 if norm == 0:

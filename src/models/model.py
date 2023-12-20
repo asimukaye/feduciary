@@ -3,7 +3,7 @@ from torch.nn import Module
 import inspect
 import logging
 import importlib
-# from dataclasses import dataclass
+from hydra.utils import instantiate
 from src.config import ModelConfig
 logger = logging.getLogger(__name__)
 
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 #########################
 # Weight initialization #
 #########################
-def init_weights(model, init_type, init_gain):
+def init_weights(model: Module, init_type, init_gain):
     """Initialize network weights.
 
     Args:
@@ -22,7 +22,7 @@ def init_weights(model, init_type, init_gain):
     Returns:
         model (torch.nn.Module): initialized model with `init_type` and `init_gain`
     """
-    def init_func(m):  # define the initialization function
+    def init_func(m: Module):  # define the initialization function
         classname = m.__class__.__name__
         if classname.find('BatchNorm2d') != -1:
             if hasattr(m, 'weight') and m.weight is not None:
@@ -48,9 +48,13 @@ def init_weights(model, init_type, init_gain):
                 torch.nn.init.constant_(m.bias.data, 0.0)
     model.apply(init_func)
 
-def init_model(cfg: ModelConfig, model:Module):
+def init_model(cfg: ModelConfig) -> Module:
     # initialize the model class 
+    model: Module = instantiate(cfg.model_spec)
+
     init_weights(model, cfg.init_type, cfg.init_gain)
+
+
     logger.info(f'[MODEL] Initialized model: {cfg.name}; (Initialization type: {cfg.init_type.upper()}))!')
     return model
 

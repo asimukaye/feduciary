@@ -6,7 +6,7 @@ from torch.utils import data
 import torch
 import torchvision.transforms as tvt
 from src.utils  import log_tqdm
-from src.config import DatasetConfig
+from src.config import SplitConfig
 
 logger = logging.getLogger(__name__)
 
@@ -101,22 +101,22 @@ class LabelFlippedSubset(data.Subset):
         return f'{repr(self.subset.dataset)}_LabelFlipped'
 
     
-def get_iid_split(dataset: data.Dataset, num_clients: int, seed: int = 42) -> dict[int, np.ndarray]:
+def get_iid_split(dataset: data.Dataset, num_splits: int, seed: int = 42) -> dict[int, np.ndarray]:
     shuffled_indices = np.random.permutation(len(dataset))
         
     # get adjusted indices
-    split_indices = np.array_split(shuffled_indices, num_clients)
+    split_indices = np.array_split(shuffled_indices, num_splits)
     
     # construct a hashmap
-    split_map = {k: split_indices[k] for k in range(num_clients)}
+    split_map = {k: split_indices[k] for k in range(num_splits)}
     return split_map
 
-def get_unbalanced_split(dataset: data.Dataset, num_clients: int) -> dict[int, np.ndarray]:
+def get_unbalanced_split(dataset: data.Dataset, num_splits: int) -> dict[int, np.ndarray]:
      # shuffle sample indices
     shuffled_indices = np.random.permutation(len(dataset))
     
     # split indices by number of clients
-    split_indices = np.array_split(shuffled_indices, num_clients)
+    split_indices = np.array_split(shuffled_indices, num_splits)
         
     # randomly remove some proportion (1% ~ 5%) of data
     keep_ratio = np.random.uniform(low=0.95, high=0.99, size=len(split_indices))
@@ -125,17 +125,17 @@ def get_unbalanced_split(dataset: data.Dataset, num_clients: int) -> dict[int, n
     split_indices = [indices[:int(len(indices) * ratio)] for indices, ratio in zip(split_indices, keep_ratio)]
     
     # construct a hashmap
-    split_map = {k: split_indices[k] for k in range(num_clients)}
+    split_map = {k: split_indices[k] for k in range(num_splits)}
     return split_map
 
-def get_one_patho_client_split(dataset: data.Dataset, num_clients) -> dict[int, np.ndarray]:
+def get_one_patho_client_split(dataset: data.Dataset, num_splits) -> dict[int, np.ndarray]:
     total_size = len(dataset)
     shuffled_indices = np.random.permutation(total_size)
     # client 1 gets half the size of data compared to rest
-    c1_count = int(total_size/(2*num_clients - 1))
+    c1_count = int(total_size/(2*num_splits - 1))
     c1_share = shuffled_indices[:c1_count]
 
-    rest_share = np.array_split(shuffled_indices[c1_count:], num_clients-1)
+    rest_share = np.array_split(shuffled_indices[c1_count:], num_splits-1)
 
     # assert len(c1_share) + len(share) for share in rest_share == total_size
     split_map = {}
@@ -148,14 +148,14 @@ def get_one_patho_client_split(dataset: data.Dataset, num_clients) -> dict[int, 
     logger.info(f'Split map sizes: {size_check}')
     return split_map
 
-def get_one_imbalanced_client_split(dataset: data.Dataset, num_clients: int) -> dict[int, np.ndarray]:
+def get_one_imbalanced_client_split(dataset: data.Dataset, num_splits: int) -> dict[int, np.ndarray]:
     total_size = len(dataset)
     shuffled_indices = np.random.permutation(total_size)
     # client 1 gets half the size of data compared to rest
-    c1_count = int(total_size/(2*num_clients - 1))
+    c1_count = int(total_size/(2*num_splits - 1))
     c1_share = shuffled_indices[:c1_count]
 
-    rest_share = np.array_split(shuffled_indices[c1_count:], num_clients-1)
+    rest_share = np.array_split(shuffled_indices[c1_count:], num_splits-1)
 
     # assert len(c1_share) + len(share) for share in rest_share == total_size
     split_map = {}
@@ -170,7 +170,7 @@ def get_one_imbalanced_client_split(dataset: data.Dataset, num_clients: int) -> 
     
 
 # TODO: Understand this function from FedAvg Paper
-def get_patho_split(dataset: data.Dataset, num_clients: int, num_classes: int, mincls) -> dict[int, np.ndarray]:
+def get_patho_split(dataset: data.Dataset, num_splits: int, num_classes: int, mincls) -> dict[int, np.ndarray]:
     try:
         assert mincls >= 2
     except AssertionError as e:
@@ -182,9 +182,9 @@ def get_patho_split(dataset: data.Dataset, num_clients: int, num_classes: int, m
     class_indices = np.split(np.argsort(unique_inverse), np.cumsum(unique_count[:-1]))
         
     # divide shards
-    num_shards_per_class = num_clients* mincls // num_classes
+    num_shards_per_class = num_splits* mincls // num_classes
     if num_shards_per_class < 1:
-        err = f'[DATA_SPLIT] Increase the number of minimum class (`args.mincls` > {mincls}) or the number of participating clients (`args.K` > {num_clients})!'
+        err = f'[DATA_SPLIT] Increase the number of minimum class (`args.mincls` > {mincls}) or the number of participating clients (`args.K` > {num_splits})!'
         logger.exception(err)
         raise Exception(err)
     
@@ -223,7 +223,7 @@ def get_patho_split(dataset: data.Dataset, num_clients: int, num_classes: int, m
             assigned_shards[-1] = np.concatenate(assigned_shards[-1])
 
     # construct a hashmap
-    split_map = {k: assigned_shards[k] for k in range(num_clients)}
+    split_map = {k: assigned_shards[k] for k in range(num_splits)}
     return split_map
 
 
@@ -245,7 +245,7 @@ def sample_with_mask(mask, ideal_samples_counts, concentration, num_classes, nee
 
 
 # TODO: understand this split from paper
-def get_dirichlet_split(dataset: data.Dataset, num_clients, num_classes, cncntrtn)-> dict[int, np.ndarray]:
+def get_dirichlet_split(dataset: data.Dataset, num_splits, num_classes, cncntrtn)-> dict[int, np.ndarray]:
            
     # get indices by class labels
     _, unique_inverse, unique_count = np.unique(dataset.targets, return_inverse=True, return_counts=True)
@@ -258,14 +258,14 @@ def get_dirichlet_split(dataset: data.Dataset, num_clients, num_classes, cncntrt
     # calculate ideal samples counts per client
     ideal_samples_counts = len(dataset.targets) // num_classes
     if ideal_samples_counts < 1:
-        err = f'[DATA_SPLIT] Decrease the number of participating clients (`args.K` < {num_clients})!'
+        err = f'[DATA_SPLIT] Decrease the number of participating clients (`args.K` < {num_splits})!'
         logger.exception(err)
         raise Exception(err)
 
     # assign divided shards to clients
     assigned_indices = []
     for k in log_tqdm(
-        range(num_clients), 
+        range(num_splits), 
         logger=logger,
         desc='[DATA_SPLIT] assigning to clients '
         ):
@@ -304,11 +304,11 @@ def get_dirichlet_split(dataset: data.Dataset, num_clients, num_classes, cncntrt
             assigned_indices.append(indices)
 
     # construct a hashmap
-    split_map = {k: assigned_indices[k] for k in range(num_clients)}
+    split_map = {k: assigned_indices[k] for k in range(num_splits)}
     return split_map
 
 
-def get_split_map(cfg: DatasetConfig, dataset: data.Dataset) -> dict[int, np.ndarray]:
+def get_split_map(cfg: SplitConfig, dataset: data.Dataset) -> dict[int, np.ndarray]:
     """Split data indices using labels.
     Args:
         cfg (DatasetConfig): Master dataset configuration class
@@ -319,17 +319,17 @@ def get_split_map(cfg: DatasetConfig, dataset: data.Dataset) -> dict[int, np.nda
     """
     match cfg.split_type:
         case 'iid' | 'one_noisy_client' | 'one_label_flipped_client':
-            split_map = get_iid_split(dataset, cfg.num_clients)
+            split_map = get_iid_split(dataset, cfg.num_splits)
         case 'unbalanced':
-            split_map = get_unbalanced_split(dataset, cfg.num_clients)
+            split_map = get_unbalanced_split(dataset, cfg.num_splits)
         case 'one_imbalanced_client':
-            split_map = get_one_imbalanced_client_split(dataset, cfg.num_clients)
+            split_map = get_one_imbalanced_client_split(dataset, cfg.num_splits)
         case 'patho':
             # FIXME: assign the right arguments here
-            # split_map = get_patho_split(dataset, cfg.num_clients,)
+            # split_map = get_patho_split(dataset, cfg.num_splits,)
             raise NotImplementedError
         case 'dirichlet':
-            # split_map = get_dirichlet_split(dataset, cfg.num_clients,)
+            # split_map = get_dirichlet_split(dataset, cfg.num_splits,)
             raise NotImplementedError
         case 'leaf' |'fedvis':
             logger.info('[DATA_SPLIT] Using pre-defined split.')
@@ -349,7 +349,7 @@ def construct_client_dataset(raw_train: data.Dataset, client_test_fraction, clie
     return (training_set, test_set)
 
 
-def get_client_datasets(cfg: DatasetConfig, dataset: data.Dataset) -> list[tuple] :
+def get_client_datasets(cfg: SplitConfig, dataset: data.Dataset) -> list[tuple] :
     # logger.info(f'[DATA_SPLIT] dataset split: `{cfg.split_type.upper()}`')   
     split_map = get_split_map(cfg, dataset)
     logger.info(f'[DATA_SPLIT] Simulated dataset split : `{cfg.split_type.upper()}`')

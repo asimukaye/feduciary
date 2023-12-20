@@ -47,6 +47,8 @@ class BaseClient:
         self._round = 0
         self._epoch = 0
         self._is_resumed = False
+
+        #NOTE: IMPORTANT: Make sure to deepcopy the config in every child class
         self.cfg = deepcopy(cfg)
         self.training_set = dataset[0]
         self.test_set = dataset[1]

@@ -219,7 +219,8 @@ class FedstdevOptimizer(BaseStrategy):
             self.res_man.log_general_metric(self.get_dict_avg(self._client_omegas[cid]), f'omegas/{cid}', 'server', 'post_agg')
             self.res_man.log_general_metric(self.get_dict_avg(self._client_weights[cid]), metric_name=f'client_weights/{cid}', phase='post_agg', actor='server')
 
-            self.res_man.log_parameters(self._clnt_sigma_by_mu[cid], 'post_agg', 'server', metric=f'sigma_by_mu/{cid}', verbose=True)
+            if self.cfg.weighting_strategy =='tanh_sigma_by_mu':
+                self.res_man.log_parameters(self._clnt_sigma_by_mu[cid], 'post_agg', 'server', metric=f'sigma_by_mu/{cid}', verbose=True)
 
         self.res_man.log_general_metric(self._client_omegas, 'omegas', 'server', 'post_agg')
         self.res_man.log_general_metric(self._client_weights, metric_name='client_weights', phase='post_agg', actor='server')

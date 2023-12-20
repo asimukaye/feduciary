@@ -15,7 +15,7 @@ from src.split import get_client_datasets
 import torchvision.transforms as tvt
 from typing import Optional
 logger = logging.getLogger(__name__)
-from src.config import DatasetConfig, TransformsConfig, ModelSpecConfig
+from src.config import DatasetConfig, TransformsConfig, DatasetModelSpec
 
 
 def get_train_transform(cfg: TransformsConfig):
@@ -36,10 +36,10 @@ def get_test_transform(cfg: TransformsConfig):
     transform = tvt.Compose(tf_list)
     return transform
     
-def load_vision_dataset(cfg: DatasetConfig, model_cfg: ModelSpecConfig):
+def load_vision_dataset(cfg: DatasetConfig) -> tuple[data.Subset, data.Subset, DatasetModelSpec]:
        
     transforms = [get_train_transform(cfg.transforms), get_test_transform(cfg.transforms)]
-    raw_train, raw_test, model_cfg = fetch_torchvision_dataset(dataset_name=cfg.name, root=cfg.data_path, transforms= transforms, model_cfg=model_cfg)
+    raw_train, raw_test, model_spec = fetch_torchvision_dataset(dataset_name=cfg.name, root=cfg.data_path, transforms= transforms)
 
     if cfg.subsample:
         get_subset = lambda set, fraction: data.Subset(set, np.random.randint(0, len(set)-1, int(fraction * len(set))))
@@ -48,12 +48,10 @@ def load_vision_dataset(cfg: DatasetConfig, model_cfg: ModelSpecConfig):
         raw_test = get_subset(raw_test, cfg.subsample_fraction)
 
     # adjust the number of classes in binary case
-    if model_cfg.num_classes == 2:
+    if model_spec.num_classes == 2:
         raise NotImplementedError()
 
-    client_datasets = get_client_datasets(cfg, raw_train)
-
-    return raw_test, client_datasets
+    return raw_test, raw_train, model_spec
 
 
 # TODO: Remove me Broken usage as of now
