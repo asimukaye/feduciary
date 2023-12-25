@@ -13,6 +13,6 @@ cfg:
   eval_every: 1
   beta: 1.5
   alpha: 0.95
-  gamma: 1.5
+  gamma: 0.15
   multiprocessing: false
 client_cfg: ${client.cfg}

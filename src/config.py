@@ -3,6 +3,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional
 import subprocess
 from io import StringIO
+from abc import ABC
 import pandas as pd
 from hydra.core.config_store import ConfigStore
 from torch import cuda
@@ -35,7 +36,6 @@ def arg_check(args:dict, fn:str =None):
                 raise ValueError(f'Missing required argument: {argument}')
 
 
-
 def get_free_gpu():
     gpu_stats = subprocess.check_output(["nvidia-smi", "--format=csv", "--query-gpu=memory.used,memory.free"])
     gpu_df = pd.read_csv(StringIO(gpu_stats.decode()),
@@ -57,7 +57,7 @@ class SimConfig:
     use_wandb: bool
     save_csv: bool
     checkpoint_every: int = field(default=10)
-    plot_every: int = field(default=10)
+    # plot_every: int = field(default=10)
     mode: str = field(default='federated')
 
     def __post_init__(self):
@@ -75,9 +75,9 @@ class ClientConfig:
     batch_size: int = field()
     optimizer: dict = field()
     criterion: dict = field()
-    lr: float = field()
-    lr_decay: Optional[float] = field()
+    lr: float = field()         # Client LR is optional
     lr_scheduler: Optional[dict] = field()
+    lr_decay: Optional[float] = field()
     shuffle: bool = field(default=False)
     eval_metrics: list = field(default_factory=list)
     
@@ -99,6 +99,34 @@ class ClientConfig:
             logger.info(f'Auto Configured device to: {self.device}')
         arg_check(self.lr_scheduler)
         arg_check(self.optimizer)
+
+# Configs used by the server 
+@dataclass
+class EvalConfig:
+    criterion: dict = field()
+    device: str = field()
+    lr: float = field()
+    lr_scheduler: Optional[dict] = field()
+    lr_decay: Optional[float] = field()
+    eval_metrics: list = field(default_factory=list)
+    
+    def __post_init__(self):
+        # if self.device =='cuda':
+        #     assert cuda.is_available(), 'Please check if your GPU is available !' 
+        assert self.batch_size >= 1
+        if self.device == 'auto':
+            if cuda.is_available():
+                if cuda.device_count() > 1:
+                    self.device = f'cuda:{get_free_gpu()}'
+                else:
+                    self.device = 'cuda'
+
+            elif mps.is_available():
+                self.device = 'mps'
+            else:
+                self.device = 'cpu'
+            logger.info(f'Auto Configured device to: {self.device}')
+        arg_check(self.lr_scheduler)
 
 
 def default_seed():
@@ -123,14 +151,20 @@ class ServerConfig:
     eval_type: str  = field(default='both')
     eval_fraction: float  = field(default=1.0)
     eval_every: int  = field(default=1)
+    eval_batch_size: int = field(default=64)
     sampling_fraction: float = field(default=1.0)
     rounds: int = 1
-    multiprocessing:bool = False
+    multiprocessing: bool = False
 
     def __post_init__(self):
         assert self.sampling_fraction == Range(0.0, 1.0), f'Invalid value {self.sampling_fraction} for sampling fraction'
         assert self.eval_fraction == Range(0., 1.0)
         assert self.eval_type == 'both' # Remove later
+
+# TODO: Isolate strategy configuration from server configuration to avoid duplication
+@dataclass
+class StrategyConfig(ABC):
+    pass
 
 
 @dataclass
@@ -140,22 +174,23 @@ class CGSVConfig(ServerConfig):
     gamma: float = 0.5
     delta_normalize: bool = False
 
-    
     def __post_init__(self):
         super().__post_init__()
         
 
 @dataclass
 class FedavgConfig(ServerConfig):
-    momentum: float = float('nan')
+    momentum: Optional[float] = float('nan')
     update_rule: str = field(default='param_average')
     delta_normalize: bool = False
     gamma: float = 1.0
 
     def __post_init__(self):
         super().__post_init__()
-        assert self.momentum >= 0.0
+        # assert self.momentum >= 0.0
         assert self.update_rule in ['param_average', 'gradient_average']
+        if self.update_rule == 'param_average' and self.delta_normalize:
+            logger.warn("Delta normalize flag will be ignored in parameter averaging mode")
 
 
 @dataclass
@@ -167,7 +202,7 @@ class FedstdevServerConfig(ServerConfig):
     delta_normalize: bool = False
     
     def __post_init__(self):
-        super().__post_init__()
+        # super().__post_init__()
         assert self.weighting_strategy in ['tanh', 'min_max', 'tanh_sigma_by_mu'], 'Incorrect weight scaling type'
         
 
@@ -284,7 +319,7 @@ class Config():
 
 
 def set_debug_mode(cfg: Config):
-
+    '''Debug mode overrides to the configuration object'''
     logger.root.setLevel(logging.DEBUG)
     cfg.simulator.use_wandb = False
     cfg.simulator.use_tensorboard = False
@@ -305,6 +340,7 @@ def set_debug_mode(cfg: Config):
 
 
 def register_configs():
+    # Register a new configuration scheme to be validated against from the config file
     cs = ConfigStore.instance()
     cs.store(name='base_config', node=Config)
     cs.store(group='client', name='client_schema', node=ClientSchema)
@@ -314,4 +350,3 @@ def register_configs():
     cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
     cs.store(group='server/cfg', name='fedstdev_server', node=FedstdevServerConfig)
     cs.store(group='client/cfg', name='fedstdev_client', node=FedstdevClientConfig)
-

@@ -360,6 +360,7 @@ def get_client_datasets(cfg: SplitConfig, dataset: data.Dataset) -> list[tuple] 
     client_datasets = []
     for idx, sample_indices in enumerate(split_map.values()):
         client_datasets.append(construct_client_dataset(dataset, cfg.test_fraction, idx, sample_indices))
+        
     if cfg.split_type == 'one_noisy_client':
         train, test = client_datasets[0]
         patho_train = NoisySubset(train, cfg.noise.mu, cfg.noise.sigma)

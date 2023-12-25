@@ -70,23 +70,42 @@ class FedstdevOptimizer(BaseStrategy):
         # tracking client deltas for logging
         self._client_deltas: ClientParams_t = {cid: {param: None for param in param_keys} for cid in client_ids}
 
-    def _compute_sigma_by_mu(self, sigmas: dict[str, Parameter], mus: dict[str, Parameter]) -> dict[str, Tensor]:
+    @staticmethod
+    def _compute_sigma_by_mu(sigmas: dict[str, Tensor], mus: dict[str, Tensor]) -> dict[str, Tensor]:
         assert(sigmas.keys() == mus.keys())
         sigma_by_mu = {}
         for (key, sigma), mu in zip (sigmas.items(), mus.values()):
             mask = (mu.data!=0)
-            sbm = sigma
-            sbm[mask] = sigma.data[mask].div(mu.data[mask].abs())
+            sbm = sigma.clone()
+            # ic(sbm.data[0])
+            # ic(sbm[mask][0])
+
+
+            # ic(sbm[mask][0])
+            # ic(sbm[mask].shape)
+
+            # ic(mask.shape)
+            # ic(mask)
+
+            sbm[mask] = sigma[mask]/ mu[mask].abs()
+            # ic(sbm[0])
+            # ic(sigma[mask][0])
+            # ic(mu[mask].abs()[0])
+            # ic(sbm[mask][0])
+            # ic(sigma[mask][0]/mu[mask].abs()[0])
+
+            # ic(sbm.data[0])
             sigma_by_mu[key] = sbm
         return sigma_by_mu
         
-    def _compute_scaled_weights(self, std_dict: dict[str, Parameter]) -> dict[str, float]:
+    @staticmethod
+    def _compute_scaled_weights(betas:dict[str, float], std_dict: dict[str, Parameter]) -> dict[str, float]:
         weights = {}
         for key, val in std_dict.items():
             # # HACK to support Tensors and parameters both
             # if isinstance(val, Parameter):
             #     val = val.data
-            sigma_scaled = self.beta[key]*val.data
+            sigma_scaled = betas[key]*val.data
             tanh_std = 1 - torch.tanh(sigma_scaled)
             weights[key] = tanh_std.mean().item()
         return weights
@@ -110,7 +129,8 @@ class FedstdevOptimizer(BaseStrategy):
         
         return out_weights
 
-    def _delta_normalize(self, delta: Tensor, gamma: float) -> Tensor:
+    @staticmethod
+    def _delta_normalize(delta: Tensor, gamma: float) -> Tensor:
         '''Normalize the parameter delta update and scale to prevent potential gradient explosion'''
         norm = delta.norm() 
         if norm == 0:
@@ -173,13 +193,16 @@ class FedstdevOptimizer(BaseStrategy):
 
         self.res_man.log_parameters(self._server_deltas, 'post_agg', 'server', metric='param_delta', verbose=True)
 
-    def get_dict_avg(self, param_dict: dict, wts= None) -> dict:
+    @staticmethod
+    def get_dict_avg(param_dict: dict, wts: dict) -> dict:
         # Helper function to compute average of the last layer of the dictionary
         # wtd_avg = 0.0
         # wight_sums = np.sum(self.param_dims.values())
+        # if wts is None:
+        wts_list = list(wts.values())
 
         avg = np.mean(list(param_dict.values()))
-        wtd_avg = np.average(list(param_dict.values()), weights=list(self.param_dims.values()))
+        wtd_avg = np.average(list(param_dict.values()), weights=wts_list)
 
         return {'avg':avg, 'wtd_avg':wtd_avg}
 
@@ -188,7 +211,7 @@ class FedstdevOptimizer(BaseStrategy):
         
         if self.cfg.weighting_strategy == 'tanh':
             for cid in client_ids:
-                omega = self._compute_scaled_weights(self._client_params_std[cid])
+                omega = self._compute_scaled_weights(self.beta, self._client_params_std[cid])
                 self._add_weight_momentum(cid, omega)
                 self._client_omegas[cid] = omega
         elif self.cfg.weighting_strategy =='tanh_sigma_by_mu':
@@ -216,8 +239,8 @@ class FedstdevOptimizer(BaseStrategy):
         # LOGGING CODE
         for cid in client_ids:
             # logging omega and weight averages
-            self.res_man.log_general_metric(self.get_dict_avg(self._client_omegas[cid]), f'omegas/{cid}', 'server', 'post_agg')
-            self.res_man.log_general_metric(self.get_dict_avg(self._client_weights[cid]), metric_name=f'client_weights/{cid}', phase='post_agg', actor='server')
+            self.res_man.log_general_metric(self.get_dict_avg(self._client_omegas[cid],self.param_dims), f'omegas/{cid}', 'server', 'post_agg')
+            self.res_man.log_general_metric(self.get_dict_avg(self._client_weights[cid], self.param_dims), metric_name=f'client_weights/{cid}', phase='post_agg', actor='server')
 
             if self.cfg.weighting_strategy =='tanh_sigma_by_mu':
                 self.res_man.log_parameters(self._clnt_sigma_by_mu[cid], 'post_agg', 'server', metric=f'sigma_by_mu/{cid}', verbose=True)
@@ -298,7 +321,7 @@ class FedstdevServer(BaseServer):
         for cid in client_ids:
             client_params = self.clients[cid].upload()
             self.server_optimizer.set_client_params(cid, client_params)
-            client_param_stds = self.clients[cid].parameter_std_dev()
+            client_param_stds = self.clients[cid].get_parameter_std_dev()
             self.server_optimizer.set_client_param_stds(cid, client_param_stds)
 
             self.result_manager.log_parameters(client_params, phase='pre_agg', actor=cid, verbose=True)

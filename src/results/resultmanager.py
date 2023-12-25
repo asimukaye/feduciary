@@ -163,21 +163,21 @@ class ResultManager:
             # self.metric_event_actor_dict[metric][event] = dict_by_metric[metric]
         return client_result
     
-    def log_server_result(self, result: Result, phase: str):
+    def log_general_result(self, result: Result, phase: str, actor:str, event: str):
         
-        self._round_check(result.round, 'server')
+        self._round_check(result.round, actor)
 
         # TODO: Make the below two lines obsolete
-        log_metric('server_eval', result.round, result.metrics, self.logger)
-        self.result_dict['server_eval'] = asdict(result)
+        log_metric(event, result.round, result.metrics, self.logger)
+        self.result_dict[event] = asdict(result)
 
-        event = 'central_eval'
+        # event = 'central_eval'
 
         for metric, value in result.metrics.items():
-            self._add_metric(metric, event, phase, 'server', value)
+            self._add_metric(metric, event, phase, actor, value)
             # self.metric_event_actor_dict[metric][event]['server'] = value
         
-        self._add_metric('size', event, phase, 'server', result.size)
+        self._add_metric('size', event, phase,  actor, result.size)
         
         # self.metric_event_actor_dict['size'][event]['server'] =  result.size
         
@@ -204,7 +204,7 @@ class ResultManager:
                     self._add_metric(metric, event, phase, cid, reference_value)
 
 
-    def log_parameters(self, model_params: dict[str, Parameter], phase: str, actor: str, event: str = '' , metric= 'param', verbose=False) -> None:
+    def log_parameters(self, model_params: dict[str, Parameter], phase: str, actor: str, event: str = '' , metric= 'param', verbose=False) -> dict:
         # LUMP The parameters layer wise and add to the result dictionary
         out_dict = {}
         avg = 0.0
@@ -230,6 +230,7 @@ class ResultManager:
         # self.result_dict[event] = out_dict
         for k, val in out_dict.items():
             self._add_metric(f'{metric}/{k}', event, phase, actor, val)
+        return out_dict
 
     
     def _add_metric(self, metric, event, phase, actor, value):
@@ -427,7 +428,7 @@ class ResultManager:
 #     clients_eval: ClientResult = field(default_factory=ClientResult)
 #     clients_eval_pre: ClientResult = field(default_factory=ClientResult)
 #     # client
-#     server_eval: Result = field(default_factory=Result)
+#     central_eval: Result = field(default_factory=Result)
 
     # TBD
     # def calculate_generalization_gap(self):

@@ -1,23 +1,30 @@
 %YAML 1.2
 ---
 # Experiment mode: Switch between debug and experiment mode
-mode: debug
+mode: fedstdev_centralized
+# mode: base_centralized
+# mode: debug
 # Description: A string to describe the intent of the run
-desc: 'FedStdev rerun with 1 epoch, imbalanced cl0, sigma/mu weights'
+# desc: 'FedStdev centralized run with iid data, pilot run for centralized'
+desc: ' Fedstev centralized; one noisy, fixed sigma by mu logic'
+
 # desc: 'FedAvg rerun with fix delta normalize, iid, with delta_normalize'
 
 defaults:
   - base_config
   - hydra: custom
   - server: fedstdev
+  # - server: fedavg
+
   - client: fedstdev
+  # - client: base
   # - train: base_trainer
   - _self_
 
-# Overrides
+# CONFIG OVERRIDES
 client:
   cfg:
-    batch_size: 256
+    batch_size: 512
     epochs: 1
     device: auto
 
@@ -25,8 +32,8 @@ server:
   cfg:
     delta_normalize: false
     # weighting_strategy: tanh
-    weighting_strategy: tanh_sigma_by_mu
-
+    # weighting_strategy: tanh_sigma_by_mu
+# ########## OVERRIDES END HERE ##########
 
 simulator:
   seed: 42
@@ -34,17 +41,18 @@ simulator:
   use_wandb: true
   save_csv: false
   num_clients: 5
-  num_rounds: 150
+  num_rounds: 30
   checkpoint_every: 20
-  plot_every: 2  # REMOVE ME
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized'
-  mode: federated
+  mode: centralized
+  # mode: federated
+
 
 dataset:
   name: CIFAR10
   data_path: data/
   subsample: false
-  subsample_fraction: 1.0
+  subsample_fraction: 0.2
   transforms:
     resize:
       _target_: torchvision.transforms.Resize
@@ -54,8 +62,9 @@ dataset:
 
   split_conf:
     # split_type: one_label_flipped_client
-    split_type: one_imbalanced_client
-    # split_type: one_noisy_client
+    # split_type: one_imbalanced_client
+    # split_type: iid
+    split_type: one_noisy_client
     num_splits: ${simulator.num_clients}
     # Noise parameter is specific to one patho client
     test_fraction: 0.2 # Client train-test split
@@ -65,6 +74,32 @@ dataset:
       sigma: 0.5
       flip_percent: 1.0
   
+  # TODO: Isolate common server configuration from strategy specific configs
+# server_cfg:
+#     sampling_fraction: 1.0
+#     rounds: ${simulator.num_rounds}
+#     eval_type: both
+#     eval_fraction: 1.0
+#     eval_every: 1
+#     eval_batch_size: 128
+#     multiprocessing: false
+
+# train_cfg:
+  # epochs: 5
+  # device: auto
+  # batch_size: 32
+  # lr: 0.01
+  # lr_decay: 0.977
+  # optimizer:
+  #   _target_: torch.optim.SGD
+  #   _partial_: true
+  #   lr: ${client.cfg.lr}
+  # criterion:
+  #   _target_: torch.nn.CrossEntropyLoss
+  # lr_scheduler:
+  #   _target_: torch.optim.lr_scheduler.ExponentialLR
+  #   _partial_: true
+  #   gamma: ${client.cfg.lr_decay}
 
 model:
   name: TwoCNN

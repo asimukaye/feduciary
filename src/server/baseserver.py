@@ -51,7 +51,7 @@ class BaseStrategy(torch.optim.Optimizer, ABC):
     # A strategy is a server strategy used to aggregate the server weights
     # It is based on the torch optimizer class to support direct integration with Pytorch LR schedulers.
 
-    def __init__(self,  model: Module, client_lr: float, cfg: ServerConfig) -> None:
+    def __init__(self,  model: Module, client_lr: float, cfg: StrategyConfig) -> None:
         self.cfg = cfg
         # NOTE: Client LR is required to make sure correct LR scheduling over rounds, Other parameters pertinent to LR Scheduling can be added here
         defaults = dict(lr=client_lr)
@@ -63,6 +63,7 @@ class BaseStrategy(torch.optim.Optimizer, ABC):
         self._client_params: ClientParams_t = defaultdict(dict)
         self._client_weights: dict[str, float] = defaultdict()
 
+    # Overriding the optimizer classes zero grad function to additionally set the server deltas to None
 
     def zero_grad(self, set_to_none: bool = ...) -> None:
         for key in self._server_deltas.keys():
@@ -249,7 +250,7 @@ class BaseServer(ABC):
         server_loader = DataLoader(dataset=self.server_dataset, batch_size=self.client_cfg.batch_size, shuffle=False)
         # log result
         result = model_eval_helper(self.model, server_loader, self.client_cfg, self.metric_manager, self.round)
-        self.result_manager.log_server_result(result, phase='post_agg')
+        self.result_manager.log_general_result(result, phase='post_agg', actor='server', event='central_eval')
         return result
 
 

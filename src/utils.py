@@ -36,6 +36,24 @@ def log_instance(attrs:list=[], m_logger=logger):
     return decorator
 
 
+# Timer context manager:
+from time import perf_counter
+from colorama import Fore, Style
+
+class get_time:
+    def __init__(self) -> None:
+        stack = inspect.currentframe().f_back
+        self.name = f'{stack.f_code.co_filename.split("/")[-1] }:{Fore.LIGHTCYAN_EX}{stack.f_lineno}{Fore.RESET} in {stack.f_code.co_name}'
+
+    def __enter__(self):
+        self.start = perf_counter()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.time = perf_counter() - self.start
+        self.readout = Style.DIM+f'{self.name} took {Style.NORMAL+Fore.LIGHTYELLOW_EX}{self.time:.6f}{Fore.RESET+Style.DIM} seconds'+Style.NORMAL
+        print(self.readout)
+
 #########################
 # Argparser Restriction #
 #########################
