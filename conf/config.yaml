@@ -1,9 +1,9 @@
 %YAML 1.2
 ---
-# Experiment mode: Switch between debug and experiment mode
-mode: fedstdev_centralized
+# Experiment mode: Switch between debug and experiment methods
+# mode: fedstdev_centralized
 # mode: base_centralized
-# mode: debug
+mode: debug
 # Description: A string to describe the intent of the run
 # desc: 'FedStdev centralized run with iid data, pilot run for centralized'
 desc: ' Fedstev centralized; one noisy, fixed sigma by mu logic'
@@ -13,11 +13,11 @@ desc: ' Fedstev centralized; one noisy, fixed sigma by mu logic'
 defaults:
   - base_config
   - hydra: custom
-  - server: fedstdev
-  # - server: fedavg
+  # - server: fedstdev
+  - server: fedavg
 
-  - client: fedstdev
-  # - client: base
+  # - client: fedstdev
+  - client: base
   # - train: base_trainer
   - _self_
 
@@ -40,19 +40,19 @@ simulator:
   use_tensorboard: false
   use_wandb: true
   save_csv: false
-  num_clients: 5
+  num_clients: 4
   num_rounds: 30
   checkpoint_every: 20
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized'
-  mode: centralized
-  # mode: federated
+  # mode: centralized
+  mode: federated
 
 
 dataset:
   name: CIFAR10
   data_path: data/
   subsample: false
-  subsample_fraction: 0.2
+  subsample_fraction: 1.0
   transforms:
     resize:
       _target_: torchvision.transforms.Resize
@@ -61,7 +61,7 @@ dataset:
         - 28
 
   split_conf:
-    # split_type: one_label_flipped_client
+    # split_type: one_label_fli`pped_client
     # split_type: one_imbalanced_client
     # split_type: iid
     split_type: one_noisy_client

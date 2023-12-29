@@ -14,7 +14,6 @@ import typing as t
 from torch.nn import Parameter, Module
 from torch import Tensor
 import numpy as np  
-import json
 import os
 
 logger = logging.getLogger(__name__)
@@ -337,7 +336,6 @@ class FedstdevServer(BaseServer):
         self.lr_scheduler.step() # update learning rate
 
         # Full parameter debugging
-
 
         self.result_manager.log_parameters(self.model.state_dict(), phase='post_agg', actor='server', verbose=True)
         # self.result_manager.log_duplicate_parameters_for_clients(client_ids, phase='post_agg', reference_actor='server')

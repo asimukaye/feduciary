@@ -171,7 +171,6 @@ class Simulator:
         self.clients['centralized']: BaseClient = self.__create_client('centralized', (self.train_set, self.test_set), self.model_instance)
 
 
-
     def make_checkpoint_dirs(self):
         os.makedirs('server_ckpts', exist_ok = True)
         for cid in self.clients.keys():
@@ -335,11 +334,7 @@ class Simulator:
                 # ic(grad_sbm.abs().mean().item())
                 
 
-
-
-
             omegas = FedstdevOptimizer._compute_scaled_weights(betas, std_dict=grad_sigma_by_mu)
-
 
             
             param_std_dct = self.result_manager.log_parameters(param_stdev, 'post_train', 'sim',metric='param_std', verbose=True)
@@ -373,7 +368,6 @@ class Simulator:
 
             loop_end = time.time() - loop_start
             logger.info(f'------------ Round {curr_round} completed in time: {loop_end} ------------')
-
 
 
     def run_federated_simulation(self):

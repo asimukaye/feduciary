@@ -149,12 +149,12 @@ class BaseClient:
         self._model.train()
         self._model.to(self.cfg.device)
 
-        ic('Grad values pre train:')
-        if not self._model.get_parameter(  'features.0.bias').grad is None:
-            ic(self._model.get_parameter(  'features.0.bias').grad[0])
-            ic(self._model.get_parameter('classifier.2.bias').grad[0])
-            ic(self._model.get_parameter(  'features.3.bias').grad[0])
-            ic(self._model.get_parameter('classifier.4.bias').grad[0])
+        # ic('Grad values pre train:')
+        # if not self._model.get_parameter(  'features.0.bias').grad is None:
+        #     ic(self._model.get_parameter(  'features.0.bias').grad[0])
+        #     ic(self._model.get_parameter('classifier.2.bias').grad[0])
+        #     ic(self._model.get_parameter(  'features.3.bias').grad[0])
+        #     ic(self._model.get_parameter('classifier.4.bias').grad[0])
         # set optimizer parameters again
         # if not self._is_resumed:
         #     self._optimizer: Optimizer = self.optim_partial(self._model.parameters())

@@ -80,8 +80,7 @@ class BaseStrategy(torch.optim.Optimizer, ABC):
         # NOTE: This is a quirk of using the optimizer as a base class. Changing this implementation might break the entire strategy workflow
         for optim_param, new_param in zip(self.param_groups[0]['params'], self._server_params.values()):
             optim_param.data = new_param.data
-
-        
+      
     def set_client_params(self, cid: str, params: OrderedDict) -> None:
         self._client_params[cid] = params
     
