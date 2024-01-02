@@ -174,7 +174,7 @@ class ServerConfig:
     eval_batch_size: int = field(default=64)
     sampling_fraction: float = field(default=1.0)
     rounds: int = 1
-    multiprocessing: bool = False
+    # multiprocessing: bool = False
 
     def __post_init__(self):
         assert self.sampling_fraction == Range(0.0, 1.0), f'Invalid value {self.sampling_fraction} for sampling fraction'
@@ -233,6 +233,11 @@ class ServerSchema:
     cfg: ServerConfig
     train_cfg: ClientConfig
 
+@dataclass
+class StrategySchema:
+    _target_: str
+    # _partial_: bool
+    cfg: StrategyConfig
 
 ########## Other configurataions ##########
 
@@ -321,7 +326,7 @@ class Config():
     desc: str = field()
     simulator: SimConfig = field()
     server: ServerSchema = field()
-    strategy: StrategyConfig = field()
+    strategy: StrategySchema = field()
     client: ClientSchema = field()
     dataset: DatasetConfig = field()
     model: ModelConfig = field()
@@ -369,6 +374,8 @@ def register_configs():
     cs.store(group='client/cfg', name='base_client', node=ClientConfig)
     cs.store(group='server', name='base_server', node=ServerSchema)
     cs.store(group='server/cfg', name='base_cgsv', node=CGSVConfig)
+    cs.store(group='strategy', name='strategy_schema', node=StrategySchema)
+    cs.store(group='strategy/cfg', name='base_strategty', node=StrategyConfig)
     cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
     cs.store(group='server/cfg', name='fedstdev_server', node=FedstdevServerConfig)
     cs.store(group='client/cfg', name='fedstdev_client', node=FedstdevClientConfig)

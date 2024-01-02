@@ -103,7 +103,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         self.res_man = res_man
         self._init_state_dict: OrderedDict = OrderedDict(model.state_dict())
 
-        self._round = -1
+        self._round = 0
         self._epoch = 0
         self._start_epoch = 0
         self._is_resumed = False
@@ -114,7 +114,9 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
         
         self.metric_mngr = MetricManager(self.cfg.eval_metrics, self._round, actor=self._cid)
-        self.optim_partial: functools.partial = instantiate(self.cfg.optimizer)
+        # self.optim_partial: functools.partial = instantiate(self.cfg.optimizer)
+        self.optim_partial: functools.partial = self.cfg.optimizer
+
         self.criterion = self.cfg.criterion
 
         self.train_loader = self._create_dataloader(self.training_set, shuffle=cfg.shuffle)
@@ -141,12 +143,12 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
     def set_lr(self, lr:float) -> None:
         self.cfg.lr = lr
 
-    @property
-    def _round(self)-> int:
-        return self._round
-    @_round.setter
-    def _round(self, value: int):
-        self._round = value
+    # @property
+    # def round(self)-> int:
+    #     return self._round
+    # @round.setter
+    # def round(self, value: int):
+    #     self._round = value
     
     @property
     def epoch(self)->int:

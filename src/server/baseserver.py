@@ -108,20 +108,20 @@ class BaseServer(ABC):
     name: str = 'BaseServer'
 
     # NOTE: It is must to redefine the init function for child classes with a call to super.__init__()
-    def __init__(self, cfg: ServerConfig, client_cfg: ClientConfig, model: Module, dataset: Dataset, clients: dict[str, BaseClient], result_manager: ResultManager):
+    def __init__(self, cfg: ServerConfig, train_cfg: ClientConfig, model: Module, dataset: Dataset, clients: dict[str, BaseClient], result_manager: ResultManager):
         self._round = 0
         self.model = model
         self.clients: dict[str, BaseClient] = clients
         self.num_clients:int = len(self.clients)
         # self.writer = writer
         self.cfg = cfg
-        self.client_cfg = client_cfg
+        self.client_cfg = train_cfg
         self.server_optimizer: BaseStrategy = None
         # self.loss: torch.Tensor = None
         self.lr_scheduler: LRScheduler = None
 
         self.result_manager = result_manager
-        self.metric_manager = MetricManager(eval_metrics=client_cfg.eval_metrics,_round= 0, actor='server')
+        self.metric_manager = MetricManager(eval_metrics=train_cfg.eval_metrics,_round= 0, actor='server')
 
         # global holdout set
 

@@ -71,12 +71,12 @@ class ABCClient(ABC):
     def set_lr(self, lr:float) -> None:
         self.cfg.lr = lr
 
-    @property
-    def _round(self)->int:
-        return self._round
-    @_round.setter
-    def _round(self, value: int):
-        self._round = value
+    # @property
+    # def _round(self)->int:
+    #     return self._round
+    # @_round.setter
+    # def _round(self, value: int):
+    #     self._round = value
     
     @property
     def epoch(self)->int:

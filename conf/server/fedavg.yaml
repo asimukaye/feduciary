@@ -17,4 +17,4 @@ cfg:
   gamma: 1.0
   momentum: 0.0
   multiprocessing: false
-client_cfg: ${client.cfg}
+train_cfg: ${client.cfg}

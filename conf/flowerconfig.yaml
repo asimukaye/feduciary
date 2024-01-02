@@ -49,11 +49,12 @@ client:
 
 
 strategy:
-  train_fraction: 1.0
-  eval_fraction: 1.0
-  
-server:
+  _target_: src.server.baseflowerserver.BaseFlowerServer
+  cfg:
+    train_fraction: 1.0
+    eval_fraction: 1.0
 
+server:
   _target_: src.server.baseflowerserver.BaseFlowerServer
   _partial_: true
   cfg:
@@ -67,7 +68,6 @@ server:
     eval_every: 1
     gamma: 1.0
     momentum: 0.0
-    multiprocessing: false
   train_cfg: ${client.cfg}
   # strategy: 
 # ########## OVERRIDES END HERE ##########

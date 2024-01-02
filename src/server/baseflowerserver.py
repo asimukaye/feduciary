@@ -102,7 +102,8 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
     # NOTE: It is must to redefine the init function for child classes with a call to super.__init__()
     def __init__(self, 
                  clients: dict[str, BaseFlowerClient],
-                 model: Module, cfg: ServerConfig, strategy: BaseStrategy,
+                 model: Module, cfg: ServerConfig,
+                 strategy: BaseStrategy,
                  train_cfg: ClientConfig,
                  dataset: Dataset,
                  result_manager: ResultManager):
@@ -117,8 +118,8 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         if result_manager:
             self.result_manager = result_manager
 
-        self.client_results: fed_t.ClientResults_t = {}
-        self.client_ins_dict: fed_t.ClientIns_t = {}
+        # self.client_results: fed_t.ClientResults_t = defaultdict(fed_t.ClientResult1)
+        # self.client_ins_dict: fed_t.ClientIns_t = defaultdict(fed_t.ClientIns)
 
         self.param_keys = list(self.model.state_dict().keys())
         defaults = dict(lr=train_cfg.lr)
@@ -139,7 +140,6 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
             out = client.download(client_ins)
             return out
 
-    # FIXME: Support custom client wise ins
     def _broadcast_models(self,
                         ids: list[str],
                         clients_ins: dict[str, fed_t.ClientIns],
@@ -158,8 +158,9 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         # Uncomment this when adding GPU support to server
         # self.model.to('cpu')
         results = {}
+
         for idx in log_tqdm(ids, desc=f'broadcasting models: ', logger=logger):
-            results[idx] = self.broadcast_model(self.client_ins_dict[idx], self.clients[idx], request_type, self._round) 
+            results[idx] = self.broadcast_model(clients_ins[idx], self.clients[idx], request_type, self._round) 
         
         return results
 
@@ -344,7 +345,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
            
         client_results = flower_eval_results_adapter(results)
         self.result_manager.log_clients_result(result=client_results, phase='post_agg',event='local_eval')
-        
+        self.result_manager.update_round_and_flush(server_round)
     
     def evaluate(self, server_round: int, parameters: Parameters) -> None:
         eval_res = self.server_eval()

@@ -31,14 +31,14 @@ class Result:
 
 @dataclass
 class ClientResult1:
-    params: OrderedDict[str, Parameter]
-    result: Result
+    params: OrderedDict[str, Parameter] = field(default_factory=OrderedDict)
+    result: Result = field(default=Result())
 
 
 @dataclass
 class ClientIns:
-    params: OrderedDict[str, Parameter]
-    metadata: OrderedDict[str, t.Any]
+    params: OrderedDict[str, Parameter] = field(default_factory=OrderedDict)
+    metadata: OrderedDict[str, t.Any] = field(default_factory=OrderedDict)
     # Reserved to be set by the server
     _round: int = -1
     request: RequestType = RequestType.NULL

@@ -54,7 +54,7 @@ def run_feduciary(cfg: Config):
 
     
     res_man = ResultManager(cfg.simulator, logger=logger)
-    strat: BaseFlowerServer = strategy_partial(model=model, dataset=server_dataset, clients= clients, strategy=BaseStrategy(model, cfg.strategy), result_manager=res_man)
+    strat: BaseFlowerServer = strategy_partial(model=model, dataset=server_dataset, clients= clients, strategy=BaseStrategy(model, cfg.strategy.cfg), result_manager=res_man)
 
 
     client_datasets_map = {}

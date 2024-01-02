@@ -61,6 +61,8 @@ class Simulator:
 
         self.set_seed(cfg.simulator.seed)
         # self.algo = cfg.server.algorithm.name
+        # Remove calls like thes to make things more testable
+
         self.init_dataset_and_model()
 
 
@@ -130,14 +132,17 @@ class Simulator:
                 raise AssertionError(f'Mode: {self.sim_cfg.mode} is not implemented')
 
     def init_flower_mode(self):
-        client_datasets =  get_client_datasets(self.cfg.dataset.split_conf, self.train_set)
-        self.client_datasets_map = {}
-        for cid, dataset in zip(self.all_client_ids,client_datasets):
-            self.client_datasets_map[cid] = dataset
+        # client_datasets =  get_client_datasets(self.cfg.dataset.split_conf, self.train_set)
+        # self.client_datasets_map = {}
+        # for cid, dataset in zip(self.all_client_ids,client_datasets):
+        #     self.client_datasets_map[cid] = dataset
 
-        self.server_dataset = self.test_set
-        server_partial: partial = instantiate(self.cfg.server)
-        self.server: BaseFlowerServer = server_partial(model=self.model_instance, dataset=self.server_dataset, clients= self.clients, result_manager=self.result_manager)
+        # self.server_dataset = self.test_set
+        # strategy = instantiate(self.cfg.strategy, model=self.model_instance)
+
+        # server_partial: partial = instantiate(self.cfg.server)
+        # self.server: BaseFlowerServer = server_partial(model=self.model_instance, strategy=strategy, dataset=self.server_dataset, clients= {}, result_manager=self.result_manager)
+        pass
 
 
     def init_federated_mode(self):
@@ -150,6 +155,8 @@ class Simulator:
         self.server_dataset = self.test_set
         # Clients get the splits of the train set with an inbuilt test set
         self.client_datasets =  get_client_datasets(self.cfg.dataset.split_conf, self.train_set)
+
+
 
         
         # NOTE:IMPORTANT Sharing models without deepcopy could potentially have same references to parameters
@@ -164,7 +171,8 @@ class Simulator:
 
         # self.all_client_ids = list(self.clients.keys())
         # NOTE: later, consider making a copy of client to avoid simultaneous edits to clients dictionary
-        self.server: BaseFlowerServer = server_partial(model=self.model_instance, dataset=self.server_dataset, clients= self.clients, result_manager=self.result_manager)
+        strategy = instantiate(self.cfg.strategy, model=self.model_instance)
+        self.server: BaseFlowerServer = server_partial(model=self.model_instance, strategy=strategy, dataset=self.server_dataset, clients= self.clients, result_manager=self.result_manager)
 
     def init_standalone_mode(self):
         self.clients: dict[str, BaseClient] = defaultdict(BaseClient)
@@ -259,14 +267,14 @@ class Simulator:
     
 
 
-    @log_instance(attrs=['round', 'num_clients'], m_logger=logger)
+    # @log_instance(attrs=['_round', 'num_clients'], m_logger=logger)
     def _create_clients(self, client_datasets) -> dict[str, BaseClient]:
 
         clients = {}
-        for idx, datasets in log_tqdm(enumerate(client_datasets), logger=logger, desc=f'[Round: {self._round:03}] creating clients '):
-            client_id = f'{idx:04}' # potential to convert to a unique hash
-            client_obj = self.__create_client(client_id, datasets, self.model_instance)
-            clients[client_id] = client_obj
+        for cid, datasets in log_tqdm(zip(self.all_client_ids,client_datasets), logger=logger, desc=f'[Round: {self._round:03}] creating clients '):
+            # client_id = f'{idx:04}' # potential to convert to a unique hash
+            client_obj = self.__create_client(cid, datasets, self.model_instance)
+            clients[cid] = client_obj
         return clients
 
     def central_evaluate_clients(self, cids: list[str]):
@@ -383,7 +391,7 @@ class Simulator:
 
             # Logging code ends here
 
-            eval_result = trainer.evaluate()
+            eval_result = trainer.eval()
             self.result_manager.log_general_result(eval_result, 'post_eval', 'sim', 'central_eval')
 
             if curr_round % self.sim_cfg.checkpoint_every == 0:
@@ -432,22 +440,36 @@ class Simulator:
 
     
     def run_flower_simulation(self):
+
+        client_datasets = get_client_datasets(self.cfg.dataset.split_conf, self.train_set)
+        client_datasets_map = {}
+        for cid, dataset in zip(self.all_client_ids, client_datasets):
+            client_datasets_map[cid] = dataset
+
+        server_dataset = deepcopy(self.test_set)
+        strategy = instantiate(self.cfg.strategy, model=self.model_instance)
+
+        server_partial: partial = instantiate(self.cfg.server)
+        server: BaseFlowerServer = server_partial(model=deepcopy(self.model_instance), strategy=strategy, dataset=server_dataset, clients= {}, result_manager=ResultManager(self.sim_cfg, logger=logger))
+
         def _client_fn(cid: str):
             client_partial: partial = instantiate(self.cfg.client)
             _model = deepcopy(self.model_instance)
-            _datasets = self.client_datasets_map[cid]
+            _datasets = client_datasets_map[cid]
 
             return client_partial(client_id=cid,
                  dataset=_datasets, model=_model)
 
-        # client_resources = self.sim_cfg.flwr_resources
+        client_resources = deepcopy(self.sim_cfg.flwr_resources)
+        num_rounds = deepcopy(self.sim_cfg.num_rounds)
+
 
         fl.simulation.start_simulation(
-            strategy=self.server,
+            strategy=server,
             client_fn=_client_fn,
-            clients_ids= self.all_client_ids,
-            config=fl.server.ServerConfig(num_rounds=self.sim_cfg.num_rounds),
-            client_resources=self.sim_cfg.flwr_resources,
+            clients_ids= deepcopy(self.all_client_ids),
+            config=fl.server.ServerConfig(num_rounds=num_rounds),
+            client_resources=client_resources,
 )
     def finalize(self):
         if self.server:
