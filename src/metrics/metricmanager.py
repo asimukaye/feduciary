@@ -2,7 +2,7 @@ from collections import defaultdict
 # from typing import DefaultDict
 from importlib import import_module
 from .basemetric import BaseMetric
-from src.results.resultmanager import Result
+import src.common.typing as fed_t
 
 # TODO: Consider merging with Result Manager Later
 ##################
@@ -11,12 +11,12 @@ from src.results.resultmanager import Result
 class MetricManager:
     """Managing metrics to be used.
     """
-    def __init__(self, eval_metrics: list[str], round: int, actor: str):
+    def __init__(self, eval_metrics: list[str], _round: int, actor: str):
         self.metric_funcs: dict[str, BaseMetric] = {
             name: import_module(f'.metricszoo', package=__package__).__dict__[name.title()]() for name in eval_metrics}
         self.figures = defaultdict(int) 
-        self._result = Result(round=round, actor=actor)
-        self._round = round
+        self._result = fed_t.Result(_round=_round, actor=actor)
+        self._round = _round
         self._actor = actor
 
     def track(self, loss, pred, true):
@@ -27,7 +27,7 @@ class MetricManager:
         for module in self.metric_funcs.values():
             module.collect(pred, true)
 
-    def aggregate(self, total_len, epoch):
+    def aggregate(self, total_len, epoch) -> fed_t.Result:
         # aggregate 
         avg_metrics = {name: module.summarize() for name, module in self.metric_funcs.items()}
 
@@ -36,7 +36,7 @@ class MetricManager:
         self._result.metrics = avg_metrics
         self._result.epoch = epoch
         self._result.size = total_len
-        self._result.round = self._round
+        self._result._round = self._round
 
 
         self.figures = defaultdict(int)
@@ -44,7 +44,7 @@ class MetricManager:
 
     def flush(self):
         self.figures = defaultdict(int)
-        self._result = Result(round=self._round, actor=self._actor)
+        self._result = fed_t.Result(_round=self._round, actor=self._actor)
     
     # @property
     # def result(self):

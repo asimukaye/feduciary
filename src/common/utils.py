@@ -12,10 +12,14 @@ from importlib import import_module
 from collections import defaultdict, OrderedDict
 from multiprocessing import Process
 
+from time import perf_counter
+from colorama import Fore, Style
+
 logger = logging.getLogger(__name__)
 
+def get_parameters_as_ndarray(net: torch.nn.Module) -> list[np.ndarray]:
+    return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
-ClientParams_t = Dict[str, OrderedDict[str, torch.nn.Parameter]]
 def log_instance(attrs:list=[], m_logger=logger):
     def decorator(func):
         @functools.wraps(func)
@@ -36,9 +40,6 @@ def log_instance(attrs:list=[], m_logger=logger):
     return decorator
 
 
-# Timer context manager:
-from time import perf_counter
-from colorama import Fore, Style
 
 class get_time:
     def __init__(self) -> None:

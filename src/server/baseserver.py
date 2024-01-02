@@ -17,9 +17,10 @@ from torch.optim.lr_scheduler import LRScheduler
 
 from src.client.baseclient import BaseClient, model_eval_helper
 from src.metrics.metricmanager import MetricManager
-from src.utils  import log_tqdm, log_instance, ClientParams_t
-from src.results.resultmanager import ResultManager, ClientResult, Result
-
+from src.common.utils  import log_tqdm, log_instance
+from src.results.resultmanager import ResultManager, ClientResultStats
+from src.common.typing import ClientParams_t, Result
+from src.server.abcserver import ABCServer
 
 # from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -107,8 +108,8 @@ class BaseServer(ABC):
     name: str = 'BaseServer'
 
     # NOTE: It is must to redefine the init function for child classes with a call to super.__init__()
-    def __init__(self, cfg: ServerConfig, client_cfg: ClientConfig, model: Module, dataset: Dataset, clients: list[BaseClient], result_manager: ResultManager):
-        self.round = 0
+    def __init__(self, cfg: ServerConfig, client_cfg: ClientConfig, model: Module, dataset: Dataset, clients: dict[str, BaseClient], result_manager: ResultManager):
+        self._round = 0
         self.model = model
         self.clients: dict[str, BaseClient] = clients
         self.num_clients:int = len(self.clients)
@@ -120,7 +121,7 @@ class BaseServer(ABC):
         self.lr_scheduler: LRScheduler = None
 
         self.result_manager = result_manager
-        self.metric_manager = MetricManager(eval_metrics=client_cfg.eval_metrics,round= 0, actor='server')
+        self.metric_manager = MetricManager(eval_metrics=client_cfg.eval_metrics,_round= 0, actor='server')
 
         # global holdout set
 
@@ -136,7 +137,7 @@ class BaseServer(ABC):
         """
         def __broadcast_model(client: BaseClient):
             # NOTE: Consider setting keep vars to true later if gradients are required
-            client.download(self.round, self.model.state_dict())
+            client.download(self._round, self.model.state_dict())
 
         # Uncomment this when adding GPU support to server
         # self.model.to('cpu')
@@ -154,7 +155,7 @@ class BaseServer(ABC):
         num_sampled_clients = max(int(self.cfg.sampling_fraction * self.num_clients), 1)
         sampled_client_ids = sorted(random.sample([cid for cid in self.clients.keys()], num_sampled_clients))
 
-        logger.debug(f'[{self.name}] [Round: {self.round:03}] {num_sampled_clients} clients are randomly selected')
+        logger.debug(f'[{self.name}] [Round: {self._round:03}] {num_sampled_clients} clients are randomly selected')
         return sampled_client_ids
 
     
@@ -168,11 +169,11 @@ class BaseServer(ABC):
             num_sampled_clients = max(int(self.cfg.eval_fraction * num_unparticipated_clients), 1)
             sampled_client_ids = sorted(random.sample([identifier for identifier in self.clients.keys() if identifier not in exclude], num_sampled_clients))
        
-        logger.debug(f'[{self.name}] [Round: {self.round:03}] {num_sampled_clients} clients are selected')
+        logger.debug(f'[{self.name}] [Round: {self._round:03}] {num_sampled_clients} clients are selected')
         return sampled_client_ids
     
 
-    def _train_request(self, ids:list[str]) -> ClientResult:
+    def _train_request(self, ids:list[str]) -> ClientResultStats:
         def __train_client(client: BaseClient):
             # getter function for client update
             update_result = client.train()
@@ -185,7 +186,7 @@ class BaseServer(ABC):
             current_lr = self.lr_scheduler.get_last_lr()[-1]
             [client.set_lr(current_lr) for client in self.clients.values()]
 
-        logger.debug(f'[{self.name}] [Round: {self.round:03}] Beginning updates')
+        logger.debug(f'[{self.name}] [Round: {self._round:03}] Beginning updates')
 
         # ctx = torch_mp.get_context('spawn')
         if self.cfg.multiprocessing:
@@ -206,7 +207,7 @@ class BaseServer(ABC):
   
         client_train_result = self.result_manager.log_clients_result(results_dict, phase='pre_agg', event='local_train')
 
-        logger.info(f'[{self.name}] [Round: {self.round:03}] ...completed updates of {"all" if ids is None else len(ids)} clients.')
+        logger.info(f'[{self.name}] [Round: {self._round:03}] ...completed updates of {"all" if ids is None else len(ids)} clients.')
 
         return client_train_result
 
@@ -224,12 +225,12 @@ class BaseServer(ABC):
 
         eval_results = dict(results)
         
-        logger.debug(f'[{self.name}] [Round: {self.round:03}] ...completed evaluation of {"all" if ids is None else len(ids)} clients!')
+        logger.debug(f'[{self.name}] [Round: {self._round:03}] ...completed evaluation of {"all" if ids is None else len(ids)} clients!')
 
         return eval_results
 
     def reset_client_models(self, indices):
-        logger.debug(f'[{self.name}] [Round: {self.round:03}] Clean up!')
+        logger.debug(f'[{self.name}] [Round: {self._round:03}] Clean up!')
 
         for identifier in indices:
             if self.clients[identifier].model is not None:
@@ -238,7 +239,7 @@ class BaseServer(ABC):
                 err = f'Client ({identifier}) has no model.'
                 logger.exception(err)
                 raise AssertionError(err)
-        logger.debug(f'[{self.name}] [Round: {self.round:03}] Client Models are reset')
+        logger.debug(f'[{self.name}] [Round: {self._round:03}] Client Models are reset')
         # gc.collect()
 
     @torch.no_grad()
@@ -248,7 +249,7 @@ class BaseServer(ABC):
         # FIXME: Formalize phase argument passing
         server_loader = DataLoader(dataset=self.server_dataset, batch_size=self.client_cfg.batch_size, shuffle=False)
         # log result
-        result = model_eval_helper(self.model, server_loader, self.client_cfg, self.metric_manager, self.round)
+        result = model_eval_helper(self.model, server_loader, self.client_cfg, self.metric_manager, self._round)
         self.result_manager.log_general_result(result, phase='post_agg', actor='server', event='central_eval')
         return result
 
@@ -258,7 +259,7 @@ class BaseServer(ABC):
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.server_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         # epoch = checkpoint['epoch']
-        self.round = checkpoint['round']
+        self._round = checkpoint['round']
         # Find a way to avoid this result manager round bug repeatedly
         self.result_manager._round = checkpoint['round']
 
@@ -266,10 +267,10 @@ class BaseServer(ABC):
     
     def save_checkpoint(self):
         torch.save({
-            'round': self.round,
+            '_round': self._round,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict' : self.server_optimizer.state_dict(),
-            }, f'server_ckpts/server_ckpt_{self.round:003}.pt')
+            }, f'server_ckpts/server_ckpt_{self._round:003}.pt')
 
     
     def finalize(self) -> None:

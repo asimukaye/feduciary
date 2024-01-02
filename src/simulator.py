@@ -14,22 +14,26 @@ import wandb
 from torch.nn import Module
 from torch.utils.data import DataLoader
 from hydra.utils import instantiate
+import flwr as fl
 
-from src.server.baseserver import BaseServer
+# from src.server.baseserver import BaseServer
+from src.server.baseflowerserver import BaseFlowerServer
 from src.server.fedstdevserver import FedstdevClient, FedstdevOptimizer
 from src.client.baseclient import BaseClient, model_eval_helper
 from src.data import load_vision_dataset
 from src.split import get_client_datasets, NoisySubset, LabelFlippedSubset
 from src.config import Config, SimConfig, FedstdevServerConfig
-from src.utils  import log_tqdm, log_instance
+from src.common.utils  import log_tqdm, log_instance
 from src.postprocess import post_process
 from src.models.model import init_model
 from src.results.resultmanager import ResultManager
-from src.metrics.metricmanager import MetricManager, Result
+from src.metrics.metricmanager import MetricManager
 
 
 logger = logging.getLogger('SIMULATOR')
 
+def generate_client_ids(num_clients):
+        return [f'{idx:04}' for idx in range(num_clients)]
 
 class Simulator:
     """Simulator orchestrating the whole process of federated learning.
@@ -37,7 +41,7 @@ class Simulator:
     # TODO: Split into federated, standalone, and centralized simulator
     def __init__(self, cfg:Config):
         self.start_time = time.time()
-        self.round: int = 0
+        self._round: int = 0
         self.cfg: Config = cfg
         self.sim_cfg: SimConfig = cfg.simulator
 
@@ -52,13 +56,15 @@ class Simulator:
 
         logger.info(f'[NUM ROUNDS] : {self.sim_cfg.num_rounds}')
 
-        self.num_clients = cfg.simulator.num_clients
+        # self.num_clients = cfg.simulator.num_clients
+        self.all_client_ids = generate_client_ids(cfg.simulator.num_clients)
 
         self.set_seed(cfg.simulator.seed)
         # self.algo = cfg.server.algorithm.name
         self.init_dataset_and_model()
 
-        self.metric_manager = MetricManager(cfg.client.cfg.eval_metrics, self.round, actor='simulator')
+
+        self.metric_manager = MetricManager(cfg.client.cfg.eval_metrics, self._round, actor='simulator')
         self.result_manager = ResultManager(cfg.simulator, logger=logger)
         self.server = None
 
@@ -78,6 +84,7 @@ class Simulator:
             self.load_state(server_ckpt, client_ckpts)
         
         logger.debug(f'Init time: {time.time() - self.start_time} seconds')
+
 
     def init_dataset_and_model(self):
         '''Initialize the dataset and the model here'''
@@ -116,14 +123,28 @@ class Simulator:
             case 'centralized':
                 self.init_sim = self.init_centralized_mode
                 self.run_simulation = self.run_centralized_simulation
+            case 'flower':
+                self.init_sim = self.init_flower_mode
+                self.run_simulation = self.run_flower_simulation
             case _:
                 raise AssertionError(f'Mode: {self.sim_cfg.mode} is not implemented')
+
+    def init_flower_mode(self):
+        client_datasets =  get_client_datasets(self.cfg.dataset.split_conf, self.train_set)
+        self.client_datasets_map = {}
+        for cid, dataset in zip(self.all_client_ids,client_datasets):
+            self.client_datasets_map[cid] = dataset
+
+        self.server_dataset = self.test_set
+        server_partial: partial = instantiate(self.cfg.server)
+        self.server: BaseFlowerServer = server_partial(model=self.model_instance, dataset=self.server_dataset, clients= self.clients, result_manager=self.result_manager)
+
 
     def init_federated_mode(self):
         # model_instance: Module = instantiate(self.cfg.model.model_spec)
 
         server_partial: partial = instantiate(self.cfg.server)
-        self.clients: dict[str, BaseClient] = defaultdict(BaseClient)
+        self.clients: dict[str, BaseClient] = dict()
         
         #  Server gets the test set
         self.server_dataset = self.test_set
@@ -141,9 +162,9 @@ class Simulator:
             for cid, cl in self.clients.items():
                 logger.debug(f'[BATCH SIZES:] CID: {cid}, batch size: {cl.cfg.batch_size}')
 
-        self.all_client_ids = list(self.clients.keys())
+        # self.all_client_ids = list(self.clients.keys())
         # NOTE: later, consider making a copy of client to avoid simultaneous edits to clients dictionary
-        self.server: BaseServer = server_partial(model=self.model_instance, dataset=self.server_dataset, clients= self.clients, result_manager=self.result_manager)
+        self.server: BaseFlowerServer = server_partial(model=self.model_instance, dataset=self.server_dataset, clients= self.clients, result_manager=self.result_manager)
 
     def init_standalone_mode(self):
         self.clients: dict[str, BaseClient] = defaultdict(BaseClient)
@@ -173,10 +194,10 @@ class Simulator:
 
     def make_checkpoint_dirs(self):
         os.makedirs('server_ckpts', exist_ok = True)
-        for cid in self.clients.keys():
+        for cid in self.all_client_ids:
             os.makedirs(f'client_ckpts/{cid}', exist_ok = True)
 
-    def find_checkpoint(self)-> tuple[list, list]:
+    def find_checkpoint(self)-> tuple[str, dict]:
         server_ckpts = sorted(glob.glob('server_ckpts/server_ckpt_*'))
         client_ckpts = {}
 
@@ -185,17 +206,18 @@ class Simulator:
             if files:
                 client_ckpts[dir] = f'client_ckpts/{dir}/{files[-1]}'
                 logger.info(f'------ Found client {dir} checkpoint: {client_ckpts[dir]} ------')
+            
         if server_ckpts or client_ckpts:
             self.is_resumed = True
             if server_ckpts:
                 logger.info(f'------ Found server checkpoint: {server_ckpts[-1]} ------')
                 return server_ckpts[-1], client_ckpts
             else:
-                return [], client_ckpts
+                return '', client_ckpts
         else:
             logger.debug('------------ No checkpoints found. Starting afresh ------------')
             self.is_resumed = False
-            return [], []
+            return '', {}
 
     def set_seed(self, seed):
         torch.manual_seed(seed)
@@ -220,26 +242,28 @@ class Simulator:
     def load_state(self, server_ckpt_path: str, client_ckpts: dict):
         if server_ckpt_path:
             self.server.load_checkpoint(server_ckpt_path)
-            self.round = self.server.round
+            self._round = self.server._round
         if client_ckpts:
             for cid, ckpt in client_ckpts.items():
                 self.clients[cid].load_checkpoint(ckpt)
-            if self.round == 0:
-                self.round = self.clients[cid].round
+                if self._round == 0:
+                    self._round = self.clients[cid]._round
 
     def __create_client(self, cid: str, datasets, model: Module) -> BaseClient:
 
-        client_partial = instantiate(self.cfg.client)
+        client_partial: partial = instantiate(self.cfg.client)
         # NOTE:IMPORTANT Sharing models without deepcopy could potentially have same references to parameters
         # Always deepcopy the model
-        client: BaseClient = client_partial(client_id=cid, dataset=datasets, model=deepcopy(model), res_man=self.result_manager)
+        client: BaseClient = client_partial(client_id=cid, dataset=datasets, model=deepcopy(model))
         return client
     
+
+
     @log_instance(attrs=['round', 'num_clients'], m_logger=logger)
     def _create_clients(self, client_datasets) -> dict[str, BaseClient]:
 
         clients = {}
-        for idx, datasets in log_tqdm(enumerate(client_datasets), logger=logger, desc=f'[Round: {self.round:03}] creating clients '):
+        for idx, datasets in log_tqdm(enumerate(client_datasets), logger=logger, desc=f'[Round: {self._round:03}] creating clients '):
             client_id = f'{idx:04}' # potential to convert to a unique hash
             client_obj = self.__create_client(client_id, datasets, self.model_instance)
             clients[client_id] = client_obj
@@ -253,26 +277,27 @@ class Simulator:
         # FIXME: Might need to instantiate globally elsewhere
         client_cfg_inst = instantiate(self.cfg.client.cfg)
         for cid in cids:
-            eval_result[cid] = model_eval_helper(self.clients[cid].model, test_loader, client_cfg_inst, self.metric_manager, self.round)
+            eval_result[cid] = model_eval_helper(self.clients[cid].model, test_loader, client_cfg_inst, self.metric_manager, self._round)
         
         self.result_manager.log_clients_result(eval_result, phase='post_agg', event='central_eval')
         
-    def local_evaluate_clients(self, cids: list[str]):
-        # Local evaluate the clients on their test sets
-        eval_results = self.server._eval_request(cids)
+    # def local_evaluate_clients(self, cids: list[str]):
+    #     # Local evaluate the clients on their test sets
+    #     eval_results = self.server._eval_request(cids)
 
-        self.result_manager.log_clients_result(eval_results, phase='post_agg', event='local_eval')
+    #     self.result_manager.log_clients_result(eval_results, phase='post_agg', event='local_eval')
 
     def run_standalone_simulation(self):
-        for curr_round in range(self.round, self.sim_cfg.num_rounds + 1):
+        # 
+        for curr_round in range(self._round, self.sim_cfg.num_rounds + 1):
             train_result = {}
             eval_result = {}
 
             for cid, client in self.clients.items():
                 logger.info(f'-------- Client: {cid} --------\n')
-                client.round = curr_round
+                client._round = curr_round
                 train_result[cid] = client.train()
-                eval_result[cid] = client.evaluate()
+                eval_result[cid] = client.eval()
             if curr_round % self.sim_cfg.checkpoint_every == 0:
                 self.save_checkpoints()
 
@@ -282,21 +307,22 @@ class Simulator:
             self.result_manager.update_round_and_flush(curr_round)
 
     def run_centralized_simulation(self):
+        # FIXME: Clean this part for general centralized runs
         # self.trainer: FedstdevClient
-        trainer: FedstdevClient= self.clients['centralized']
+        trainer: FedstdevClient = self.clients['centralized']
 
         # Additional code for current usecase. Factorize later
         strat_cfg: FedstdevServerConfig = self.cfg.server.cfg
 
-        param_dims = {p_key: np.prod(param.size()) for p_key, param in self.model_instance.named_parameters()}
+        param_dims = {p_key: np.prod(param.size()) for p_key, param in self.model_instance.named_parameters()} #type: ignore
         param_keys = param_dims.keys()
         betas = {param: beta for param, beta in zip(param_keys, strat_cfg.betas)}
 
-        for curr_round in range(self.round, self.sim_cfg.num_rounds + 1):
+        for curr_round in range(self._round, self.sim_cfg.num_rounds + 1):
             logger.info(f'-------- Round: {curr_round} --------\n')
-            # wandb.log({'round': curr_round})
+            # wandb.log({'_round': curr_round})
             loop_start = time.time()
-            self.round = curr_round
+            self._round = curr_round
             trainer._round = curr_round
 
 
@@ -375,28 +401,25 @@ class Simulator:
         # self.clients = self._create_clients(self.client_datasets)
         # self.server.initialize(clients, )
 
-        for curr_round in range(self.round, self.sim_cfg.num_rounds +1):
+        for curr_round in range(self._round, self.sim_cfg.num_rounds +1):
             logger.info(f'-------- Round: {curr_round} --------\n')
             # wandb.log({'round': curr_round})
             loop_start = time.time()
-            self.round = curr_round
+            self._round = curr_round
             ## update round indicator
-            self.server.round = curr_round
+            self.server._round = curr_round
 
             ## update after sampling clients randomly
-            update_ids = self.server.update()
+            # TODO: Add availability logic
+
+            update_ids = self.server.update(self.all_client_ids)
 
             ## evaluate on clients not sampled (for measuring generalization performance)
             if curr_round % self.cfg.server.cfg.eval_every == 0:
                 # Can have specific evaluations later
                 eval_ids = self.all_client_ids
-                self.server._broadcast_models(eval_ids)
-                self.local_evaluate_clients(eval_ids)
-
-                # self.central_evaluate_clients(eval_ids)
-                # self.server.reset_client_models(eval_ids)
-
-                self.server.server_evaluate()
+                self.server.server_eval()
+                eval_ids = self.server.local_eval(self.all_client_ids)
 
             if curr_round % self.sim_cfg.checkpoint_every == 0:
                 self.save_checkpoints()
@@ -407,7 +430,25 @@ class Simulator:
             loop_end = time.time() - loop_start
             logger.info(f'------------ Round {curr_round} completed in time: {loop_end} ------------')
 
-       
+    
+    def run_flower_simulation(self):
+        def _client_fn(cid: str):
+            client_partial: partial = instantiate(self.cfg.client)
+            _model = deepcopy(self.model_instance)
+            _datasets = self.client_datasets_map[cid]
+
+            return client_partial(client_id=cid,
+                 dataset=_datasets, model=_model)
+
+        # client_resources = self.sim_cfg.flwr_resources
+
+        fl.simulation.start_simulation(
+            strategy=self.server,
+            client_fn=_client_fn,
+            clients_ids= self.all_client_ids,
+            config=fl.server.ServerConfig(num_rounds=self.sim_cfg.num_rounds),
+            client_resources=self.sim_cfg.flwr_resources,
+)
     def finalize(self):
         if self.server:
             self.server.finalize()

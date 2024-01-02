@@ -10,7 +10,8 @@ from torch.nn import Module, Parameter
 
 from .baseclient import  *
 from src.config import FedstdevClientConfig
-from src.utils import get_time
+from src.common.utils import get_time
+from src.common.typing import Result
 
 logger = logging.getLogger(__name__)
  # NOTE: Multithreading causes atleast 3x slowdown for 2 epoch case. DO not use until necessary
@@ -87,8 +88,8 @@ class FedstdevClient(BaseClient):
 
         return loader_dict
     
-    def download(self, round: int, model_dict: OrderedDict):
-        super().download(round, model_dict)
+    def download(self, _round: int, model_dict: OrderedDict):
+        super().download(_round, model_dict)
         # TODO: Debug logging to check the parameters on the client
         self.res_man.log_parameters(self._model.state_dict(), 'post_agg', self._identifier, verbose=True)
         for seed, model in self._model_map.items():

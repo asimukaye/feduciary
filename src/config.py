@@ -8,7 +8,7 @@ import pandas as pd
 from hydra.core.config_store import ConfigStore
 from torch import cuda
 from hydra.utils import to_absolute_path, get_object
-from src.utils import Range
+from src.common.utils import Range
 from torch import cuda
 from torch.backends import mps
 from pandas import json_normalize
@@ -16,11 +16,11 @@ import logging
 import inspect
 logger = logging.getLogger(__name__)
 
-def arg_check(args:dict, fn:str =None):
+def arg_check(args: dict, fn:str|None = None):
     # Figure out usage with string functions
     # Check if the argument spec is compatible with
     if fn is None:
-        fn = args['_target_']
+        fn: str = args['_target_']
 
     all_args = inspect.signature(get_object(fn)).parameters.values()
     required_args = [arg.name for arg in all_args if arg.default==inspect.Parameter.empty]
@@ -48,6 +48,13 @@ def get_free_gpu():
     return idx
 
 ########## Simulator Configurations ##########
+
+# @dataclass
+# class FlowerConfig:
+#     client_resources: dict
+def default_resources():
+    return {"num_cpus":1, "num_gpus":0.0}
+
 @dataclass
 class SimConfig:
     seed: int
@@ -59,9 +66,12 @@ class SimConfig:
     checkpoint_every: int = field(default=10)
     # plot_every: int = field(default=10)
     mode: str = field(default='federated')
+    # flower: Optional[FlowerConfig]
+    flwr_resources: dict = field(default_factory=default_resources)
+
 
     def __post_init__(self):
-        assert self.mode in ['federated', 'standalone', 'centralized'], f'Unknown simulator mode: {self.mode}'
+        assert self.mode in ['federated', 'standalone', 'centralized', 'flower'], f'Unknown simulator mode: {self.mode}'
         assert (self.use_tensorboard or self.use_wandb or self.save_csv), f'Select any one logging method atleast to avoid losing results'
 
 
@@ -97,17 +107,23 @@ class ClientConfig:
             else:
                 self.device = 'cpu'
             logger.info(f'Auto Configured device to: {self.device}')
-        arg_check(self.lr_scheduler)
+        if self.lr_scheduler:
+            arg_check(self.lr_scheduler)
+
         arg_check(self.optimizer)
 
 # Configs used by the server 
 @dataclass
-class EvalConfig:
-    criterion: dict = field()
+class TrainConfig:
+    epochs: int = field()
     device: str = field()
-    lr: float = field()
+    batch_size: int = field()
+    optimizer: dict = field()
+    criterion: dict = field()
+    lr: float = field()         # Client LR is optional
     lr_scheduler: Optional[dict] = field()
     lr_decay: Optional[float] = field()
+    shuffle: bool = field(default=False)
     eval_metrics: list = field(default_factory=list)
     
     def __post_init__(self):
@@ -126,7 +142,11 @@ class EvalConfig:
             else:
                 self.device = 'cpu'
             logger.info(f'Auto Configured device to: {self.device}')
-        arg_check(self.lr_scheduler)
+
+        if self.lr_scheduler:
+            arg_check(self.lr_scheduler)
+
+        arg_check(self.optimizer)
 
 
 def default_seed():
@@ -163,9 +183,9 @@ class ServerConfig:
 
 # TODO: Isolate strategy configuration from server configuration to avoid duplication
 @dataclass
-class StrategyConfig(ABC):
-    pass
-
+class StrategyConfig:
+    train_fraction: float
+    eval_fraction: float
 
 @dataclass
 class CGSVConfig(ServerConfig):
@@ -211,7 +231,7 @@ class ServerSchema:
     _target_: str
     _partial_: bool 
     cfg: ServerConfig
-    client_cfg: ClientConfig
+    train_cfg: ClientConfig
 
 
 ########## Other configurataions ##########
@@ -257,7 +277,7 @@ class DatasetConfig:
     name: str
     data_path: str
     transforms: Optional[TransformsConfig]
-    split_conf: Optional[SplitConfig]
+    split_conf: SplitConfig
     subsample_fraction: float = 0.0  # subsample the dataset with the given fraction
     subsample: bool = False
 
@@ -299,12 +319,14 @@ class ModelConfig:
 class Config():
     mode: str = field()
     desc: str = field()
+    simulator: SimConfig = field()
+    server: ServerSchema = field()
+    strategy: StrategyConfig = field()
+    client: ClientSchema = field()
+    dataset: DatasetConfig = field()
+    model: ModelConfig = field()
     log_conf: list = field(default_factory=list)
-    simulator: SimConfig = field(default=SimConfig)
-    server: ServerSchema = field(default=ServerSchema)
-    client: ClientSchema = field(default=ClientSchema)
-    dataset: DatasetConfig = field(default=DatasetConfig)
-    model: ModelConfig = field(default=ModelConfig)
+
     # metrics: MetricConfig = field(default=MetricConfig)
 
     def __post_init__(self):

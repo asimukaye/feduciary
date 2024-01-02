@@ -1,11 +1,11 @@
 import logging
 import torch
 # from torch.optim.lr_scheduler import ExponentialLR
-from torch.nn.utils import parameters_to_vector
+from torch.nn.utils.convert_parameters import parameters_to_vector
 from collections import OrderedDict
 from dataclasses import dataclass, field, asdict
 from src.config import FedstdevServerConfig
-from src.utils import ClientParams_t
+from src.common.typing import ClientParams_t
 from collections import defaultdict
 from src.results.resultmanager import ResultManager
 from .baseserver import BaseServer, BaseStrategy
@@ -26,7 +26,7 @@ class PerClientResult:
 
 @dataclass
 class FedstdevResult:
-    round: int
+    _round: int
     clients: dict[str, PerClientResult]
     server_params: dict[str, np.ndarray]
     imp_coeffs : dict[str, dict[str, np.ndarray]]
@@ -257,7 +257,7 @@ class FedstdevServer(BaseServer):
         self.clients: dict[str, FedstdevClient]
 
         super(FedstdevServer, self).__init__(cfg, *args, **kwargs)
-        self.round = 0
+        self._round = 0
         self.cfg = cfg
         
 
@@ -290,7 +290,7 @@ class FedstdevServer(BaseServer):
 
     def save_full_param_dict(self, clients_mu:dict[str, dict], clients_delta: dict[str, dict], clients_std: dict[str, dict]):
         result = {}
-        result['round'] = self.round
+        result['round'] = self._round
         result['clients_delta'] = clients_delta
         # ic(clients_delta.keys())
         result['clients_mu'] = clients_mu
@@ -303,10 +303,10 @@ class FedstdevServer(BaseServer):
         if not os.path.exists('fedstdev_debug'):
             os.makedirs('fedstdev_debug')
         
-        # with open(f'fedstdev_debug/fedstdev_full_{self.round}.json', 'w') as f:
+        # with open(f'fedstdev_debug/fedstdev_full_{self._round}.json', 'w') as f:
         #     json.dump(result, f, indent=4)
         # ic(result['clients_delta'])
-        np.savez_compressed(f'fedstdev_debug/fedstdev_{self.round:03}.npz', **result)
+        np.savez_compressed(f'fedstdev_debug/fedstdev_{self._round:03}.npz', **result)
         # self.result_manager.save_as_csv(result, 'fedstdev_full.csv')
 
 
@@ -327,7 +327,7 @@ class FedstdevServer(BaseServer):
             self.result_manager.log_parameters(client_param_stds, phase='pre_agg', actor=cid, verbose=True, metric='param_std')
 
     
-        # if self.round in [0, 10, 20, 30, 50, 75, 100, 125, 149]:
+        # if self._round in [0, 10, 20, 30, 50, 75, 100, 125, 149]:
         #     self.save_full_param_dict(clients_mu=client_mus, clients_delta=client_deltas, clients_std=client_stds)
             
 
@@ -340,4 +340,4 @@ class FedstdevServer(BaseServer):
         self.result_manager.log_parameters(self.model.state_dict(), phase='post_agg', actor='server', verbose=True)
         # self.result_manager.log_duplicate_parameters_for_clients(client_ids, phase='post_agg', reference_actor='server')
   
-        logger.info(f'[{self.name}] [Round: {self.round:03}] successfully aggregated into a new global model!')
+        logger.info(f'[{self.name}] [Round: {self._round:03}] successfully aggregated into a new global model!')

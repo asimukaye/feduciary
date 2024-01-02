@@ -6,13 +6,13 @@ outputs/
 .vscode
 plots/
 wandb/
-
+.DS_Store
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 playground*
-
+flower/
 # C extensions
 *.so
 

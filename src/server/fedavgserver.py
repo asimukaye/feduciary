@@ -7,7 +7,7 @@ from .baseserver import BaseServer, BaseStrategy
 from src.config import FedavgConfig, ServerConfig
 # from hydra.utils import instantiate
 from torch.optim.lr_scheduler import LRScheduler
-from src.results.resultmanager import ClientResult
+from src.results.resultmanager import ClientResultStats
 logger = logging.getLogger(__name__)
 from torch.optim import SGD
 
@@ -75,12 +75,12 @@ class FedavgOptimizer(BaseStrategy):
 
 
 class FedavgServer(BaseServer):
-    name:str = 'FedAvgServer'
+    name = 'FedAvgServer'
     def __init__(self, cfg: FedavgConfig, *args, **kwargs):
 
         super(FedavgServer, self).__init__(cfg, *args, **kwargs)
 
-        self.round = 0
+        self._round = 0
         self.cfg = cfg
         
         self.server_optimizer = FedavgOptimizer(self.model, self.client_cfg.lr, self.cfg)
@@ -89,7 +89,7 @@ class FedavgServer(BaseServer):
         self.lr_scheduler = self.client_cfg.lr_scheduler(optimizer=self.server_optimizer)
  
         
-    def _run_strategy(self, client_ids: list[str], train_results: ClientResult):
+    def _run_strategy(self, client_ids: list[str], train_results: ClientResultStats):
         # updated_sizes = train_results.sizes
         # Calls client upload and server accumulate
     
@@ -120,4 +120,4 @@ class FedavgServer(BaseServer):
         # for cid in client_ids:
         #     self.result_manager.log_parameters(client_params, 'post_agg', cid)
 
-        logger.info(f'[{self.name}] [Round: {self.round:03}] successfully aggregated into a new global model!')
+        logger.info(f'[{self.name}] [Round: {self._round:03}] successfully aggregated into a new global model!')

@@ -1,20 +1,20 @@
-from .fedavgclient import FedavgClient
-from src.utils import MetricManager
+from .baseclient import BaseClient
+from src.metrics.metricmanager import MetricManager
 
 
 
-class FedsgdClient(FedavgClient):
+class FedsgdClient(BaseClient):
     def __init__(self, **kwargs):
         super(FedsgdClient, self).__init__(**kwargs)
 
     def update(self):
         # Different from FedAvg as this runs only one epoch 
-        mm = MetricManager(self.args.eval_metrics)
+        mm = MetricManager(self.cfg.eval_metrics)
         self.model.train()
-        self.model.to(self.args.device)
+        self.model.to(self.cfg.device)
         
         for inputs, targets in self.train_loader:
-            inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
+            inputs, targets = inputs.to(self.cfg.device), targets.to(self.cfg.device)
             
             outputs = self.model(inputs)
             loss = self.criterion()(outputs, targets)

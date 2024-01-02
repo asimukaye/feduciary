@@ -6,7 +6,7 @@ import torch
 import logging
 import torchtext
 
-from src.utils import TqdmToLogger
+from src.common.utils import TqdmToLogger
 
 logger = logging.getLogger(__name__)
 

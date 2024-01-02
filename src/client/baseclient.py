@@ -1,20 +1,21 @@
 from collections import OrderedDict
 from torch.utils.data import DataLoader
-from torch.nn import Module
+from torch.nn import Module, Parameter
 from torch.optim import Optimizer
 from copy import deepcopy
 import torch
 from torch import Tensor
 import logging
-from src.metrics.metricmanager import MetricManager, Result
-from src.utils import log_tqdm
+from src.metrics.metricmanager import MetricManager
+from src.common.utils import log_tqdm
 from src.config import ClientConfig
 from src.results.resultmanager import ResultManager
+import src.common.typing as fed_t
 
 logger = logging.getLogger(__name__)
 
 
-def model_eval_helper(model: Module, dataloader: DataLoader, cfg: ClientConfig, mm: MetricManager, round: int)->Result:
+def model_eval_helper(model: Module, dataloader: DataLoader, cfg: ClientConfig, mm: MetricManager, round: int)->fed_t.Result:
     # mm = MetricManager(cfg.eval_metrics, round, actor)
     mm._round = round
     model.eval()
@@ -99,7 +100,7 @@ class BaseClient:
         return DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, shuffle=shuffle)
     
 
-    def download(self, round:int, model_dict: OrderedDict):
+    def download(self, round:int, model_dict: dict[str, Parameter]):
         # Copy the model from the server
         self._round = round
         # Reset the epochs once a new model is supplied
@@ -207,7 +208,7 @@ class BaseClient:
 
 
     @torch.no_grad()
-    def evaluate(self):
+    def eval(self):
         # Run evaluation on the client
 
         return model_eval_helper(self._model, self.test_loader, self.cfg, self.metric_mngr, self._round)
@@ -221,7 +222,7 @@ class BaseClient:
             'optimizer_state_dict' : self._optimizer.state_dict(),
             }, f'client_ckpts/{self._identifier}/ckpt_r{self.round:003}_e{epoch:003}.pt')
 
-    def load_checkpoint(self, ckpt_path):
+    def load_checkpoint(self, ckpt_path: str):
         checkpoint = torch.load(ckpt_path)
         self._start_epoch = checkpoint['epoch']
         self._model.load_state_dict(checkpoint['model_state_dict'])
@@ -233,9 +234,8 @@ class BaseClient:
         self._is_resumed = True
 
 
-
     def __len__(self):
-        return len(self.training_set), len(self.test_set)
+        return len(self.training_set)
 
     def __repr__(self):
         return f'CLIENT < {self.id:03} >'

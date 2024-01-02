@@ -4,7 +4,7 @@ from torch import Tensor
 from torch.nn import Parameter
 import numpy as np
 import typing as t
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 from enum import Enum, auto
 from dataclasses import dataclass, field, asdict
 from logging import Logger
@@ -12,22 +12,21 @@ import pandas as pd
 import wandb
 from copy import deepcopy
 from matplotlib import pyplot as plt
-
+from wandb import plot as wandb_plot
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-
 from src.config import *
-
+import src.common.typing as fed_t
 # Result for one entity to the epoch level
-@dataclass
-class Result:
-    actor: str = ''# this is just for debugging for now
-    epoch: int = -1 # epoch -1 reserved for evaluation request
-    round: int = 0 # this is just for debugging for now
-    size: int = 0  # dataset size used to generate this result object
-    metrics: dict[str, float] = field(default_factory=dict)
-    metadata: dict = field(default_factory=dict)
+# @dataclass
+# class Result:
+#     actor: str = ''# this is just for debugging for now
+#     epoch: int = -1 # epoch -1 reserved for evaluation request
+#     _round: int = 0 # this is just for debugging for now
+#     size: int = 0  # dataset size used to generate this result object
+#     metrics: dict[str, float] = field(default_factory=dict)
+#     metadata: dict = field(default_factory=dict)
 
 @dataclass
 class Stats:
@@ -38,21 +37,21 @@ class Stats:
     # TODO: Find a way to incorporate below
     # lump_dim_name: str = ''  # An optional indicator string for what is being lumped in this stat calculation
 
-# Round wise result for all participants of that round
+# Round wise result for all participants of that _round
 @dataclass
-class ClientResult:
-    round: int = field(default=-1)
-    results: dict[str, Result] = field(default_factory=dict)
+class ClientResultStats:
+    _round: int = field(default=-1)
+    results: dict[str, fed_t.Result] = field(default_factory=dict)
     stats: dict[str, Stats] = field(default_factory=dict)
     sizes: dict[str, int] = field(default_factory=dict)
 
 @dataclass
 class EventResult:
-    round: int
+    _round: int
 
 @dataclass
 class ClientParameters:
-    round: int
+    _round: int
     params: dict[str, Tensor]
 
 # Remove a key in a nested dictionary
@@ -97,7 +96,7 @@ class ResultManager:
         self.metric_event_actor_phase_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
         # self.metric_event_actor_phase_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
-        self.phase_tracker: dict(int) = dict()
+        self.phase_tracker: dict[str, int] = dict()
         self._phase_counter = 0
         self._step_counter = 0
         
@@ -108,10 +107,11 @@ class ResultManager:
         self.logger = logger
         self.cfg = cfg
 
-    def get_client_results(self,result:dict[str, Result], event: str, phase: str) -> ClientResult:
-        client_result = ClientResult()
+    def get_client_results(self,result: fed_t.EvalResults_t, event: str, phase: str) -> ClientResultStats:
+        # result_dict = {}
+        client_result = ClientResultStats()
         client_result.results = result
-        client_result.round = self._round
+        client_result._round = self._round
         client_result = self.compute_client_stats_and_log(client_result, event=event, phase=phase)
         return client_result
 
@@ -119,8 +119,8 @@ class ResultManager:
     def compute_stats(array: list, lump_dim_name: str = '') -> Stats:
         stat = Stats(-1, -1, -1, -1)
         np_array = np.array(array).astype(float)
-        stat.mean = np.mean(np_array)
-        stat.std = np.std(np_array)
+        stat.mean = np.mean(np_array) # type: ignore
+        stat.std = np.std(np_array) # type: ignore
         stat.minimum = np.min(np_array)
         stat.maximum = np.max(np_array)
         # stat.lump_dim_name = lump_dim_name
@@ -129,12 +129,12 @@ class ResultManager:
     def _round_check(self, rnd, cid):
         assert self._round == rnd, f'Mismatching rounds: {cid} :r {rnd}, global round: {self._round}'
 
-    def compute_client_stats_and_log(self, client_result: ClientResult,  event: str, phase: str) -> ClientResult:
+    def compute_client_stats_and_log(self, client_result: ClientResultStats,  event: str, phase: str) -> ClientResultStats:
 
         dict_by_metric = defaultdict(dict)
         # Maybe per client logging could be disabled later
         for cid, clnt_result in client_result.results.items():
-            self._round_check(clnt_result.round, cid)
+            self._round_check(clnt_result._round, cid)
 
             for metric, value in clnt_result.metrics.items():
                 # metrics_list[metric].append(value)
@@ -163,12 +163,12 @@ class ResultManager:
             # self.metric_event_actor_dict[metric][event] = dict_by_metric[metric]
         return client_result
     
-    def log_general_result(self, result: Result, phase: str, actor:str, event: str):
+    def log_general_result(self, result: fed_t.Result, phase: str, actor:str, event: str):
         
-        self._round_check(result.round, actor)
+        self._round_check(result._round, actor)
 
         # TODO: Make the below two lines obsolete
-        log_metric(event, result.round, result.metrics, self.logger)
+        log_metric(event, result._round, result.metrics, self.logger)
         self.result_dict[event] = asdict(result)
 
         # event = 'central_eval'
@@ -182,7 +182,7 @@ class ResultManager:
         # self.metric_event_actor_dict['size'][event]['server'] =  result.size
         
 
-    def log_clients_result(self, result: dict[Result],  phase: str, event='local_eval'):
+    def log_clients_result(self, result: fed_t.EvalResults_t,  phase: str, event='local_eval'):
 
         client_result = self.get_client_results(result, event=event, phase=phase)
 
@@ -215,7 +215,7 @@ class ResultManager:
             param_detached = param.detach().cpu()
             layer_wise_abs_mean = param_detached.abs().mean().item()
             avg +=layer_wise_abs_mean
-            layer_dim = np.prod(param_detached.size())
+            layer_dim = np.prod(param_detached.size())  # type: ignore
             weighted_avg += layer_wise_abs_mean*layer_dim
             layer_dims += layer_dim
             if verbose:
@@ -272,7 +272,7 @@ class ResultManager:
     
     def update_round_and_flush(self, rnd:int):
         self.result_dict['round'] = self._round
-        self.metric_event_actor_dict['round'] = self._round
+        self.metric_event_actor_dict['round'] = self._round # type: ignore
 
         self.last_result = deepcopy(self.result_dict)
         self.save_results(self.result_dict)
@@ -379,7 +379,7 @@ class ResultManager:
 
 
     # Some valiant effort functions, maybe useful later
-    def fuse_events(self, metric: str, past_event: str, present_event: str, actor: str, x, x_key:str ,delta_x=0.5, actor_2: str = None, y_key: str =''):
+    def fuse_events(self, metric: str, past_event: str, present_event: str, actor: str, x, x_key:str ,delta_x=0.5, actor_2: str = '', y_key: str =''):
         # TODO: Think of a better way to do this function
 
         if actor_2 is None:
@@ -401,7 +401,7 @@ class ResultManager:
         ax.set_xlabel(x_label)
         return fig
   
-    def wandb_multi_line_plots(self, plot_keys: list =None):
+    def wandb_multi_line_plots(self, plot_keys: list =[]):
         # What a waste of time this was...
         wandb_dict = {}
         in_dict = pd.json_normalize(self.metric_event_actor_dict, sep='/', max_level=1).to_dict('records')[0]
@@ -415,7 +415,7 @@ class ResultManager:
             # Convert each item to a list
             for key in in_dict[plot_key].keys():
                 in_dict[plot_key][key] = [in_dict[plot_key][key]]
-            wandb_dict[plot_key] =  wandb.plot.line_series(in_dict['round'], list(in_dict[plot_key].values()), keys=list(in_dict[plot_key].keys()), title=plot_key, xname='round')
+            wandb_dict[plot_key] =  wandb_plot.line_series(in_dict['round'], list(in_dict[plot_key].values()), keys=list(in_dict[plot_key].keys()), title=plot_key, xname='round')
         return wandb_dict    
 
 

@@ -5,7 +5,7 @@ import random
 from torch.utils import data
 import torch
 import torchvision.transforms as tvt
-from src.utils  import log_tqdm
+from src.common.utils  import log_tqdm
 from src.config import SplitConfig
 
 logger = logging.getLogger(__name__)
@@ -320,24 +320,30 @@ def get_split_map(cfg: SplitConfig, dataset: data.Dataset) -> dict[int, np.ndarr
     match cfg.split_type:
         case 'iid' | 'one_noisy_client' | 'one_label_flipped_client':
             split_map = get_iid_split(dataset, cfg.num_splits)
+            return split_map
+
         case 'unbalanced':
             split_map = get_unbalanced_split(dataset, cfg.num_splits)
+            return split_map
+
         case 'one_imbalanced_client':
             split_map = get_one_imbalanced_client_split(dataset, cfg.num_splits)
-        case 'patho':
-            # FIXME: assign the right arguments here
-            # split_map = get_patho_split(dataset, cfg.num_splits,)
-            raise NotImplementedError
-        case 'dirichlet':
-            # split_map = get_dirichlet_split(dataset, cfg.num_splits,)
-            raise NotImplementedError
+            return split_map
+
+        # case 'patho':
+        #     # FIXME: assign the right arguments here
+        #     # split_map = get_patho_split(dataset, cfg.num_splits,)
+        #     raise NotImplementedError
+        # case 'dirichlet':
+        #     # split_map = get_dirichlet_split(dataset, cfg.num_splits,)
+        #     raise NotImplementedError
         case 'leaf' |'fedvis':
             logger.info('[DATA_SPLIT] Using pre-defined split.')
+            return {}
         case _ :
             logger.error('[DATA_SPLIT] Unknown datasplit type')
             raise NotImplementedError
 
-    return split_map
 
 
 def construct_client_dataset(raw_train: data.Dataset, client_test_fraction, client_idx, sample_indices) ->tuple[data.Subset, data.Subset]:

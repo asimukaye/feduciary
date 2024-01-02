@@ -9,7 +9,7 @@ from torch.utils import data
 import concurrent.futures
 from hydra.utils import instantiate
 
-from src.utils  import TqdmToLogger
+from src.common.utils  import TqdmToLogger
 from src.datasets import *
 from src.split import get_client_datasets
 import torchvision.transforms as tvt
