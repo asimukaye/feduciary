@@ -127,7 +127,7 @@ class ResultManager:
         return stat
 
     def _round_check(self, rnd, cid):
-        assert self._round == rnd, f'Mismatching rounds: {cid} :r {rnd}, global round: {self._round}'
+        assert self._round == rnd, f'Mismatching rounds: {cid} round: {rnd}, manager round: {self._round}'
 
     def compute_client_stats_and_log(self, client_result: ClientResultStats,  event: str, phase: str) -> ClientResultStats:
 
@@ -270,7 +270,7 @@ class ResultManager:
             logger.error(err_str)
             raise TypeError(err_str)
     
-    def update_round_and_flush(self, rnd:int):
+    def flush_and_update_round(self, rnd:int):
         self.result_dict['round'] = self._round
         self.metric_event_actor_dict['round'] = self._round # type: ignore
 

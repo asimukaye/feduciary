@@ -18,10 +18,9 @@ from src.results.resultmanager import ResultManager
 import src.common.typing as fed_t
 import pandas as pd
 from dataclasses import asdict
-# DEFINE WHAT STRATEGY IS SUPPORTED HERE
+# DEFINE WHAT STRATEGY IS SUPPORTED HERE. This might be needed to support packing and unpacking
 from src.strategy.basestrategy import BaseStrategy
 
-# from src.server.baseflowerserver import get_parameters_as_ndarray
 
 import flwr as fl
 
@@ -45,7 +44,9 @@ def results_to_flower_fitres(model: Module, res: fed_t.Result) -> FitRes:
     ndarrays_updated = get_parameters_as_ndarray(model)
         # Serialize ndarray's into a Parameters object
     parameters_updated = ndarrays_to_parameters(ndarrays_updated)
+    # print(asdict(res))
     flattened_res = flatten_dict(asdict(res))
+    # print("Flattened: ", flattened_res.keys())
     return FitRes(Status(code=Code.OK, message="Success"),
                     parameters=parameters_updated,
                     num_examples=res.size,
@@ -103,9 +104,9 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         self.res_man = res_man
         self._init_state_dict: OrderedDict = OrderedDict(model.state_dict())
 
-        self._round = 0
-        self._epoch = 0
-        self._start_epoch = 0
+        self._round = int(0)
+        self._epoch = int(0)
+        self._start_epoch = int(0)
         self._is_resumed = False
         #NOTE: IMPORTANT: Make sure to deepcopy the config in every child class
         self.cfg = deepcopy(cfg)
@@ -165,7 +166,8 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
     def download(self, client_ins: fed_t.ClientIns) -> fed_t.RequestOutcome:
         # Download initiates training. Is a blocking call without concurrency implementation
-        BaseStrategy.client_receive_strategy(client_ins)
+        # TODO: implement the client receive strategy correctlt later
+        # specific_ins = BaseStrategy.client_receive_strategy(client_ins)
         self._round = client_ins._round
 
         param_dict = client_ins.params
@@ -323,6 +325,10 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         parameters_original = ins.parameters
         ndarrays_original = parameters_to_ndarrays(parameters_original)
         # Update local model, train, get updated parameters
+        self._round = int(ins.config['_round'])
+
+        # TODO: Need to use formal unpacking command here
+        _metadata = ins.config
         set_parameters(self._model, ndarrays_original)
 
         res = self.train()
@@ -340,6 +346,10 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         # Deserialize parameters to NumPy ndarray's
         parameters_original = ins.parameters
         ndarrays_original = parameters_to_ndarrays(parameters_original)
+        self._round = int(ins.config['_round'])
+
+        # TODO: Need to use formal unpacking command here
+        _metadata = ins.config
         set_parameters(self._model, ndarrays_original)
 
         res = self.eval()

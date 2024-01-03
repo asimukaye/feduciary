@@ -34,7 +34,7 @@ class MetricManager:
         avg_metrics['loss'] = self.figures['loss'] / total_len
 
         self._result.metrics = avg_metrics
-        self._result.epoch = epoch
+        self._result.metadata['epoch'] = epoch
         self._result.size = total_len
         self._result._round = self._round
 

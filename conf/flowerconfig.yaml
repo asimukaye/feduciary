@@ -29,7 +29,7 @@ client:
   _partial_: true
   cfg:
     epochs: 5
-    device: auto
+    device: cuda:0
     batch_size: 32
     lr: 0.01
     lr_decay: 0.977

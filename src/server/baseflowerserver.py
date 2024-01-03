@@ -66,10 +66,10 @@ def flatten_dict(nested: dict) -> dict:
     return pd.json_normalize(nested, sep='.').to_dict('records')[0]
 
 def flower_metrics_to_results(flwr_res: FitRes | EvaluateRes) -> fed_t.Result:
+    # print(flwr_res.metrics.keys())
     nested = nest_dict(flwr_res.metrics)
-    
+    # print("Nested: ", nested)
     return fed_t.Result(actor=nested['actor'],
-                        epoch=nested['epoch'],
                         _round=nested['_round'],
                         metadata=nested['metadata'],
                         metrics=nested['metrics'],
@@ -267,7 +267,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
                       parameters: Parameters,
                       client_manager: ClientManager) -> List[Tuple[ClientProxy, FitIns]]:
         # Create custom configs
-
+        self._round = server_round-1
       
         fit_configurations = []
 
@@ -286,6 +286,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
             nd_param = convert_param_dict_to_ndarray(cl_in.params)
             flower_param = fl.common.ndarrays_to_parameters(nd_param)
             cl_config = cl_in.metadata
+            cl_config['_round'] = self._round
 
             fit_configurations.append(
                     (client, FitIns(flower_param, cl_config)) 
@@ -330,6 +331,8 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
             nd_param = convert_param_dict_to_ndarray(cl_in.params)
             flower_param = fl.common.ndarrays_to_parameters(nd_param)
             cl_config = cl_in.metadata
+            cl_config['_round'] = self._round
+
 
             eval_configurations.append(
                     (client, EvaluateIns(flower_param, cl_config))
@@ -341,11 +344,21 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
     def aggregate_evaluate(self,
                            server_round: int,
                            results: List[Tuple[ClientProxy, EvaluateRes]],
-                           failures: List[Tuple[ClientProxy, EvaluateRes] | BaseException]) -> None:
+                           failures: List[Tuple[ClientProxy, EvaluateRes] | BaseException]) -> Tuple[float, Dict[str, Scalar]]:
            
         client_results = flower_eval_results_adapter(results)
-        self.result_manager.log_clients_result(result=client_results, phase='post_agg',event='local_eval')
-        self.result_manager.update_round_and_flush(server_round)
+        clien_result_stats = self.result_manager.log_clients_result(result=client_results, phase='post_agg',event='local_eval')
+        self.result_manager.flush_and_update_round(server_round-1)
+        # self._round = server_round-1
+
+        loss_agg =  clien_result_stats.stats['loss'].mean
+
+        metrics_agg =  {k: v.mean for k, v in clien_result_stats.stats.items()}
+
+        return loss_agg, metrics_agg # type: ignore
+
+
+
     
     def evaluate(self, server_round: int, parameters: Parameters) -> None:
         eval_res = self.server_eval()

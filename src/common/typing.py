@@ -23,7 +23,7 @@ class RequestOutcome(Enum):
 @dataclass
 class Result:
     actor: str = ''# this is just for debugging for now
-    epoch: int = -1 # epoch -1 reserved for evaluation request
+    # epoch: int = -1 # epoch -1 reserved for evaluation request. Epoch now part of metadata
     _round: int = 0 # this is just for debugging for now
     size: int = 0  # dataset size used to generate this result object
     metrics: dict[str, float] = field(default_factory=dict)

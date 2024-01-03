@@ -29,7 +29,7 @@ def passthrough_communication(ins: t.Any) -> t.Any:
 
 def weighted_parameter_averaging(param_keys: t.Iterable, in_params: ClientParams_t, weights: dict[str, float]) -> ActorParams_t:
 
-    out_params: ActorParams_t = OrderedDict()
+    out_params= OrderedDict()
     for key in param_keys:
         temp_parameter = torch.Tensor()
 
@@ -39,7 +39,7 @@ def weighted_parameter_averaging(param_keys: t.Iterable, in_params: ClientParams
             else:
                 temp_parameter.data.add_(weights[cid] * client_param[key].data)
         
-        out_params[key].data = temp_parameter.data
+        out_params[key] = temp_parameter
     return out_params
 
 def random_client_selection(sampling_fraction: float, cids: list[str]) -> ClientIds_t:
@@ -138,6 +138,7 @@ class BaseStrategy(ABCStrategy):
             self._client_weights[cid] = float(strat_in.data_size / total_size)
 
         _client_params = {cid: inp.client_params for cid, inp in strategy_ins.items()}
+        # print((list(_client_params.values())[0].keys()))
         
         self._server_params = weighted_parameter_averaging(self._param_keys, _client_params, self._client_weights)
 

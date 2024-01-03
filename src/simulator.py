@@ -131,20 +131,6 @@ class Simulator:
             case _:
                 raise AssertionError(f'Mode: {self.sim_cfg.mode} is not implemented')
 
-    def init_flower_mode(self):
-        # client_datasets =  get_client_datasets(self.cfg.dataset.split_conf, self.train_set)
-        # self.client_datasets_map = {}
-        # for cid, dataset in zip(self.all_client_ids,client_datasets):
-        #     self.client_datasets_map[cid] = dataset
-
-        # self.server_dataset = self.test_set
-        # strategy = instantiate(self.cfg.strategy, model=self.model_instance)
-
-        # server_partial: partial = instantiate(self.cfg.server)
-        # self.server: BaseFlowerServer = server_partial(model=self.model_instance, strategy=strategy, dataset=self.server_dataset, clients= {}, result_manager=self.result_manager)
-        pass
-
-
     def init_federated_mode(self):
         # model_instance: Module = instantiate(self.cfg.model.model_spec)
 
@@ -312,7 +298,7 @@ class Simulator:
             self.result_manager.log_clients_result(train_result, phase='post_train', event='local_train')
             self.result_manager.log_clients_result(eval_result, phase='post_train', event='local_eval')
 
-            self.result_manager.update_round_and_flush(curr_round)
+            self.result_manager.flush_and_update_round(curr_round)
 
     def run_centralized_simulation(self):
         # FIXME: Clean this part for general centralized runs
@@ -398,7 +384,7 @@ class Simulator:
                 self.save_checkpoints()
             
             # This is weird, needs some rearch
-            self.result_manager.update_round_and_flush(curr_round)
+            self.result_manager.flush_and_update_round(curr_round)
 
             loop_end = time.time() - loop_start
             logger.info(f'------------ Round {curr_round} completed in time: {loop_end} ------------')
@@ -433,7 +419,7 @@ class Simulator:
                 self.save_checkpoints()
             
             # This is weird, needs some rearch
-            self.result_manager.update_round_and_flush(curr_round)
+            self.result_manager.flush_and_update_round(curr_round)
 
             loop_end = time.time() - loop_start
             logger.info(f'------------ Round {curr_round} completed in time: {loop_end} ------------')

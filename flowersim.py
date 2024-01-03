@@ -6,7 +6,26 @@ from omegaconf import OmegaConf
 
 from src.config import Config, register_configs
 from icecream import install, ic
+import subprocess
 
+import pandas as pd
+from io import StringIO
+
+
+def get_free_gpus(min_memory_reqd= 4096):
+    gpu_stats = subprocess.check_output(["nvidia-smi", "--format=csv", "--query-gpu=memory.used,memory.free"])
+    gpu_df = pd.read_csv(StringIO(gpu_stats.decode()),
+                         names=['memory.used', 'memory.free'],
+                         skiprows=1)
+    # print('GPU usage:\n{}'.format(gpu_df))
+    gpu_df['memory.free'] = gpu_df['memory.free'].map(lambda x: int(x.rstrip(' [MiB]')))
+    idx = gpu_df['memory.free'].idxmax()
+    # min_memory_reqd = 10000
+    ids = gpu_df.index[gpu_df['memory.free']>min_memory_reqd]
+    for id in ids:
+        print('Returning GPU:{} with {} free MiB'.format(id, gpu_df.iloc[id]['memory.free']))
+    print('Most free GPU:{} with {} free MiB'.format(idx, gpu_df.iloc[idx]['memory.free']))
+    return ids.to_list()
 
 def init_dataset_and_model(cfg: Config):
     '''Initialize the dataset and the model here'''
@@ -70,12 +89,21 @@ def run_feduciary(cfg: Config):
         return client_partial(client_id=cid,
                 dataset=_datasets, model=_model)
     
+    gpu_ids = get_free_gpus()
+    print(",".join(map(str, gpu_ids)) )
+    # print(os.environ.get())
+    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, gpu_ids))
+
+    runtime_env = {"env_vars": {"CUDA_VISIBLE_DEVICES": ",".join(map(str, gpu_ids))}}
+
+    runtime_env['working_dir'] = "/home/asim.ukaye/fed_learning/feduciary/"
 
     fl.simulation.start_simulation(
         strategy=strat,
         client_fn=_client_fn,
         clients_ids= all_client_ids,
         config=fl.server.ServerConfig(num_rounds=cfg.simulator.num_rounds),
+        ray_init_args = {'runtime_env': runtime_env},
         client_resources=cfg.simulator.flwr_resources,
     )
 
