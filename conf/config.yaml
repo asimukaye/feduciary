@@ -33,6 +33,7 @@ client:
   _partial_: true
   cfg:
     epochs: 5
+    start_epoch: 0
     device: auto
     batch_size: 32
     lr: 0.01
@@ -83,7 +84,9 @@ simulator:
   # mode: centralized
   # mode: federated
   mode: flower
-
+  flwr_resources:
+    num_cpus: 2
+    num_gpus: 0.2 #TODO: Couple this with device init
 
 
 dataset:

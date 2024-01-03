@@ -118,6 +118,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         if result_manager:
             self.result_manager = result_manager
 
+
         # self.client_results: fed_t.ClientResults_t = defaultdict(fed_t.ClientResult1)
         # self.client_ins_dict: fed_t.ClientIns_t = defaultdict(fed_t.ClientIns)
 
@@ -253,12 +254,12 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         return eval_ids
     
 
-
     # FLOWER FUNCTION OVERLOADS
     def initialize_parameters(
         self, client_manager: ClientManager
     ) -> Optional[Parameters]:
         """Initialize global model parameters."""
+
         ndarrays = get_parameters_as_ndarray(self.model)
         return fl.common.ndarrays_to_parameters(ndarrays)
     
@@ -358,7 +359,10 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         return loss_agg, metrics_agg # type: ignore
 
 
-
-    
     def evaluate(self, server_round: int, parameters: Parameters) -> None:
         eval_res = self.server_eval()
+        loss_agg =  eval_res.metrics['loss']
+        # metrics_agg =  {k: v for k, v in eval_res.metrics.items()}
+        metrics_agg = eval_res.metrics
+
+        return loss_agg, metrics_agg # type: ignore

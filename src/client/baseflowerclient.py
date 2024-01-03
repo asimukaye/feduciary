@@ -6,13 +6,14 @@ from torch.nn import Module, Parameter
 from torch.optim import Optimizer
 from copy import deepcopy
 import torch
+from torch.backends import mps
 from torch import Tensor
 from hydra.utils import instantiate
 import logging
 
 from src.metrics.metricmanager import MetricManager
 from src.common.utils import log_tqdm, get_parameters_as_ndarray
-from src.config import ClientConfig
+from src.config import ClientConfig, get_free_gpu
 from src.client.abcclient import ABCClient
 from src.results.resultmanager import ResultManager
 import src.common.typing as fed_t
@@ -20,7 +21,6 @@ import pandas as pd
 from dataclasses import asdict
 # DEFINE WHAT STRATEGY IS SUPPORTED HERE. This might be needed to support packing and unpacking
 from src.strategy.basestrategy import BaseStrategy
-
 
 import flwr as fl
 
@@ -108,8 +108,26 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         self._epoch = int(0)
         self._start_epoch = int(0)
         self._is_resumed = False
+
+
         #NOTE: IMPORTANT: Make sure to deepcopy the config in every child class
         self.cfg = deepcopy(cfg)
+        print(f'Client: {client_id}, device: {self.cfg.device}')
+
+        # CLient wise device selection. TO use when working on multiprocessing part
+        # if self.cfg.device == 'auto':
+        #     if torch.cuda.is_available():
+        #         if torch.cuda.device_count() > 1:
+        #             self.device = f'cuda:{get_free_gpu()}'
+        #         else:
+        #             self.device = 'cuda:0'
+
+        #     elif mps.is_available():
+        #         self.device = 'mps'
+        #     else:
+        #         self.device = 'cpu'
+        #     logger.info(f'Auto configured client {client_id} device to: {self.device}')
+
         self.training_set = dataset[0]
         self.test_set = dataset[1]
 
@@ -306,7 +324,8 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
     # TODO: Consider implementing properties at some later time
     def get_parameters(self, ins: GetParametersIns) -> GetParametersRes:
-        # Get parameters as a list of NumPy ndarray's
+        # Get parameters as a list of NumPy ndarray'sz
+        # print("I AM BEING CALLED")
         ndarrays = get_parameters_as_ndarray(self._model)
 
         # Serialize ndarray's into a Parameters object

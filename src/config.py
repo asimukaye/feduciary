@@ -1,6 +1,7 @@
 # Master config file to store config dataclasses and do validation
 from dataclasses import dataclass, field, asdict
 from typing import Optional
+import os
 import subprocess
 from io import StringIO
 from abc import ABC
@@ -34,6 +35,19 @@ def arg_check(args: dict, fn:str|None = None):
             else:
                 logger.error(f'Missing required argument: {argument}')
                 raise ValueError(f'Missing required argument: {argument}')
+
+def get_free_gpus(min_memory_reqd= 4096):
+    gpu_stats = subprocess.check_output(["nvidia-smi", "--format=csv", "--query-gpu=memory.used,memory.free"])
+    gpu_df = pd.read_csv(StringIO(gpu_stats.decode()),
+                         names=['memory.used', 'memory.free'],
+                         skiprows=1)
+    # print('GPU usage:\n{}'.format(gpu_df))
+    gpu_df['memory.free'] = gpu_df['memory.free'].map(lambda x: int(x.rstrip(' [MiB]')))
+    # min_memory_reqd = 10000
+    ids = gpu_df.index[gpu_df['memory.free']>min_memory_reqd]
+    for id in ids:
+        print('Returning GPU:{} with {} free MiB'.format(id, gpu_df.iloc[id]['memory.free']))
+    return ids.to_list()
 
 
 def get_free_gpu():
@@ -75,12 +89,12 @@ class SimConfig:
         assert (self.use_tensorboard or self.use_wandb or self.save_csv), f'Select any one logging method atleast to avoid losing results'
 
 
-
 ########## Client Configurations ##########
 
 @dataclass
 class ClientConfig:
     epochs: int = field()
+    start_epoch: int = field()
     device: str = field()
     batch_size: int = field()
     optimizer: dict = field()
@@ -337,6 +351,13 @@ class Config():
     def __post_init__(self):
         # if self.dataset.use_model_tokenizer or self.dataset.use_pt_model:
         #     assert self.model.name in ['DistilBert', 'SqueezeBert', 'MobileBert'], 'Please specify a proper model!'
+
+        # Set visible GPUs
+        #TODO: MAke the gpu configurable
+        gpu_ids = get_free_gpus()
+        print(",".join(map(str, gpu_ids)) )
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, gpu_ids))
+
         flat_cfg = json_normalize(asdict(self))
         if not all(arg in flat_cfg for arg in self.log_conf):
             raise(KeyError(f'Recheck the keys set in log_conf: {self.log_conf}'))
@@ -375,7 +396,7 @@ def register_configs():
     cs.store(group='server', name='base_server', node=ServerSchema)
     cs.store(group='server/cfg', name='base_cgsv', node=CGSVConfig)
     cs.store(group='strategy', name='strategy_schema', node=StrategySchema)
-    cs.store(group='strategy/cfg', name='base_strategty', node=StrategyConfig)
+    cs.store(group='strategy/cfg', name='base_strategy', node=StrategyConfig)
     cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
     cs.store(group='server/cfg', name='fedstdev_server', node=FedstdevServerConfig)
     cs.store(group='client/cfg', name='fedstdev_client', node=FedstdevClientConfig)

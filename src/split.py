@@ -355,7 +355,7 @@ def construct_client_dataset(raw_train: data.Dataset, client_test_fraction, clie
     return (training_set, test_set)
 
 
-def get_client_datasets(cfg: SplitConfig, dataset: data.Dataset) -> list[tuple] :
+def get_client_datasets(cfg: SplitConfig, dataset: data.Dataset) -> list[tuple[data.Subset, data.Subset]] :
     # logger.info(f'[DATA_SPLIT] dataset split: `{cfg.split_type.upper()}`')   
     split_map = get_split_map(cfg, dataset)
     logger.info(f'[DATA_SPLIT] Simulated dataset split : `{cfg.split_type.upper()}`')

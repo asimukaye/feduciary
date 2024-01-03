@@ -60,7 +60,6 @@ def run_feduciary(cfg: Config):
     logger.debug((OmegaConf.to_yaml(cfg)))
 
 
-
     all_client_ids = generate_client_ids(cfg.simulator.num_clients)
     
     clients: dict[str, BaseFlowerClient] = dict()

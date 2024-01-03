@@ -3,6 +3,7 @@ from collections import OrderedDict
 from enum import Enum, auto
 from torch.nn import Parameter
 import typing as t
+from torch.utils.data import Subset
 
 ClientIds_t =  list[str]
 ClientParams_t = dict[str, OrderedDict[str, Parameter]]
@@ -49,4 +50,5 @@ EvalResults_t = dict[str, Result]
 
 ClientIns_t = dict[str, ClientIns]
 
+ClientDatasets_t = list[tuple[Subset, Subset]]
 # ClientParams_t = dict[str, OrderedDict[str, torch.nn.Parameter]]
