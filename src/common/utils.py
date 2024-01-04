@@ -43,8 +43,11 @@ def log_instance(attrs:list=[], m_logger=logger):
 
 class get_time:
     def __init__(self) -> None:
-        stack = inspect.currentframe().f_back
-        self.name = f'{stack.f_code.co_filename.split("/")[-1] }:{Fore.LIGHTCYAN_EX}{stack.f_lineno}{Fore.RESET} in {stack.f_code.co_name}'
+        curr_frame = inspect.currentframe()
+        if curr_frame is not None:
+            stack = curr_frame.f_back
+            if stack is not None:
+                self.name = f'{stack.f_code.co_filename.split("/")[-1] }:{Fore.LIGHTCYAN_EX}{stack.f_lineno}{Fore.RESET} in {stack.f_code.co_name}'
 
     def __enter__(self):
         self.start = perf_counter()

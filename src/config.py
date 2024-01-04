@@ -69,6 +69,8 @@ def get_free_gpu():
 def default_resources():
     return {"num_cpus":1, "num_gpus":0.0}
 
+
+# TODO: Isolate result manager configs from this
 @dataclass
 class SimConfig:
     seed: int
@@ -107,6 +109,7 @@ class ClientConfig:
     
     def __post_init__(self):
         # if self.device =='cuda':
+        
         #     assert cuda.is_available(), 'Please check if your GPU is available !' 
         assert self.batch_size >= 1
         if self.device == 'auto':

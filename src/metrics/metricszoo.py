@@ -177,15 +177,6 @@ class Mape(BaseMetric):
         answers = torch.cat(self.answers).numpy()
         return mean_absolute_percentage_error(answers, scores)
 
-class Mape(BaseMetric):
-    def __init__(self):
-        super().__init__()
-
-    def summarize(self):
-        scores = torch.cat(self.scores).numpy()
-        answers = torch.cat(self.answers).numpy()
-        return mean_absolute_percentage_error(answers, scores)
-
 class R2(BaseMetric):
     def __init__(self):
         super().__init__()

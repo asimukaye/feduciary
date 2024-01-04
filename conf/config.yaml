@@ -82,8 +82,8 @@ simulator:
   checkpoint_every: 20
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized', 'flower'
   # mode: centralized
-  # mode: federated
-  mode: flower
+  mode: federated
+  # mode: flower 
   flwr_resources:
     num_cpus: 2
     num_gpus: 0.2 #TODO: Couple this with device init

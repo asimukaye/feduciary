@@ -24,7 +24,7 @@ from src.results.resultmanager import ResultManager
 
 from src.client.baseclient import BaseClient, model_eval_helper
 from src.metrics.metricmanager import MetricManager
-from src.common.utils  import log_tqdm, log_instance, get_parameters_as_ndarray
+from src.common.utils  import log_tqdm, log_instance, get_parameters_as_ndarray, get_time
 from src.results.resultmanager import ResultManager
 import src.common.typing as fed_t
 
@@ -69,7 +69,10 @@ def flower_metrics_to_results(flwr_res: FitRes | EvaluateRes) -> fed_t.Result:
     # print(flwr_res.metrics.keys())
     nested = nest_dict(flwr_res.metrics)
     # print("Nested: ", nested)
+    # The loss value is part of metrics and thus ignored
     return fed_t.Result(actor=nested['actor'],
+                        event=nested['event'],
+                        phase=nested['phase'],
                         _round=nested['_round'],
                         metadata=nested['metadata'],
                         metrics=nested['metrics'],
@@ -299,13 +302,16 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
                       server_round: int,
                       results: List[Tuple[ClientProxy, FitRes]], failures: List[Tuple[ClientProxy, FitRes] | BaseException]) -> Tuple[Parameters | None, Dict[str, Scalar]]:
         
-  
-        client_results = flower_train_results_adapter(self.param_keys, results)
+
+        with get_time():
+            client_results = flower_train_results_adapter(self.param_keys, results)
 
         strategy_ins = self.strategy.receive_strategy(client_results)
         strategy_outs = self.strategy.aggregate(strategy_ins)
 
-        self.model.load_state_dict(strategy_outs.server_params)
+        # Validate the need for this.
+        with get_time():
+            self.model.load_state_dict(strategy_outs.server_params)
         param_ndarrays = convert_param_dict_to_ndarray(strategy_outs.server_params)
 
         parameters_aggregated = fl.common.ndarrays_to_parameters(param_ndarrays)
@@ -346,7 +352,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
                            server_round: int,
                            results: List[Tuple[ClientProxy, EvaluateRes]],
                            failures: List[Tuple[ClientProxy, EvaluateRes] | BaseException]) -> Tuple[float, Dict[str, Scalar]]:
-           
+
         client_results = flower_eval_results_adapter(results)
         clien_result_stats = self.result_manager.log_clients_result(result=client_results, phase='post_agg',event='local_eval')
         self.result_manager.flush_and_update_round(server_round-1)

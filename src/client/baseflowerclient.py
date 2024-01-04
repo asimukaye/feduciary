@@ -112,27 +112,12 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
         #NOTE: IMPORTANT: Make sure to deepcopy the config in every child class
         self.cfg = deepcopy(cfg)
-        print(f'Client: {client_id}, device: {self.cfg.device}')
-
-        # CLient wise device selection. TO use when working on multiprocessing part
-        # if self.cfg.device == 'auto':
-        #     if torch.cuda.is_available():
-        #         if torch.cuda.device_count() > 1:
-        #             self.device = f'cuda:{get_free_gpu()}'
-        #         else:
-        #             self.device = 'cuda:0'
-
-        #     elif mps.is_available():
-        #         self.device = 'mps'
-        #     else:
-        #         self.device = 'cpu'
-        #     logger.info(f'Auto configured client {client_id} device to: {self.device}')
 
         self.training_set = dataset[0]
         self.test_set = dataset[1]
 
         
-        self.metric_mngr = MetricManager(self.cfg.eval_metrics, self._round, actor=self._cid)
+        self.metric_mngr = MetricManager(self.cfg.eval_metrics, self._round, actor=self._cid, log_to_file=True)
         # self.optim_partial: functools.partial = instantiate(self.cfg.optimizer)
         self.optim_partial: functools.partial = self.cfg.optimizer
 
@@ -181,7 +166,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
             self.cfg.batch_size = len(self.training_set)
         return DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, shuffle=shuffle)
     
-
+    # def _fill_result_metadata(result = fed_t.Result)
     def download(self, client_ins: fed_t.ClientIns) -> fed_t.RequestOutcome:
         # Download initiates training. Is a blocking call without concurrency implementation
         # TODO: implement the client receive strategy correctlt later

@@ -1,23 +1,67 @@
 from collections import defaultdict
-# from typing import DefaultDict
+import pickle
 from importlib import import_module
 from .basemetric import BaseMetric
 import src.common.typing as fed_t
+from src.common.utils import get_time
 
+import os
+from copy import deepcopy
 # TODO: Consider merging with Result Manager Later
 ##################
 # Metric manager #
 ##################
+
+def _result_to_mea_dict(result: fed_t.Result):
+    out = {}
+    for metric, value in result.metrics.items():
+        out[metric] = {result.event: {result.actor: value}}
+    for meta, value in result.metadata.items():
+        out[meta] = {result.event : {result.actor: value}}
+    out['size'] = {result.event: {result.actor: result.size}}
+    return out
+
+def _save_pickle(obj, actor,root='temp'):
+    files = [filename for filename in os.listdir('temp') if filename.startswith(f'{actor}')]
+
+    if files:
+        files.sort(reverse=True)
+        # last_file = files[0]
+        # print(last_file)
+        # print(last_file.lstrip(f'{actor}_'))
+        # print(last_file.rstrip('.pickle'))
+        # print(last_file.rstrip('.pickle').splot(f'{actor}_'))
+
+        print(files[0].removeprefix(f'{actor}_').removesuffix('.pickle'))
+        last_num = int(files[0].removeprefix(f'{actor}_').removesuffix('.pickle')) + 1
+    else:
+        last_num = 0
+
+
+    filename =  f'{root}/{actor}_{last_num}.pickle'
+    with open(filename, 'ab') as handle:
+        pickle.dump(deepcopy(obj), handle, pickle.HIGHEST_PROTOCOL)
+
 class MetricManager:
-    """Managing metrics to be used.
+    """Lightweight class to compute metrics and log to pickle files. 
     """
-    def __init__(self, eval_metrics: list[str], _round: int, actor: str):
+    def __init__(self,
+                 eval_metrics: list[str],
+                 _round: int,
+                 actor: str,
+                 log_to_file: bool = False):
         self.metric_funcs: dict[str, BaseMetric] = {
             name: import_module(f'.metricszoo', package=__package__).__dict__[name.title()]() for name in eval_metrics}
         self.figures = defaultdict(int) 
         self._result = fed_t.Result(_round=_round, actor=actor)
         self._round = _round
         self._actor = actor
+        self._log_to_file = log_to_file
+
+        self._pmea_dict = {}
+        # Move it to a central directory creator to reduce overheads
+        if log_to_file:
+            os.makedirs(f'temp', exist_ok=True)
 
     def track(self, loss, pred, true):
         # update running loss
@@ -38,14 +82,52 @@ class MetricManager:
         self._result.size = total_len
         self._result._round = self._round
 
+        if self._log_to_file:
+            self._pmea_dict[self._result.phase] = _result_to_mea_dict(self._result)
 
         self.figures = defaultdict(int)
+
+        _save_pickle(self._pmea_dict, self._actor)
+
         return self._result
+
+    # def _save_pickle(self, root='temp'):
+    #     files = [filename for filename in os.listdir('temp') if filename.startswith(f'{self._actor}')]
+    #     print(files)
+    #     if files:
+    #         files.sort(reverse=True)
+    #         print(files[0].lstrip(f'{self._actor}_').rstrip('.pickle'))
+    #         # last_num = int(files[0].lstrip(f'{self._actor}_').rstrip('.pickle')) + 1
+    #         last_num  = 0
+    #     else:
+    #         last_num = 0
+    
+
+    #     filename =  f'{root}/{self._actor}_{last_num}.pickle'
+    #     with open(filename, 'ab') as handle:
+
+    #         pickle.dump(deepcopy(self._pmea_dict), handle, pickle.HIGHEST_PROTOCOL)
+
 
     def flush(self):
         self.figures = defaultdict(int)
         self._result = fed_t.Result(_round=self._round, actor=self._actor)
+
+    def _add_metric(self, metric, event, phase, actor, value):
+        # Metric addition of what metric, what contxt, when and who and what value
+        self._pmea_dict[phase][metric][event][actor] = value
+
+    def log_general_metric(self, metric_val, metric_name: str, actor: str, phase: str, event: str = ''):            
+        if isinstance(metric_val, dict):
+            for key, val in metric_val.items():
+                self.log_general_metric(val, f'{metric_name}/{key}', actor, phase, event)
+        elif isinstance(metric_val, (float, int)):
+            self._add_metric(metric_name, event, phase, actor, metric_val)
+        else:
+            err_str = f'Metric logging for {metric_name} of type: {type(metric_val)} is not supported'
+            raise TypeError(err_str)
     
-    # @property
-    # def result(self):
-    #     return self._result
+    def __del__(self):
+        if self._log_to_file:
+            with get_time():
+                _save_pickle(deepcopy(self._pmea_dict), self._actor)

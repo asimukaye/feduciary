@@ -15,7 +15,11 @@ import src.common.typing as fed_t
 logger = logging.getLogger(__name__)
 
 
-def model_eval_helper(model: Module, dataloader: DataLoader, cfg: ClientConfig, mm: MetricManager, round: int)->fed_t.Result:
+def model_eval_helper(model: Module,
+                      dataloader: DataLoader,
+                      cfg: ClientConfig,
+                      mm: MetricManager,
+                      round: int)->fed_t.Result:
     # mm = MetricManager(cfg.eval_metrics, round, actor)
     mm._round = round
     model.eval()

@@ -13,6 +13,7 @@ __pycache__/
 *$py.class
 playground*
 flower/
+temp/
 # C extensions
 *.so
 

@@ -3,6 +3,7 @@ from torch import Tensor
 
 
 class BaseMetric(ABC):
+    '''wrapper for computing metrics over a list of values'''
     def __init__(self):
         self.scores = []
         self.answers = []

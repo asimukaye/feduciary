@@ -1,7 +1,8 @@
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from torch import Tensor
 from torch.nn import Parameter
+import json
 import numpy as np
 import typing as t
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -18,15 +19,7 @@ from matplotlib.figure import Figure
 
 from src.config import *
 import src.common.typing as fed_t
-# Result for one entity to the epoch level
-# @dataclass
-# class Result:
-#     actor: str = ''# this is just for debugging for now
-#     epoch: int = -1 # epoch -1 reserved for evaluation request
-#     _round: int = 0 # this is just for debugging for now
-#     size: int = 0  # dataset size used to generate this result object
-#     metrics: dict[str, float] = field(default_factory=dict)
-#     metadata: dict = field(default_factory=dict)
+from src.common.utils import get_time
 
 @dataclass
 class Stats:
@@ -62,6 +55,11 @@ def scrub_key(obj, bad_key):
                 del obj[key]
             else:
                 scrub_key(obj[key], bad_key)
+
+def scrub_key_delim(obj: dict[str, t.Any], bad_key: str, delim='/'):
+    for key in list(obj.keys()):
+        if bad_key in key.split(delim):
+            del obj[key]
     
 def log_metric(key:str, rnd: int, metrics:dict, logger: Logger):
     log_string = f'Round:{rnd} | {key.upper()} '
@@ -69,7 +67,22 @@ def log_metric(key:str, rnd: int, metrics:dict, logger: Logger):
         log_string += f'| {metric}: {stat:.4f} '
     logger.debug(log_string)
 
+def _flip_key_order(orig_dict: dict[str, dict]) -> dict[str, dict]:
+    flipped_dict = defaultdict(dict)
+    for outer_key, inner_dict in orig_dict.items():
+        for inner_key, value in inner_dict.items():
+            flipped_dict[inner_key][outer_key] = value
+    return flipped_dict
 
+def compute_stats(array: list, lump_dim_name: str = '') -> Stats:
+    stat = Stats(-1, -1, -1, -1)
+    np_array = np.array(array).astype(float)
+    stat.mean = np.mean(np_array) # type: ignore
+    stat.std = np.std(np_array) # type: ignore
+    stat.minimum = np.min(np_array)
+    stat.maximum = np.max(np_array)
+    # stat.lump_dim_name = lump_dim_name
+    return stat
 # 
 class ResultManager:
     '''Accumulate and process the results.
@@ -89,102 +102,93 @@ class ResultManager:
         self.result_dict = defaultdict()
         self.last_result = defaultdict()
 
-        # Metric Event Actor dictionary with the phase lumped along with the event
+        # Metric Event+Phase Actor dictionary with the phase lumped along with the event
         self.metric_event_actor_dict: dict[str, dict[str, dict[str, dict]]] = defaultdict(lambda: defaultdict(dict))
 
         # Metric Event Actor Phase dictionary with the phase distinctly listed out at the end
         self.metric_event_actor_phase_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
-        # self.metric_event_actor_phase_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        
+        self.results_history = defaultdict(lambda: defaultdict)
 
-        self.phase_tracker: dict[str, int] = dict()
+        self.phase_tracker: OrderedDict[str, int] = OrderedDict()
         self._phase_counter = 0
         self._step_counter = 0
         
         # TODO: Remove persistent dict if unnecessary. long running dictionary of metrics, event, actor for plotting
-        self.persistent_dict = defaultdict(lambda: defaultdict(list))
-
-        self.writer = SummaryWriter()
-        self.logger = logger
         self.cfg = cfg
 
-    def get_client_results(self,result: fed_t.EvalResults_t, event: str, phase: str) -> ClientResultStats:
+        if cfg.use_tensorboard:
+            self.writer = SummaryWriter()
+        self.logger = logger
+
+    def _get_client_results(self, result: fed_t.Results_t, event: str, phase: str) -> ClientResultStats:
         # result_dict = {}
-        client_result = ClientResultStats()
-        client_result.results = result
-        client_result._round = self._round
-        client_result = self.compute_client_stats_and_log(client_result, event=event, phase=phase)
+        # client_result = ClientResultStats()
+        # client_result.results = result
+        # client_result._round = self._round
+        client_result = self.compute_client_stats_and_log(result, event=event, phase=phase)
         return client_result
 
-    @staticmethod    
-    def compute_stats(array: list, lump_dim_name: str = '') -> Stats:
-        stat = Stats(-1, -1, -1, -1)
-        np_array = np.array(array).astype(float)
-        stat.mean = np.mean(np_array) # type: ignore
-        stat.std = np.std(np_array) # type: ignore
-        stat.minimum = np.min(np_array)
-        stat.maximum = np.max(np_array)
-        # stat.lump_dim_name = lump_dim_name
-        return stat
 
     def _round_check(self, rnd, cid):
+        '''Check if the actor is reporting the result for the same round as the manager to ensure synchronicity in results'''
         assert self._round == rnd, f'Mismatching rounds: {cid} round: {rnd}, manager round: {self._round}'
+  
 
-    def compute_client_stats_and_log(self, client_result: ClientResultStats,  event: str, phase: str) -> ClientResultStats:
+    def compute_client_stats_and_log(self, client_result: fed_t.Results_t,  event: str, phase: str) -> ClientResultStats:
 
         dict_by_metric = defaultdict(dict)
+        result_w_stats = ClientResultStats()
+        result_w_stats.results = client_result
+        result_w_stats._round = self._round
+
+        # Part 1
         # Maybe per client logging could be disabled later
-        for cid, clnt_result in client_result.results.items():
+        for cid, clnt_result in client_result.items():
             self._round_check(clnt_result._round, cid)
 
             for metric, value in clnt_result.metrics.items():
-                # metrics_list[metric].append(value)
                 dict_by_metric[metric][cid] = value
 
             dict_by_metric['size'][cid] = clnt_result.size
-            client_result.sizes[cid] = clnt_result.size
+            result_w_stats.sizes[cid] = clnt_result.size
 
             log_metric(f'client:{cid}_{event}', self._round, clnt_result.metrics, self.logger)
 
-        # for metric, vals in metrics_list.items():
+        # Part 2
+
         for metric, vals in dict_by_metric.items():
-
-            # client_result.stats[metric] = self.compute_stats(vals)
-            client_result.stats[metric] = self.compute_stats(list(vals.values()))
-
-            log_metric(f'{event}_{metric}', self._round, client_result.stats[metric].__dict__, self.logger)
+            result_w_stats.stats[metric] = compute_stats(list(vals.values()))
+            log_metric(f'{event}_{metric}', self._round, result_w_stats.stats[metric].__dict__, self.logger)
         
-        for metric, stat_obj in client_result.stats.items():
+        for metric, stat_obj in result_w_stats.stats.items():
             for stat_name, value in asdict(stat_obj).items():
                 dict_by_metric[metric][stat_name] = value
 
         for metric in dict_by_metric.keys():
             for actor, value in dict_by_metric[metric].items():
                 self._add_metric(metric, event, phase, actor, value)
-            # self.metric_event_actor_dict[metric][event] = dict_by_metric[metric]
-        return client_result
+
+        return result_w_stats
     
-    def log_general_result(self, result: fed_t.Result, phase: str, actor:str, event: str):
+    def log_general_result(self, result: fed_t.Result, phase: str, actor: str, event: str):
         
         self._round_check(result._round, actor)
 
         # TODO: Make the below two lines obsolete
-        log_metric(event, result._round, result.metrics, self.logger)
-        self.result_dict[event] = asdict(result)
-
-        # event = 'central_eval'
+        if logger.level == logging.DEBUG:
+            log_metric(event, result._round, result.metrics, self.logger)
+        # self.result_dict[event] = asdict(result)
 
         for metric, value in result.metrics.items():
             self._add_metric(metric, event, phase, actor, value)
-            # self.metric_event_actor_dict[metric][event]['server'] = value
         
         self._add_metric('size', event, phase,  actor, result.size)
-        
-        # self.metric_event_actor_dict['size'][event]['server'] =  result.size
-        
+         
 
-    def log_clients_result(self, result: fed_t.EvalResults_t,  phase: str, event='local_eval'):
+    def log_clients_result(self, result: fed_t.Results_t, phase: str, event='local_eval') -> ClientResultStats:
 
-        client_result = self.get_client_results(result, event=event, phase=phase)
+        client_result = self._get_client_results(result, event=event, phase=phase)
 
         self.result_dict[f'{event}/{phase}'] = asdict(client_result)
         # self.result.participants[key] = list(result.keys())
@@ -270,6 +274,7 @@ class ResultManager:
             logger.error(err_str)
             raise TypeError(err_str)
     
+    # Must call this to update results and round
     def flush_and_update_round(self, rnd:int):
         self.result_dict['round'] = self._round
         self.metric_event_actor_dict['round'] = self._round # type: ignore
@@ -298,11 +303,6 @@ class ResultManager:
         scrubbed_dict_2 = self.scrub_dictionary(self.metric_event_actor_phase_dict, remove_keys, add_round_back=False)
 
         flattened_dict_2 = pd.json_normalize(scrubbed_dict_2, sep='/', max_level=2).to_dict('records')[0]
-        # ic(flattened_dict_2)
-        # ic(len(flattened_dict_2))
-
-        # ic(self.phase_tracker)
-        # ic(self._phase_counter)
 
         # sorted_phases = dict(sorted(self.phase_tracker.items(), key=lambda x:x[1]))
 
@@ -317,12 +317,10 @@ class ResultManager:
             for i, dicts in enumerate(phase_wise_sorted):
                 wandb.log(dicts, step=self._step_counter + i, commit=False)
         
-
         self._step_counter += len(phase_wise_sorted) -1
         # Important step to keep track of the steps accurately for final logging
         # self._step_counter += self._phase_counter
 
-        
         # Fully flatten the results
 
         flattened_dict = pd.json_normalize(scrubbed_dict, sep='/').to_dict('records')[0]
@@ -335,7 +333,6 @@ class ResultManager:
 
         if self.cfg.use_wandb:
             # wandb_dict = self.wandb_plots()
-
             wandb.log(flattened_dict, step=self._step_counter, commit=True)
             # Making sure the step counter of wandb matches the locally tracked one. Note: Committing increases the step value
             self._step_counter += 1
@@ -350,6 +347,7 @@ class ResultManager:
         else:
             df.to_csv(filename, mode='a', index=False, header=False)
 
+    # TODO: Maybe make this free of side effect of using self._round
     def scrub_dictionary(self, in_dict: dict, remove_keys: list, add_round_back = True):
         scrubbed_dict = deepcopy(in_dict)
         for key in remove_keys:
@@ -361,9 +359,13 @@ class ResultManager:
 
     def save_results(self, result_dict: dict):
 
-        self.log_wandb_and_tb(result_dict)
+        if self.cfg.use_tensorboard or self.cfg.use_wandb:
+            self.log_wandb_and_tb(result_dict)
         if self.cfg.save_csv:
             self.save_as_csv(result_dict=result_dict)
+        with get_time():
+            with open('int_result.json', 'w') as f:
+                json.dump(result_dict, f, indent=4)
 
 
     def finalize(self):
@@ -372,7 +374,8 @@ class ResultManager:
         self.logger.debug(f'[RESULTS] [Round: {self._round:03}] Save results and the global model checkpoint!')
         # df = pd.json_normalize(self.full_results)
         # df.to_csv('results.csv')
-        self.writer.close()
+        if self.cfg.use_tensorboard:
+            self.writer.close()
 
         self.logger.info(f' [Round: {self._round:03}] ...finished federated learning!')
         return self.last_result
@@ -386,8 +389,9 @@ class ResultManager:
             actor_2 = actor
         y_past = self.metric_event_actor_dict[metric][past_event][actor]
         y_present = self.metric_event_actor_dict[metric][present_event][actor_2]
-        self.persistent_dict[f'{metric}/{actor}'][x_key].extend([x, x + delta_x])
-        self.persistent_dict[f'{metric}/{actor}'][metric].extend([y_past, y_present])
+
+        self.results_history[f'{metric}/{actor}'][x_key].extend([x, x + delta_x])
+        self.results_history[f'{metric}/{actor}'][metric].extend([y_past, y_present])
 
     def add_matplotlib_plot(self, input_dict: dict, title: str = ''):
         fig = plt.figure()
@@ -418,17 +422,6 @@ class ResultManager:
             wandb_dict[plot_key] =  wandb_plot.line_series(in_dict['round'], list(in_dict[plot_key].values()), keys=list(in_dict[plot_key].keys()), title=plot_key, xname='round')
         return wandb_dict    
 
-
-# @dataclass
-# class AllResults:
-#     # This might need a default factory
-#     round: int = 0
-#     participants: dict[str] = field(default_factory=dict)
-#     clients_train: ClientResult = field(default_factory=ClientResult)
-#     clients_eval: ClientResult = field(default_factory=ClientResult)
-#     clients_eval_pre: ClientResult = field(default_factory=ClientResult)
-#     # client
-#     central_eval: Result = field(default_factory=Result)
 
     # TBD
     # def calculate_generalization_gap(self):

@@ -28,7 +28,7 @@ from src.data import load_vision_dataset
 from src.split import get_client_datasets, NoisySubset, LabelFlippedSubset
 from src.config import Config, SimConfig, FedstdevServerConfig, ClientSchema
 from src.common.utils  import log_tqdm, log_instance
-from src.postprocess import post_process
+from results.postprocess import post_process
 from src.models.model import init_model
 from src.results.resultmanager import ResultManager
 from src.metrics.metricmanager import MetricManager
@@ -40,6 +40,17 @@ logger = logging.getLogger('SIMULATOR')
 # class SimIns:
 #     cfg: Config
 #     train_set: 
+def set_seed(seed):
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    cudnn.deterministic = True
+    cudnn.benchmark = False
+    logger.info(f'[SEED] Simulator global seed is set to: {seed}!')
+
 
 def _create_client(cid: str, datasets, model: Module, client_cfg: ClientSchema) -> BaseFlowerClient:
 
@@ -99,12 +110,19 @@ def init_dataset_and_model(cfg: Config) -> tuple[Subset, Subset, Module]:
     return test_set, train_set, model_instance
 
 
-def run_flower_simulation(cfg: Config):
+def run_flower_simulation(cfg: Config, 
+                        train_set: Subset,
+                        test_set: Subset,
+                        model: Module,
+                        result_manager: ResultManager):
+    
+    
     all_client_ids = generate_client_ids(cfg.simulator.num_clients)
     make_checkpoint_dirs(has_server=True, client_ids=all_client_ids)
     clients: dict[str, BaseFlowerClient] = dict()
 
-    server_dataset, train_set, model = init_dataset_and_model(cfg)
+    # server_dataset, train_set, model = init_dataset_and_model(cfg)
+    server_dataset = test_set
     client_datasets =  get_client_datasets(cfg.dataset.split_conf, train_set)
 
     client_datasets_map = {}
@@ -150,6 +168,7 @@ def run_flower_simulation(cfg: Config):
         ray_init_args = {'runtime_env': runtime_env},
         client_resources=cfg.simulator.flwr_resources,
     )
+
     
 def run_federated_simulation(cfg: Config,
                              train_set: Subset,
@@ -361,13 +380,15 @@ class Simulator:
         # self.num_clients = cfg.simulator.num_clients
         # self.all_client_ids = generate_client_ids(cfg.simulator.num_clients)
 
-        self.set_seed(cfg.simulator.seed)
+        set_seed(cfg.simulator.seed)
         # self.algo = cfg.server.algorithm.name
         # Remove calls like thes to make things more testable
 
         self.test_set, self.train_set, self.model_instance = init_dataset_and_model(cfg=cfg)
 
         self.metric_manager = MetricManager(cfg.client.cfg.eval_metrics, self._round, actor='simulator')
+
+        print(cfg.simulator)
         self.result_manager = ResultManager(cfg.simulator, logger=logger)
 
         # Till here can be factorized
@@ -411,7 +432,11 @@ class Simulator:
                                            model_instance=self.model_instance,
                                            result_manager=self.result_manager)
             case 'flower':
-                run_flower_simulation(cfg = self.cfg)
+                run_flower_simulation(cfg = self.cfg,
+                                    train_set=self.train_set,
+                                    test_set=self.test_set,
+                                    model=self.model_instance,
+                                    result_manager=self.result_manager)
             case _:
                 raise AssertionError(f'Mode: {self.sim_cfg.mode} is not implemented')
 
@@ -484,16 +509,6 @@ class Simulator:
     #         self.train_set = LabelFlippedSubset(self.train_set, split_conf.noise.flip_percent)
 
     #     self.clients['centralized']: BaseFlowerClient = self.__create_client('centralized', (self.train_set, self.test_set), self.model_instance)
-    def set_seed(self, seed):
-        torch.manual_seed(seed)
-        random.seed(seed)
-        np.random.seed(seed)
-        os.environ['PYTHONHASHSEED'] = str(seed)
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
-        cudnn.deterministic = True
-        cudnn.benchmark = False
-        logger.info(f'[SEED] Simulator global seed is set to: {seed}!')
 
         
 
