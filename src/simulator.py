@@ -45,8 +45,8 @@ def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
+    # torch.manual_seed(seed)
+    # torch.cuda.manual_seed(seed)
     cudnn.deterministic = True
     cudnn.benchmark = False
     logger.info(f'[SEED] Simulator global seed is set to: {seed}!')
@@ -83,8 +83,48 @@ def make_checkpoint_dirs(has_server: bool, client_ids=[]):
     for cid in client_ids:
         os.makedirs(f'client_ckpts/{cid}', exist_ok = True)
 
+def find_checkpoint()-> tuple[str, dict]:
+    server_ckpts = sorted(glob.glob('server_ckpts/server_ckpt_*'))
+    client_ckpts = {}
+
+    for dir in os.listdir('client_ckpts/'):
+        files = sorted(os.listdir(f'client_ckpts/{dir}'))
+        if files:
+            client_ckpts[dir] = f'client_ckpts/{dir}/{files[-1]}'
+            logger.info(f'------ Found client {dir} checkpoint: {client_ckpts[dir]} ------')
+        
+    if server_ckpts or client_ckpts:
+        if server_ckpts:
+            logger.info(f'------ Found server checkpoint: {server_ckpts[-1]} ------')
+            return server_ckpts[-1], client_ckpts
+        else:
+            return '', client_ckpts
+    else:
+        logger.debug('------------ No checkpoints found. Starting afresh ------------')
+        return '', {}
+    
+
+def save_checkpoints(server: BaseFlowerServer, clients: dict[str, BaseFlowerClient]):
+    if server:
+        server.save_checkpoint()
+    if clients:
+        for client in clients.values():
+            client.save_checkpoint()
+
+# TODO: Test method to load client checkpoints
+# def load_state(self, server_ckpt_path: str, client_ckpts: dict):
+#     if server_ckpt_path:
+#         self.server.load_checkpoint(server_ckpt_path)
+#         self._round = self.server._round
+#     if client_ckpts:
+#         for cid, ckpt in client_ckpts.items():
+#             self.clients[cid].load_checkpoint(ckpt)
+#             if self._round == 0:
+    
+
 def init_dataset_and_model(cfg: Config) -> tuple[Subset, Subset, Module]:
     '''Initialize the dataset and the model here'''
+    # NOTE: THIS FUNCTION MODIFIES THE RANDOM NUMBER SEEDS
     # NOTE: THe model spec is being modified in place here.
     # TODO: Generalize this logic for all datasets
     test_set, train_set, dataset_model_spec  = load_vision_dataset(cfg.dataset)
@@ -110,11 +150,10 @@ def init_dataset_and_model(cfg: Config) -> tuple[Subset, Subset, Module]:
     return test_set, train_set, model_instance
 
 
-def run_flower_simulation(cfg: Config, 
+def run_flower_simulation(cfg: Config,
                         train_set: Subset,
                         test_set: Subset,
-                        model: Module,
-                        result_manager: ResultManager):
+                        model: Module):
     
     
     all_client_ids = generate_client_ids(cfg.simulator.num_clients)
@@ -139,12 +178,12 @@ def run_flower_simulation(cfg: Config,
         cfg.client.cfg.device = 'cpu'
         cfg.server.train_cfg.device = 'cpu'
 
-    res_man = ResultManager(cfg.simulator, logger=logger)
+    result_manager = ResultManager(cfg.simulator, logger=logger)
 
     strategy = instantiate(cfg.strategy, model)
 
     server_partial = instantiate(cfg.server)
-    server: BaseFlowerServer = server_partial(model=model, dataset=server_dataset, clients= clients, strategy=strategy, result_manager=res_man)
+    server: BaseFlowerServer = server_partial(model=model, dataset=server_dataset, clients= clients, strategy=strategy, result_manager=result_manager)
 
 
     def _client_fn(cid: str):
@@ -173,8 +212,7 @@ def run_flower_simulation(cfg: Config,
 def run_federated_simulation(cfg: Config,
                              train_set: Subset,
                              test_set: Subset,
-                             model_instance: Module,
-                             result_manager: ResultManager
+                             model_instance: Module
                              ):
     # model_instance: Module = instantiate(cfg.model.model_spec)
     all_client_ids = generate_client_ids(cfg.simulator.num_clients)
@@ -183,11 +221,12 @@ def run_federated_simulation(cfg: Config,
     server_partial: partial = instantiate(cfg.server)
     clients: dict[str, BaseFlowerClient] = dict()
     
+    result_manager = ResultManager(cfg.simulator, logger=logger)
+    
     #  Server gets the test set
     server_dataset = test_set
     # Clients get the splits of the train set with an inbuilt test set
     client_datasets =  get_client_datasets(cfg.dataset.split_conf, train_set)
-
 
     # NOTE:IMPORTANT Sharing models without deepcopy could potentially have same references to parameters
     clients = create_clients(all_client_ids, client_datasets, model_instance, cfg.client)
@@ -211,7 +250,7 @@ def run_federated_simulation(cfg: Config,
     # clients = _create_clients(client_datasets)
     # server.initialize(clients, )
 
-    for curr_round in range(_round, cfg.simulator.num_rounds +1):
+    for curr_round in range(_round, cfg.simulator.num_rounds):
         logger.info(f'-------- Round: {curr_round} --------\n')
         # wandb.log({'round': curr_round})
         loop_start = time.time()
@@ -240,11 +279,13 @@ def run_federated_simulation(cfg: Config,
         loop_end = time.time() - loop_start
         logger.info(f'------------ Round {curr_round} completed in time: {loop_end} ------------')
 
+    final_result = result_manager.finalize()
+    return final_result
+
 def run_centralized_simulation(cfg: Config,
                                train_set: Subset,
                                test_set: Subset,
-                               model_instance: Module,
-                               result_manager: ResultManager):
+                               model_instance: Module):
                 # Reusing clients dictionary to repurpose existing code
     clients: dict[str, BaseFlowerClient] = defaultdict()
 
@@ -259,7 +300,9 @@ def run_centralized_simulation(cfg: Config,
     elif cfg.dataset.split_conf.split_type == 'one_label_flipped_client':
         train_set = LabelFlippedSubset(train_set, split_conf.noise.flip_percent)
 
-    clients['centralized']: BaseFlowerClient = _create_client('centralized', (train_set, test_set), model_instance, cfg.client)
+    clients['centralized'] = _create_client('centralized', (train_set, test_set), model_instance, cfg.client)
+
+    result_manager = ResultManager(cfg.simulator, logger=logger)
 
         # FIXME: Clean this part for general centralized runs
     # trainer: FedstdevClient
@@ -273,7 +316,7 @@ def run_centralized_simulation(cfg: Config,
     betas = {param: beta for param, beta in zip(param_keys, strat_cfg.betas)}
     _round = 0
 
-    for curr_round in range(_round, cfg.simulator.num_rounds + 1):
+    for curr_round in range(_round, cfg.simulator.num_rounds):
         logger.info(f'-------- Round: {curr_round} --------\n')
         # wandb.log({'_round': curr_round})
         loop_start = time.time()
@@ -321,12 +364,13 @@ def run_centralized_simulation(cfg: Config,
 
         loop_end = time.time() - loop_start
         logger.info(f'------------ Round {curr_round} completed in time: {loop_end} ------------')
+    final_result = result_manager.finalize()
+    return final_result
 
 
 def run_standalone_simulation(cfg: Config,
                               train_set: Subset,
-                              model_instance: Module,
-                              result_manager: ResultManager):
+                              model_instance: Module):
     
     clients: dict[str, BaseFlowerClient] = defaultdict()
     # Clients get the splits of the train set with an inbuilt test set
@@ -336,25 +380,30 @@ def run_standalone_simulation(cfg: Config,
 
     client_datasets = get_client_datasets(cfg.dataset.split_conf, train_set)
 
+    result_manager = ResultManager(cfg.simulator, logger=logger)
+
     clients = create_clients(all_client_ids, client_datasets, model_instance, cfg.client)
     
     _round = 0
-    for curr_round in range(_round, cfg.simulator.num_rounds + 1):
-            train_result = {}
-            eval_result = {}
+    for curr_round in range(_round, cfg.simulator.num_rounds):
+        train_result = {}
+        eval_result = {}
 
-            for cid, client in clients.items():
-                logger.info(f'-------- Client: {cid} --------\n')
-                client._round = curr_round
-                train_result[cid] = client.train()
-                eval_result[cid] = client.eval()
-            # if curr_round % sim_cfg.checkpoint_every == 0:
-            #     save_checkpoints()
+        for cid, client in clients.items():
+            logger.info(f'-------- Client: {cid} --------\n')
+            client._round = curr_round
+            train_result[cid] = client.train()
+            eval_result[cid] = client.eval()
+        # if curr_round % sim_cfg.checkpoint_every == 0:
+        #     save_checkpoints()
 
-            result_manager.log_clients_result(train_result, phase='post_train', event='local_train')
-            result_manager.log_clients_result(eval_result, phase='post_train', event='local_eval')
+        result_manager.log_clients_result(train_result, phase='post_train', event='local_train')
+        result_manager.log_clients_result(eval_result, phase='post_train', event='local_eval')
 
-            result_manager.flush_and_update_round(curr_round)
+        result_manager.flush_and_update_round(curr_round)
+    
+    final_result = result_manager.finalize()
+    return final_result
 
 
 class Simulator:
@@ -388,8 +437,7 @@ class Simulator:
 
         self.metric_manager = MetricManager(cfg.client.cfg.eval_metrics, self._round, actor='simulator')
 
-        print(cfg.simulator)
-        self.result_manager = ResultManager(cfg.simulator, logger=logger)
+        # self.result_manager = ResultManager(cfg.simulator, logger=logger)
 
         # Till here can be factorized
         self.server = None
@@ -418,45 +466,41 @@ class Simulator:
                 run_federated_simulation(cfg = self.cfg,
                                          train_set=self.train_set,
                                          test_set=self.test_set,
-                                         model_instance=self.model_instance,
-                                         result_manager=self.result_manager)
+                                         model_instance=self.model_instance)
             case 'standalone':
                 run_standalone_simulation(cfg=self.cfg,
                                           train_set=self.train_set,
-                                          model_instance=self.model_instance,
-                                          result_manager=self.result_manager)            
+                                          model_instance=self.model_instance)            
             case 'centralized':
                 run_centralized_simulation(cfg = self.cfg,
                                            train_set=self.train_set,
                                            test_set=self.test_set,
-                                           model_instance=self.model_instance,
-                                           result_manager=self.result_manager)
+                                           model_instance=self.model_instance)
             case 'flower':
                 run_flower_simulation(cfg = self.cfg,
                                     train_set=self.train_set,
                                     test_set=self.test_set,
-                                    model=self.model_instance,
-                                    result_manager=self.result_manager)
+                                    model=self.model_instance)
             case _:
                 raise AssertionError(f'Mode: {self.sim_cfg.mode} is not implemented')
 
 
-    def set_fn_overloads_for_mode(self):
-        match self.sim_cfg.mode:
-            case 'federated':
-                self.init_sim = self.init_federated_mode
-                self.run_simulation = self.run_federated_simulation
-            case 'standalone':
-                self.init_sim = self.init_standalone_mode
-                self.run_simulation = self.run_standalone_simulation            
-            case 'centralized':
-                self.init_sim = self.init_centralized_mode
-                self.run_simulation = self.run_centralized_simulation
-            case 'flower':
-                self.init_sim = init_flower_sim(cfg=self.cfg)
-                self.run_simulation = run_flower_simulation(cfg)
-            case _:
-                raise AssertionError(f'Mode: {self.sim_cfg.mode} is not implemented')
+    # def set_fn_overloads_for_mode(self):
+    #     match self.sim_cfg.mode:
+    #         case 'federated':
+    #             self.init_sim = self.init_federated_mode
+    #             self.run_simulation = self.run_federated_simulation
+    #         case 'standalone':
+    #             self.init_sim = self.init_standalone_mode
+    #             self.run_simulation = self.run_standalone_simulation            
+    #         case 'centralized':
+    #             self.init_sim = self.init_centralized_mode
+    #             self.run_simulation = self.run_centralized_simulation
+    #         case 'flower':
+    #             self.init_sim = init_flower_sim(cfg=self.cfg)
+    #             self.run_simulation = run_flower_simulation(cfg)
+    #         case _:
+    #             raise AssertionError(f'Mode: {self.sim_cfg.mode} is not implemented')
 
     # def init_federated_mode(self):
     #     # model_instance: Module = instantiate(self.cfg.model.model_spec)
@@ -517,27 +561,27 @@ class Simulator:
     #     for cid in self.all_client_ids:
     #         os.makedirs(f'client_ckpts/{cid}', exist_ok = True)
 
-    def find_checkpoint(self)-> tuple[str, dict]:
-        server_ckpts = sorted(glob.glob('server_ckpts/server_ckpt_*'))
-        client_ckpts = {}
+    # def find_checkpoint(self)-> tuple[str, dict]:
+    #     server_ckpts = sorted(glob.glob('server_ckpts/server_ckpt_*'))
+    #     client_ckpts = {}
 
-        for dir in os.listdir('client_ckpts/'):
-            files = sorted(os.listdir(f'client_ckpts/{dir}'))
-            if files:
-                client_ckpts[dir] = f'client_ckpts/{dir}/{files[-1]}'
-                logger.info(f'------ Found client {dir} checkpoint: {client_ckpts[dir]} ------')
+    #     for dir in os.listdir('client_ckpts/'):
+    #         files = sorted(os.listdir(f'client_ckpts/{dir}'))
+    #         if files:
+    #             client_ckpts[dir] = f'client_ckpts/{dir}/{files[-1]}'
+    #             logger.info(f'------ Found client {dir} checkpoint: {client_ckpts[dir]} ------')
             
-        if server_ckpts or client_ckpts:
-            self.is_resumed = True
-            if server_ckpts:
-                logger.info(f'------ Found server checkpoint: {server_ckpts[-1]} ------')
-                return server_ckpts[-1], client_ckpts
-            else:
-                return '', client_ckpts
-        else:
-            logger.debug('------------ No checkpoints found. Starting afresh ------------')
-            self.is_resumed = False
-            return '', {}
+    #     if server_ckpts or client_ckpts:
+    #         self.is_resumed = True
+    #         if server_ckpts:
+    #             logger.info(f'------ Found server checkpoint: {server_ckpts[-1]} ------')
+    #             return server_ckpts[-1], client_ckpts
+    #         else:
+    #             return '', client_ckpts
+    #     else:
+    #         logger.debug('------------ No checkpoints found. Starting afresh ------------')
+    #         self.is_resumed = False
+    #         return '', {}
 
 
     
@@ -736,7 +780,6 @@ class Simulator:
     def finalize(self):
         # if self.server:
         #     self.server.finalize()
-        final_result = self.result_manager.finalize()
         total_time= time.time() - self.start_time
         logger.info(f'Total runtime: {total_time} seconds')
 

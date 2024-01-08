@@ -37,6 +37,9 @@ from flwr.common import (
     parameters_to_ndarrays,
 )
 
+logger = logging.getLogger(__name__)
+
+
 def flatten_dict(nested: dict) -> dict:
     return pd.json_normalize(nested, sep='.').to_dict('records')[0]
 
@@ -65,7 +68,6 @@ def set_parameters(net: Module, parameters: list[np.ndarray]):
     net.load_state_dict(state_dict, strict=True)
 
 
-logger = logging.getLogger(__name__)
 
 def model_eval_helper(model: Module,
                       dataloader: DataLoader,
@@ -104,9 +106,10 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         self.res_man = res_man
         self._init_state_dict: OrderedDict = OrderedDict(model.state_dict())
 
+        # FIXME: Stateful clients will not work with multiprocessing
         self._round = int(0)
         self._epoch = int(0)
-        self._start_epoch = int(0)
+        self._start_epoch = cfg.start_epoch
         self._is_resumed = False
 
 
@@ -171,6 +174,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         # Download initiates training. Is a blocking call without concurrency implementation
         # TODO: implement the client receive strategy correctlt later
         # specific_ins = BaseStrategy.client_receive_strategy(client_ins)
+        # NOTE: Current implementation assumes state persistence between download and upload calls.
         self._round = client_ins._round
 
         param_dict = client_ins.params
@@ -184,11 +188,11 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
                 # Reset the optimizer
                 self._model.load_state_dict(param_dict)
                 self._optimizer = self.optim_partial(self._model.parameters())
-                res = self.train()
+                self._train_result = self.train()
                 return fed_t.RequestOutcome.COMPLETE
             case fed_t.RequestType.EVAL:
                 self._model.load_state_dict(param_dict)
-                res = self.eval()
+                self._eval_result = self.eval()
                 return fed_t.RequestOutcome.COMPLETE
             case fed_t.RequestType.RESET:
                 # Reset the model to initial states
@@ -225,7 +229,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         
     
     # Adding temp fix to return model under multiprocessing
-    def train(self) -> fed_t.Result:
+    def train(self, resume_epoch=0) -> fed_t.Result:
         # Run a round on the client
         # logger.info(f'CLIENT {self.id} Starting update')
         self.metric_mngr._round = self._round
@@ -234,12 +238,11 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
         out_result = fed_t.Result()
         # iterate over epochs and then on the batches
-        for epoch in log_tqdm(range(self._start_epoch, self._start_epoch + self.cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):
+        for epoch in log_tqdm(range(resume_epoch, resume_epoch + self.cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):
             for inputs, targets in self.train_loader:
                 inputs, targets = inputs.to(self.cfg.device), targets.to(self.cfg.device)
 
                 self._model.zero_grad(set_to_none=True)
-
 
                 outputs: Tensor = self._model(inputs)
                 loss: Tensor = self.criterion(outputs, targets)
@@ -260,7 +263,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
         # Helper code to retain the epochs if train is called without subsequent download calls
         self._start_epoch = self._epoch + 1
-        self._train_result = out_result
+        # self._train_result = out_result
 
         return out_result
 
@@ -275,14 +278,14 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
         torch.save({
             'round': self._round,
-            'epoch': epoch,
+            # 'epoch': epoch,
             'model_state_dict': self._model.state_dict(),
             'optimizer_state_dict' : self._optimizer.state_dict(),
             }, f'client_ckpts/{self._cid}/ckpt_r{self._round:003}_e{epoch:003}.pt')
 
     def load_checkpoint(self, ckpt_path: str):
         checkpoint = torch.load(ckpt_path)
-        self._start_epoch = checkpoint['epoch']
+        # self._start_epoch = checkpoint['epoch']
         self._model.load_state_dict(checkpoint['model_state_dict'])
         self._optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         # epoch = checkpoint['epoch']
@@ -323,14 +326,13 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         )
 
     def fit(self, ins: FitIns) -> FitRes:
-        print(f"[Client {self._cid}] fit, config: {ins.config}")
+        # print(f"[Client {self._cid}] fit, config: {ins.config}")
 
         # Deserialize parameters to NumPy ndarray's
         parameters_original = ins.parameters
         ndarrays_original = parameters_to_ndarrays(parameters_original)
         # Update local model, train, get updated parameters
         self._round = int(ins.config['_round'])
-
         # TODO: Need to use formal unpacking command here
         _metadata = ins.config
         set_parameters(self._model, ndarrays_original)
@@ -345,7 +347,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
 
     def evaluate(self, ins: EvaluateIns) -> EvaluateRes:
-        print(f"[Client {self._cid}] evaluate, config: {ins.config}")
+        # print(f"[Client {self._cid}] evaluate, config: {ins.config}")
 
         # Deserialize parameters to NumPy ndarray's
         parameters_original = ins.parameters

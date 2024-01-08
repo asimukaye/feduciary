@@ -21,9 +21,11 @@ class Acc1(BaseMetric):
     def summarize(self):
         scores = torch.cat(self.scores)
         answers = torch.cat(self.answers).numpy()
-
+        print(f'scores: {scores}')
+        print(f'answers" {answers}')
         if scores.size(-1) > 1: # multi-class
             labels = scores.argmax(-1).numpy()
+            print(f'labels: {labels}')
         else: # binary - use Youden's J to determine label
             scores = scores.sigmoid().numpy()
             fpr, tpr, thresholds = roc_curve(answers, scores)

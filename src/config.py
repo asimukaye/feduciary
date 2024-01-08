@@ -46,7 +46,7 @@ def get_free_gpus(min_memory_reqd= 4096):
     # min_memory_reqd = 10000
     ids = gpu_df.index[gpu_df['memory.free']>min_memory_reqd]
     for id in ids:
-        print('Returning GPU:{} with {} free MiB'.format(id, gpu_df.iloc[id]['memory.free']))
+        logger.debug('Returning GPU:{} with {} free MiB'.format(id, gpu_df.iloc[id]['memory.free']))
     return ids.to_list()
 
 
@@ -58,7 +58,7 @@ def get_free_gpu():
     # print('GPU usage:\n{}'.format(gpu_df))
     gpu_df['memory.free'] = gpu_df['memory.free'].map(lambda x: int(x.rstrip(' [MiB]')))
     idx = gpu_df['memory.free'].idxmax()
-    print('Returning GPU:{} with {} free MiB'.format(idx, gpu_df.iloc[idx]['memory.free']))
+    logger.debug('Returning GPU:{} with {} free MiB'.format(idx, gpu_df.iloc[idx]['memory.free']))
     return idx
 
 ########## Simulator Configurations ##########
@@ -80,6 +80,7 @@ class SimConfig:
     use_wandb: bool
     save_csv: bool
     checkpoint_every: int = field(default=10)
+    out_prefix: str = field(default='')
     # plot_every: int = field(default=10)
     mode: str = field(default='federated')
     # flower: Optional[FlowerConfig]
@@ -358,7 +359,8 @@ class Config():
         # Set visible GPUs
         #TODO: MAke the gpu configurable
         gpu_ids = get_free_gpus()
-        print(",".join(map(str, gpu_ids)) )
+        # logger.info('Selected GPUs:')
+        logger.info('Selected GPUs:'+",".join(map(str, gpu_ids)) )
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, gpu_ids))
 
         flat_cfg = json_normalize(asdict(self))

@@ -178,7 +178,7 @@ class ResultManager:
         # TODO: Make the below two lines obsolete
         if logger.level == logging.DEBUG:
             log_metric(event, result._round, result.metrics, self.logger)
-        # self.result_dict[event] = asdict(result)
+        self.result_dict[event] = asdict(result)
 
         for metric, value in result.metrics.items():
             self._add_metric(metric, event, phase, actor, value)
@@ -341,6 +341,7 @@ class ResultManager:
 
 
     def save_as_csv(self, result_dict: dict, filename='results.csv'):
+        filename= f'{self.cfg.out_prefix}{filename}'
         df = pd.json_normalize(result_dict)
         if self._round == 0:
             df.to_csv(filename, mode='w', index=False, header=True)
@@ -364,7 +365,7 @@ class ResultManager:
         if self.cfg.save_csv:
             self.save_as_csv(result_dict=result_dict)
         with get_time():
-            with open('int_result.json', 'w') as f:
+            with open(f'{self.cfg.out_prefix}int_result.json', 'w') as f:
                 json.dump(result_dict, f, indent=4)
 
 

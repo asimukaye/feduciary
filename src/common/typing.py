@@ -47,7 +47,7 @@ class ClientIns:
     _round: int = -1
     request: RequestType = RequestType.NULL
 
-
+RequestOutcomes_t = dict[str, RequestOutcome]
 ClientResults_t = dict[str, ClientResult1]
 Results_t = dict[str, Result]
 

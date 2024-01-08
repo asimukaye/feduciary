@@ -1,4 +1,4 @@
-from src.simulator import run_flower_simulation, run_federated_simulation, init_dataset_and_model, set_seed, ResultManager
+from src.simulator import run_flower_simulation, run_federated_simulation, init_dataset_and_model, set_seed, ResultManager, get_client_datasets
 from src.config import Config
 from omegaconf import OmegaConf
 from hydra import compose, initialize_config_dir
@@ -7,14 +7,19 @@ import os
 import logging
 from copy import deepcopy
 logger = logging.getLogger('SIMULATOR')
+import json
+from tests.test_utils import compose_config
 
-def compose_config() -> Config:
-    initialize_config_dir(version_base=None, config_dir="/home/asim.ukaye/fed_learning/feduciary/conf", job_name="test_app")
-    print(os.getcwd())
-    cs = ConfigStore.instance()
-    cs.store('base_config', node=Config)
-    cfg = compose(config_name='config')
-    return OmegaConf.to_object(cfg) #type: ignore
+# def compose_config() -> Config:
+#     initialize_config_dir(version_base=None, config_dir="/home/asim.ukaye/fed_learning/feduciary/conf", job_name="test_app")
+#     # print(os.getcwd())
+#     if not os.path.exists('test_outputs'):
+#         os.makedirs('test_outputs', exist_ok=True)
+#     os.chdir('test_outputs')
+#     cs = ConfigStore.instance()
+#     cs.store('base_config', node=Config)
+#     cfg = compose(config_name='config')
+#     return OmegaConf.to_object(cfg) #type: ignore
 
 def set_test_params(cfg: Config):
     cfg.simulator.use_wandb = False
@@ -29,8 +34,34 @@ def set_test_params(cfg: Config):
 
     cfg.dataset.subsample = True
     cfg.dataset.subsample_fraction = 0.05
+    cfg.dataset.split_conf.split_type = 'iid'
 
     return cfg
+
+# def test_repeated_data_splits_match():
+#     cfg = compose_config()
+#     set_seed(cfg.simulator.seed)
+#     cfg.dataset.split_conf.num_splits = 3
+#     test, train, model = init_dataset_and_model(cfg)
+#     client_datasets_1 = get_client_datasets(cfg.dataset.split_conf, train)
+#     client_datasets_2 = get_client_datasets(cfg.dataset.split_conf, train)
+
+#     assert len(client_datasets_1) == 3
+#     assert len(client_datasets_2) == 3
+
+#     assert len(client_datasets_1[0][0]) == len(client_datasets_1[0][0])
+
+#     # print()
+
+#     assert client_datasets_1[0][1].indices == client_datasets_2[0][1].indices
+#     assert client_datasets_1[0][0].indices == client_datasets_2[0][0].indices
+
+#     assert client_datasets_1[1][0].indices == client_datasets_2[1][0].indices
+
+#     assert client_datasets_1[1][0].indices == client_datasets_2[1][0].indices
+
+#     assert client_datasets_1[2][0].indices == client_datasets_2[2][0].indices
+
 
 
 def test_flower_native_match():
@@ -39,20 +70,38 @@ def test_flower_native_match():
     assert isinstance(cfg, Config)
 
     test, train, model = init_dataset_and_model(cfg)
+    set_seed(cfg.simulator.seed)
 
-    res_flower = ResultManager(cfg.simulator, logger)
+    flower_cfg = deepcopy(cfg)
+    fed_cfg = deepcopy(cfg)
 
-    res_feduciary = ResultManager(cfg.simulator, logger)
+    flower_cfg.simulator.out_prefix = 'flower_'
+    fed_cfg.simulator.out_prefix = 'fed_'
 
-    run_flower_simulation(cfg=deepcopy(cfg), train_set=train, test_set=test,model=model, result_manager=res_flower)
+    flower_model = deepcopy(model)
+    fed_model = deepcopy(model)
+    run_flower_simulation(cfg=flower_cfg, train_set=train, test_set=test,model=flower_model)
+    set_seed(cfg.simulator.seed)
 
-    run_federated_simulation(cfg=deepcopy(cfg), train_set=train, test_set=test, model_instance=model, result_manager=res_feduciary)
+    run_federated_simulation(cfg=fed_cfg, train_set=train, test_set=test, model_instance=fed_model)
 
-    result_flower = res_flower.last_result
+    with open('flower_int_result.json', 'r') as flower_json:
+        result_flower:dict = json.load(flower_json)
+    with open('fed_int_result.json', 'r') as fed_json:
+        result_feduciary: dict = json.load(fed_json)
 
-    result_feduciary = res_feduciary.last_result
 
-    print(result_feduciary)
-    print(result_flower)
+    # print(result_feduciary)
+    # print(result_flower)
+    assert result_flower.keys() == result_feduciary.keys()
+
+    for value1, value2 in zip(result_flower.values(), result_feduciary.values()):
+        if isinstance(value1, dict) and isinstance(value2, dict):
+            print(value1.keys())
+            print(value2.keys())
+            assert value1.keys() ==value2.keys()
+            
+
+        assert value1 ==value2
 
     assert result_flower == result_feduciary

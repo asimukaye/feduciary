@@ -77,6 +77,7 @@ simulator:
   use_tensorboard: false
   use_wandb: true
   save_csv: false
+  out_prefix: ''
   num_clients: 4
   num_rounds: 30
   checkpoint_every: 20
@@ -115,16 +116,7 @@ dataset:
       sigma: 0.5
       flip_percent: 1.0
   
-  # TODO: Isolate common server configuration from strategy specific configs
-# server_cfg:
-#     sampling_fraction: 1.0
-#     rounds: ${simulator.num_rounds}
-#     eval_type: both
-#     eval_fraction: 1.0
-#     eval_every: 1
-#     eval_batch_size: 128
-#     multiprocessing: false
-    
+
 strategy:
   _target_: src.strategy.basestrategy.BaseStrategy
   # _partial_: true

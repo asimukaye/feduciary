@@ -147,7 +147,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
     def _broadcast_models(self,
                         ids: list[str],
                         clients_ins: dict[str, fed_t.ClientIns],
-                        request_type=fed_t.RequestType.NULL) -> fed_t.ClientResults_t:
+                        request_type=fed_t.RequestType.NULL) -> fed_t.RequestOutcomes_t:
                         
         """broadcast the global model to all the clients.
         Args:
@@ -169,7 +169,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         return results
 
 
-    # FIXME: Support custom client wise ins
+    # TODO: Support custom client wise ins
     def _collect_results(self,
                         ids: list[str],
                         request_type=fed_t.RequestType.NULL) -> fed_t.ClientResults_t:
@@ -224,7 +224,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         torch.save(self.model.state_dict(), f'final_model.pt')
         # return all_results
 
-        
+
     def update(self, avlble_cids: fed_t.ClientIds_t) -> fed_t.ClientIds_t:
         # TODO: Ideally, the clients keep running their training and server should only initiate a downlink transfer request. For synced federation, the server needs to wait on clients to finish their tasks before proceeding
 
@@ -235,26 +235,38 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         # broadcast the current model at the server to selected clients
         train_ids = self.strategy.train_selection(in_ids=avlble_cids)
         clients_ins = self.strategy.send_strategy(train_ids)
-        outcome = self._broadcast_models(train_ids, clients_ins, fed_t.RequestType.TRAIN)
-        if outcome == fed_t.RequestOutcome.COMPLETE:
-            train_result = self._collect_results(train_ids, fed_t.RequestType.TRAIN)
-            strategy_ins = self.strategy.receive_strategy(train_result)
-            strategy_outs = self.strategy.aggregate(strategy_ins)
-            self.model.load_state_dict(strategy_outs.server_params)
-        return train_ids
+        outcomes = self._broadcast_models(train_ids, clients_ins, fed_t.RequestType.TRAIN)
+
+        # collect_ids = []
+        # for cid, outcome in outcomes:
+        #     if outcome == fed_t.RequestOutcome.COMPLETE:
+        #         collect_ids.append(cid)
+
+        collect_ids = [cid for cid, out in outcomes.items() if out==fed_t.RequestOutcome.COMPLETE]
+
+        train_results = self._collect_results(collect_ids, fed_t.RequestType.TRAIN)
+        strategy_ins = self.strategy.receive_strategy(train_results)
+        strategy_outs = self.strategy.aggregate(strategy_ins)
+        self.model.load_state_dict(strategy_outs.server_params)
+
+        # TODO: Change the function signature of log_client_results to accept client results with optional paramater logging..
+        to_log = {cid: res.result for cid, res in train_results.items()}
+        self.result_manager.log_clients_result(to_log, phase='pre_agg', event='local_train')
+        return collect_ids
 
     def local_eval(self, avlble_cids: fed_t.ClientIds_t):
 
         eval_ids = self.strategy.eval_selection(in_ids=avlble_cids)
         eval_ins = self.strategy.send_strategy(eval_ids)
-        outcome = self._broadcast_models(eval_ids, eval_ins, fed_t.RequestType.EVAL)
-        if outcome == fed_t.RequestOutcome.COMPLETE:
-            eval_results = self._collect_results(eval_ids, fed_t.RequestType.EVAL)
+        outcomes = self._broadcast_models(eval_ids, eval_ins, fed_t.RequestType.EVAL)
+        collect_ids = [cid for cid, out in outcomes.items() if out==fed_t.RequestOutcome.COMPLETE]
 
-            to_log = {cid: res.result for cid, res in eval_results.items()}
+        eval_results = self._collect_results(collect_ids, fed_t.RequestType.EVAL)
 
-            self.result_manager.log_clients_result(to_log, event='local_eval', phase='pre_agg')
-        return eval_ids
+        to_log = {cid: res.result for cid, res in eval_results.items()}
+
+        self.result_manager.log_clients_result(to_log, event='local_eval', phase='post_agg')
+        return collect_ids
     
 
     # FLOWER FUNCTION OVERLOADS
@@ -304,11 +316,13 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         
 
         with get_time():
-            client_results = flower_train_results_adapter(self.param_keys, results)
+            train_results = flower_train_results_adapter(self.param_keys, results)
 
-        strategy_ins = self.strategy.receive_strategy(client_results)
+        strategy_ins = self.strategy.receive_strategy(train_results)
         strategy_outs = self.strategy.aggregate(strategy_ins)
 
+        to_log = {cid: res.result for cid, res in train_results.items()}
+        self.result_manager.log_clients_result(to_log, phase='pre_agg', event='local_train')
         # Validate the need for this.
         with get_time():
             self.model.load_state_dict(strategy_outs.server_params)

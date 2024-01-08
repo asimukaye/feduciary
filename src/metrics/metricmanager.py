@@ -26,17 +26,10 @@ def _save_pickle(obj, actor,root='temp'):
 
     if files:
         files.sort(reverse=True)
-        # last_file = files[0]
-        # print(last_file)
-        # print(last_file.lstrip(f'{actor}_'))
-        # print(last_file.rstrip('.pickle'))
-        # print(last_file.rstrip('.pickle').splot(f'{actor}_'))
-
-        print(files[0].removeprefix(f'{actor}_').removesuffix('.pickle'))
+        # print(files[0].removeprefix(f'{actor}_').removesuffix('.pickle'))
         last_num = int(files[0].removeprefix(f'{actor}_').removesuffix('.pickle')) + 1
     else:
         last_num = 0
-
 
     filename =  f'{root}/{actor}_{last_num}.pickle'
     with open(filename, 'ab') as handle:
@@ -91,23 +84,6 @@ class MetricManager:
 
         return self._result
 
-    # def _save_pickle(self, root='temp'):
-    #     files = [filename for filename in os.listdir('temp') if filename.startswith(f'{self._actor}')]
-    #     print(files)
-    #     if files:
-    #         files.sort(reverse=True)
-    #         print(files[0].lstrip(f'{self._actor}_').rstrip('.pickle'))
-    #         # last_num = int(files[0].lstrip(f'{self._actor}_').rstrip('.pickle')) + 1
-    #         last_num  = 0
-    #     else:
-    #         last_num = 0
-    
-
-    #     filename =  f'{root}/{self._actor}_{last_num}.pickle'
-    #     with open(filename, 'ab') as handle:
-
-    #         pickle.dump(deepcopy(self._pmea_dict), handle, pickle.HIGHEST_PROTOCOL)
-
 
     def flush(self):
         self.figures = defaultdict(int)
@@ -129,5 +105,5 @@ class MetricManager:
     
     def __del__(self):
         if self._log_to_file:
-            with get_time():
-                _save_pickle(deepcopy(self._pmea_dict), self._actor)
+            # with get_time():
+            _save_pickle(deepcopy(self._pmea_dict), self._actor)

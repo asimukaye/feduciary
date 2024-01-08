@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from typing import Sequence
+from typing import Sequence, Protocol
 import random
 from torch.utils import data
 import torch
@@ -10,6 +10,13 @@ from src.config import SplitConfig
 
 logger = logging.getLogger(__name__)
 
+class MappedDataset(Protocol):
+    @property
+    def targets(self)->list:
+        ...
+    @property
+    def class_to_idx(self)->dict:
+        ...
 
 def extract_root_dataset(subset: data.Subset) -> data.Dataset:
     if isinstance(subset.dataset, data.Subset):
@@ -17,6 +24,13 @@ def extract_root_dataset(subset: data.Subset) -> data.Dataset:
     else:
         assert isinstance(subset.dataset, data.Dataset), 'Unknown subset nesting' 
         return subset.dataset
+
+def check_for_mapping(dataset: data.Dataset) -> MappedDataset:
+    if not hasattr(dataset, 'class_to_idx'):
+        raise TypeError(f'Dataset {dataset} does not have class_to_idx')
+    if not hasattr(dataset, 'targets'):
+        raise TypeError(f'Dataset {dataset} does not have targets')
+    return dataset #type: ignore
 
 def extract_root_dataset_and_indices(subset: data.Subset, indices = None) -> tuple[data.Dataset, np.ndarray] :
     # ic(type(subset.indices))
@@ -50,32 +64,40 @@ class AddGaussianNoise(object):
 class NoisySubset(data.Subset):
     """Wrapper of `torch.utils.data.Subset` module for applying individual transform.
     """
-    def __init__(self, subset:data.Subset,  mean:float, std: float):
-        self.subset = subset
-        self.noising = AddGaussianNoise(mean, std)
+    def __init__(self, subset: data.Subset,  mean:float, std: float):
+        self.dataset = subset.dataset
+        self.indices = subset.indices
+        self._subset = subset
+        self.noise = AddGaussianNoise(mean, std)
 
-    def __getitem__(self, index):
-        inputs, targets = self.subset[index]
-        return self.noising(inputs), targets
+    def __getitem__(self, idx):
+        inputs, targets = self._subset[idx]
+        return self.noise(inputs), targets
 
     def __len__(self):
-        return len(self.subset)
+        return len(self.indices)
+
     
     def __repr__(self):
-        return f'{repr(self.subset.dataset)}_GaussianNoise'
+        return f'{repr(self.dataset)}_GaussianNoise'
 
 class LabelFlippedSubset(data.Subset):
     """Wrapper of `torch.utils.data.Subset` module for label flipping.
     """
     def __init__(self, subset: data.Subset,  flip_pct: float):
+        self.dataset = subset.dataset
+        self.indices = subset.indices
         self.subset = self._flip_set(subset, flip_pct) 
 
     def _flip_set(self, subset: data.Subset, flip_pct: float):
         total_size = len(subset)
         dataset, mapped_ids = extract_root_dataset_and_indices(subset)
+        dataset = check_for_mapping(dataset)
+
         # ic(total_size, len(mapped_ids))
 
         samples = np.random.choice(total_size, size=int(flip_pct*total_size), replace=False)
+        
 
         selected_indices = mapped_ids[samples]
         # ic(samples, selected_indices)
@@ -101,7 +123,7 @@ class LabelFlippedSubset(data.Subset):
         return f'{repr(self.subset.dataset)}_LabelFlipped'
 
     
-def get_iid_split(dataset: data.Dataset, num_splits: int, seed: int = 42) -> dict[int, np.ndarray]:
+def get_iid_split(dataset: data.Subset, num_splits: int, seed: int = 42) -> dict[int, np.ndarray]:
     shuffled_indices = np.random.permutation(len(dataset))
         
     # get adjusted indices
@@ -111,7 +133,7 @@ def get_iid_split(dataset: data.Dataset, num_splits: int, seed: int = 42) -> dic
     split_map = {k: split_indices[k] for k in range(num_splits)}
     return split_map
 
-def get_unbalanced_split(dataset: data.Dataset, num_splits: int) -> dict[int, np.ndarray]:
+def get_unbalanced_split(dataset: data.Subset, num_splits: int) -> dict[int, np.ndarray]:
      # shuffle sample indices
     shuffled_indices = np.random.permutation(len(dataset))
     
@@ -128,7 +150,7 @@ def get_unbalanced_split(dataset: data.Dataset, num_splits: int) -> dict[int, np
     split_map = {k: split_indices[k] for k in range(num_splits)}
     return split_map
 
-def get_one_patho_client_split(dataset: data.Dataset, num_splits) -> dict[int, np.ndarray]:
+def get_one_patho_client_split(dataset: data.Subset, num_splits) -> dict[int, np.ndarray]:
     total_size = len(dataset)
     shuffled_indices = np.random.permutation(total_size)
     # client 1 gets half the size of data compared to rest
@@ -148,7 +170,7 @@ def get_one_patho_client_split(dataset: data.Dataset, num_splits) -> dict[int, n
     logger.info(f'Split map sizes: {size_check}')
     return split_map
 
-def get_one_imbalanced_client_split(dataset: data.Dataset, num_splits: int) -> dict[int, np.ndarray]:
+def get_one_imbalanced_client_split(dataset: data.Subset, num_splits: int) -> dict[int, np.ndarray]:
     total_size = len(dataset)
     shuffled_indices = np.random.permutation(total_size)
     # client 1 gets half the size of data compared to rest
@@ -170,7 +192,7 @@ def get_one_imbalanced_client_split(dataset: data.Dataset, num_splits: int) -> d
     
 
 # TODO: Understand this function from FedAvg Paper
-def get_patho_split(dataset: data.Dataset, num_splits: int, num_classes: int, mincls) -> dict[int, np.ndarray]:
+def get_patho_split(dataset: data.Subset, num_splits: int, num_classes: int, mincls) -> dict[int, np.ndarray]:
     try:
         assert mincls >= 2
     except AssertionError as e:
@@ -308,7 +330,7 @@ def get_dirichlet_split(dataset: data.Dataset, num_splits, num_classes, cncntrtn
     return split_map
 
 
-def get_split_map(cfg: SplitConfig, dataset: data.Dataset) -> dict[int, np.ndarray]:
+def get_split_map(cfg: SplitConfig, dataset: data.Subset) -> dict[int, np.ndarray]:
     """Split data indices using labels.
     Args:
         cfg (DatasetConfig): Master dataset configuration class
@@ -355,7 +377,7 @@ def construct_client_dataset(raw_train: data.Dataset, client_test_fraction, clie
     return (training_set, test_set)
 
 
-def get_client_datasets(cfg: SplitConfig, dataset: data.Dataset) -> list[tuple[data.Subset, data.Subset]] :
+def get_client_datasets(cfg: SplitConfig, dataset: data.Subset) -> list[tuple[data.Subset, data.Subset]] :
     # logger.info(f'[DATA_SPLIT] dataset split: `{cfg.split_type.upper()}`')   
     split_map = get_split_map(cfg, dataset)
     logger.info(f'[DATA_SPLIT] Simulated dataset split : `{cfg.split_type.upper()}`')

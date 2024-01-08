@@ -2,6 +2,7 @@
 data/
 logs/
 result/
+test_outputs/
 outputs/
 .vscode
 plots/

@@ -4,6 +4,7 @@ from src.simulator import Simulator
 from src.config import Config, register_configs
 import logging
 import torch.multiprocessing as torch_mp
+import cProfile, pstats
 
 # Icecream debugger
 from icecream import install, ic
@@ -26,4 +27,5 @@ def run_feduciary(cfg: Config):
 if __name__== "__main__":
     torch_mp.set_start_method('spawn')
     register_configs()
+    # cProfile.run('run_feduciary()', 'feduciary_stats', pstats.SortKey.CUMULATIVE)
     run_feduciary()
