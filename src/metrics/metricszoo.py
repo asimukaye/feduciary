@@ -3,7 +3,7 @@ import numpy as np
 import warnings
 
 from torch import Tensor
-
+import json
 from sklearn.metrics import accuracy_score, roc_auc_score, roc_curve,\
     average_precision_score, f1_score, precision_score, recall_score,\
         mean_squared_error, mean_absolute_error, mean_absolute_percentage_error,\
@@ -18,14 +18,24 @@ class Acc1(BaseMetric):
     def __init__(self):
         super().__init__()
 
-    def summarize(self):
+    def summarize(self, out_prefix: str = ''):
         scores = torch.cat(self.scores)
         answers = torch.cat(self.answers).numpy()
-        print(f'scores: {scores}')
-        print(f'answers" {answers}')
+
+        self.scores = []
+        self.answers = []
+
+        # with open(f'{out_prefix}answers.json', 'w') as answers_json:
+        #     json.dump(answers.tolist(), answers_json)
+        # print(f'scores: {scores.shape}')
+        # print(f'answers: {answers.shape}')
+        # with open(f'{out_prefix}scores.json', 'w') as scores_json:
+        #     json.dump(scores.tolist(), scores_json)
         if scores.size(-1) > 1: # multi-class
             labels = scores.argmax(-1).numpy()
-            print(f'labels: {labels}')
+            # with open(f'{out_prefix}labels.json', 'w') as labels_json:
+            #     json.dump(labels.tolist(), labels_json)
+            # print(f'labels: {labels.shape}')
         else: # binary - use Youden's J to determine label
             scores = scores.sigmoid().numpy()
             fpr, tpr, thresholds = roc_curve(answers, scores)
@@ -41,6 +51,9 @@ class Acc5(BaseMetric):
     def summarize(self):
         scores = torch.cat(self.scores).softmax(-1).numpy()
         answers = torch.cat(self.answers).numpy()
+
+        self.scores = []
+        self.answers = []
         num_classes = scores.shape[-1]
         return top_k_accuracy_score(answers, scores, k=5, labels=np.arange(num_classes))
 
@@ -51,6 +64,8 @@ class Auroc(BaseMetric):
     def summarize(self):
         scores = torch.cat(self.scores).softmax(-1).numpy()
         answers = torch.cat(self.answers).numpy()
+        self.scores = []
+        self.answers = []
         num_classes = scores.shape[-1]
         return roc_auc_score(answers, scores, average='weighted', multi_class='ovr', labels=np.arange(num_classes))
 
@@ -61,6 +76,9 @@ class Auprc(BaseMetric): # only for binary classification
     def summarize(self):
         scores = torch.cat(self.scores).sigmoid().numpy()
         answers = torch.cat(self.answers).numpy()
+
+        self.scores = []
+        self.answers = []
         return average_precision_score(answers, scores, average='weighted')
 
 class Youdenj(BaseMetric):  # only for binary classification
@@ -70,6 +88,9 @@ class Youdenj(BaseMetric):  # only for binary classification
     def summarize(self):
         scores = torch.cat(self.scores).sigmoid().numpy()
         answers = torch.cat(self.answers).numpy()
+
+        self.scores = []
+        self.answers = []
         fpr, tpr, thresholds = roc_curve(answers, scores)
         return thresholds[np.argmax(tpr - fpr)]
 
@@ -81,6 +102,8 @@ class F1(BaseMetric):
         scores = torch.cat(self.scores)
         answers = torch.cat(self.answers).numpy()
 
+        self.scores = []
+        self.answers = []
         if scores.size(-1) > 1: # multi-class
             labels = scores.argmax(-1).numpy()
         else: # binary - use Youden's J to determine label
@@ -97,7 +120,8 @@ class Precision(BaseMetric):
     def summarize(self):
         scores = torch.cat(self.scores)
         answers = torch.cat(self.answers).numpy()
-
+        self.scores = []
+        self.answers = []
         if scores.size(-1) > 1: # multi-class
             labels = scores.argmax(-1).numpy()
         else: # binary - use Youden's J to determine label
@@ -114,7 +138,8 @@ class Recall(BaseMetric):
     def summarize(self):
         scores = torch.cat(self.scores)
         answers = torch.cat(self.answers).numpy()
-
+        self.scores = []
+        self.answers = []
         if scores.size(-1) > 1: # multi-class
             labels = scores.argmax(-1).numpy()
         else: # binary - use Youden's J to determine label
@@ -137,7 +162,8 @@ class Seqacc(BaseMetric):
     def summarize(self):
         labels = torch.cat(self.scores).argmax(-1).numpy()
         answers = torch.cat(self.answers).numpy()
-
+        self.scores = []
+        self.answers = []
         # ignore special tokens
         labels = labels[answers != -1]
         answers = answers[answers != -1]
@@ -150,6 +176,8 @@ class Mse(BaseMetric):
     def summarize(self):
         scores = torch.cat(self.scores).numpy()
         answers = torch.cat(self.answers).numpy()
+        self.scores = []
+        self.answers = []        
         return mean_squared_error(answers, scores)
 
 class Rmse(Mse):
@@ -159,6 +187,8 @@ class Rmse(Mse):
     def summarize(self):
         scores = torch.cat(self.scores).numpy()
         answers = torch.cat(self.answers).numpy()
+        self.scores = []
+        self.answers = []        
         return mean_squared_error(answers, scores, squared=False)
 
 class Mae(BaseMetric):
@@ -168,6 +198,8 @@ class Mae(BaseMetric):
     def summarize(self):
         scores = torch.cat(self.scores).numpy()
         answers = torch.cat(self.answers).numpy()
+        self.scores = []
+        self.answers = []
         return mean_absolute_error(answers, scores)
 
 class Mape(BaseMetric):
@@ -177,6 +209,8 @@ class Mape(BaseMetric):
     def summarize(self):
         scores = torch.cat(self.scores).numpy()
         answers = torch.cat(self.answers).numpy()
+        self.scores = []
+        self.answers = []
         return mean_absolute_percentage_error(answers, scores)
 
 class R2(BaseMetric):
@@ -186,6 +220,8 @@ class R2(BaseMetric):
     def summarize(self, *args):
         scores = torch.cat(self.scores).numpy()
         answers = torch.cat(self.answers).numpy()
+        self.scores = []
+        self.answers = []
         return r2_score(answers, scores)
 
 class D2(BaseMetric):
@@ -195,4 +231,6 @@ class D2(BaseMetric):
     def summarize(self, *args):
         scores = torch.cat(self.scores).numpy()
         answers = torch.cat(self.answers).numpy()
+        self.scores = []
+        self.answers = []
         return d2_pinball_score(answers, scores)

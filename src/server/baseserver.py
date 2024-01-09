@@ -121,7 +121,7 @@ class BaseServer(ABC):
         self.lr_scheduler: LRScheduler = None
 
         self.result_manager = result_manager
-        self.metric_manager = MetricManager(eval_metrics=train_cfg.eval_metrics,_round= 0, actor='server')
+        self.metric_manager = MetricManager(eval_metrics=train_cfg.metric_cfg,_round= 0, actor='server')
 
         # global holdout set
 

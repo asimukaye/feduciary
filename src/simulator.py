@@ -435,7 +435,7 @@ class Simulator:
 
         self.test_set, self.train_set, self.model_instance = init_dataset_and_model(cfg=cfg)
 
-        self.metric_manager = MetricManager(cfg.client.cfg.eval_metrics, self._round, actor='simulator')
+        self.metric_manager = MetricManager(cfg.client.cfg.metric_cfg, self._round, actor='simulator')
 
         # self.result_manager = ResultManager(cfg.simulator, logger=logger)
 

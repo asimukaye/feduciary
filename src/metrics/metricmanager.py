@@ -4,7 +4,7 @@ from importlib import import_module
 from .basemetric import BaseMetric
 import src.common.typing as fed_t
 from src.common.utils import get_time
-
+from src.config import MetricConfig
 import os
 from copy import deepcopy
 # TODO: Consider merging with Result Manager Later
@@ -21,8 +21,8 @@ def _result_to_mea_dict(result: fed_t.Result):
     out['size'] = {result.event: {result.actor: result.size}}
     return out
 
-def _save_pickle(obj, actor,root='temp'):
-    files = [filename for filename in os.listdir('temp') if filename.startswith(f'{actor}')]
+def _save_pickle(obj, actor, out_prefix='', root='temp'):
+    files = [filename for filename in os.listdir(root) if filename.startswith(f'{actor}')]
 
     if files:
         files.sort(reverse=True)
@@ -31,7 +31,7 @@ def _save_pickle(obj, actor,root='temp'):
     else:
         last_num = 0
 
-    filename =  f'{root}/{actor}_{last_num}.pickle'
+    filename =  f'{root}/{out_prefix}{actor}_{last_num}.pickle'
     with open(filename, 'ab') as handle:
         pickle.dump(deepcopy(obj), handle, pickle.HIGHEST_PROTOCOL)
 
@@ -39,22 +39,25 @@ class MetricManager:
     """Lightweight class to compute metrics and log to pickle files. 
     """
     def __init__(self,
-                 eval_metrics: list[str],
+                 cfg: MetricConfig,
                  _round: int,
-                 actor: str,
-                 log_to_file: bool = False):
+                 actor: str):
+        self.cfg = cfg
+        eval_metrics = cfg.eval_metrics
         self.metric_funcs: dict[str, BaseMetric] = {
             name: import_module(f'.metricszoo', package=__package__).__dict__[name.title()]() for name in eval_metrics}
         self.figures = defaultdict(int) 
         self._result = fed_t.Result(_round=_round, actor=actor)
         self._round = _round
         self._actor = actor
-        self._log_to_file = log_to_file
+        self._log_to_file = cfg.log_to_file
 
         self._pmea_dict = {}
         # Move it to a central directory creator to reduce overheads
-        if log_to_file:
-            os.makedirs(f'temp', exist_ok=True)
+        if cfg.log_to_file:
+            # Hack to make the files visible in the project workspace
+            root_path = cfg.cwd
+            os.makedirs(f'{root_path}/temp', exist_ok=True)
 
     def track(self, loss, pred, true):
         # update running loss
@@ -66,7 +69,8 @@ class MetricManager:
 
     def aggregate(self, total_len, epoch) -> fed_t.Result:
         # aggregate 
-        avg_metrics = {name: module.summarize() for name, module in self.metric_funcs.items()}
+        # print(file_prefix := f'{self.cfg.file_prefix}{self._actor}_{self._round}')
+        avg_metrics = {name: module.summarize(out_prefix=f'{self.cfg.cwd}/{self.cfg.file_prefix}{self._actor}_{self._round}') for name, module in self.metric_funcs.items()}
 
         avg_metrics['loss'] = self.figures['loss'] / total_len
 
@@ -80,7 +84,7 @@ class MetricManager:
 
         self.figures = defaultdict(int)
 
-        _save_pickle(self._pmea_dict, self._actor)
+        # _save_pickle(self._pmea_dict, self._actor, root=f'{self.cfg.cwd}/temp')
 
         return self._result
 
@@ -106,4 +110,4 @@ class MetricManager:
     def __del__(self):
         if self._log_to_file:
             # with get_time():
-            _save_pickle(deepcopy(self._pmea_dict), self._actor)
+            _save_pickle(deepcopy(self._pmea_dict), self._actor, root=f'{self.cfg.cwd}/temp')

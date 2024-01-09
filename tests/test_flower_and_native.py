@@ -28,6 +28,7 @@ def set_test_params(cfg: Config):
     cfg.simulator.num_rounds = 2
 
     cfg.client.cfg.epochs = 1
+    cfg.client.cfg.metric_cfg.log_to_file = True
 
     cfg.simulator.num_clients = 2
     cfg.dataset.split_conf.num_splits = 2
@@ -37,31 +38,6 @@ def set_test_params(cfg: Config):
     cfg.dataset.split_conf.split_type = 'iid'
 
     return cfg
-
-# def test_repeated_data_splits_match():
-#     cfg = compose_config()
-#     set_seed(cfg.simulator.seed)
-#     cfg.dataset.split_conf.num_splits = 3
-#     test, train, model = init_dataset_and_model(cfg)
-#     client_datasets_1 = get_client_datasets(cfg.dataset.split_conf, train)
-#     client_datasets_2 = get_client_datasets(cfg.dataset.split_conf, train)
-
-#     assert len(client_datasets_1) == 3
-#     assert len(client_datasets_2) == 3
-
-#     assert len(client_datasets_1[0][0]) == len(client_datasets_1[0][0])
-
-#     # print()
-
-#     assert client_datasets_1[0][1].indices == client_datasets_2[0][1].indices
-#     assert client_datasets_1[0][0].indices == client_datasets_2[0][0].indices
-
-#     assert client_datasets_1[1][0].indices == client_datasets_2[1][0].indices
-
-#     assert client_datasets_1[1][0].indices == client_datasets_2[1][0].indices
-
-#     assert client_datasets_1[2][0].indices == client_datasets_2[2][0].indices
-
 
 
 def test_flower_native_match():
@@ -77,6 +53,12 @@ def test_flower_native_match():
 
     flower_cfg.simulator.out_prefix = 'flower_'
     fed_cfg.simulator.out_prefix = 'fed_'
+
+    flower_cfg.client.cfg.metric_cfg.file_prefix = 'flower_'
+    fed_cfg.client.cfg.metric_cfg.file_prefix = 'fed_'
+
+    flower_cfg.server.train_cfg.metric_cfg.file_prefix = 'flower_'
+    fed_cfg.server.train_cfg.metric_cfg.file_prefix = 'fed_'
 
     flower_model = deepcopy(model)
     fed_model = deepcopy(model)

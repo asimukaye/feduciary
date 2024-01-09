@@ -50,7 +50,12 @@ client:
       gamma: ${client.cfg.lr_decay}
 
     shuffle: false
-    eval_metrics: ['acc1']
+    metric_cfg:
+      eval_metrics: ['acc1']
+      file_prefix: ''
+      log_to_file: false
+    # eval_metrics: ['acc1']
+    # file_prefix: ''
 # server:
 #   cfg:
 #     delta_normalize: false

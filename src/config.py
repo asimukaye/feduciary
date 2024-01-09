@@ -95,6 +95,14 @@ class SimConfig:
 ########## Client Configurations ##########
 
 @dataclass
+class MetricConfig:
+    eval_metrics: list
+    # fairness_metrics: list
+    log_to_file: bool = False
+    file_prefix: str = field(default='')
+    cwd: Optional[str] = field(default=os.getcwd())
+
+@dataclass
 class ClientConfig:
     epochs: int = field()
     start_epoch: int = field()
@@ -105,8 +113,10 @@ class ClientConfig:
     lr: float = field()         # Client LR is optional
     lr_scheduler: Optional[dict] = field()
     lr_decay: Optional[float] = field()
+    metric_cfg: MetricConfig = field()
     shuffle: bool = field(default=False)
-    eval_metrics: list = field(default_factory=list)
+    # eval_metrics: list = field(default_factory=list)
+    # file_prefix: str = field(default='')
     
     def __post_init__(self):
         # if self.device =='cuda':
@@ -331,11 +341,6 @@ class ModelConfig:
     model_spec: ModelSpecConfig
 
 
-# TODO: Build on this later and develop into a unified evaluation module
-# @dataclass
-# class MetricConfig:
-#     eval_metrics: list
-#     fairness_metrics: list
 
 ########## Master Configurations ##########
 @dataclass

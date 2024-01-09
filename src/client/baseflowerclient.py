@@ -21,7 +21,7 @@ import pandas as pd
 from dataclasses import asdict
 # DEFINE WHAT STRATEGY IS SUPPORTED HERE. This might be needed to support packing and unpacking
 from src.strategy.basestrategy import BaseStrategy
-
+import os
 import flwr as fl
 
 from flwr.common import (
@@ -101,6 +101,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
                  model: Module,
                  res_man: ResultManager = None): # type: ignore
         
+        # NOTE: the client object for Flower uses its own tmp directory. May cause side effects
         self._cid = client_id 
         self._model: Module = model
         self.res_man = res_man
@@ -120,7 +121,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         self.test_set = dataset[1]
 
         
-        self.metric_mngr = MetricManager(self.cfg.eval_metrics, self._round, actor=self._cid, log_to_file=True)
+        self.metric_mngr = MetricManager(self.cfg.metric_cfg, self._round, actor=self._cid)
         # self.optim_partial: functools.partial = instantiate(self.cfg.optimizer)
         self.optim_partial: functools.partial = self.cfg.optimizer
 
@@ -232,6 +233,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
     def train(self, resume_epoch=0) -> fed_t.Result:
         # Run a round on the client
         # logger.info(f'CLIENT {self.id} Starting update')
+        # print('############# CWD: ##########', os.getcwd())
         self.metric_mngr._round = self._round
         self._model.train()
         self._model.to(self.cfg.device)
@@ -278,14 +280,15 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
         torch.save({
             'round': self._round,
-            # 'epoch': epoch,
+            'epoch': epoch,
             'model_state_dict': self._model.state_dict(),
             'optimizer_state_dict' : self._optimizer.state_dict(),
             }, f'client_ckpts/{self._cid}/ckpt_r{self._round:003}_e{epoch:003}.pt')
 
     def load_checkpoint(self, ckpt_path: str):
+        # TODO: Fix the logic for loading checkpoints
         checkpoint = torch.load(ckpt_path)
-        # self._start_epoch = checkpoint['epoch']
+        self._start_epoch = checkpoint['epoch']
         self._model.load_state_dict(checkpoint['model_state_dict'])
         self._optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         # epoch = checkpoint['epoch']

@@ -46,13 +46,13 @@ class ABCClient(ABC):
         self.test_set = dataset[1]
 
         
-        self.metric_mngr = MetricManager(self.cfg.eval_metrics, self._round, actor=self._identifier)
-        self.optim_partial: functools.partial = self.cfg.optimizer
-        self.criterion = self.cfg.criterion
+        # self.metric_mngr = MetricManager(self.cfg.metric_cfg, self._round, actor=self._identifier)
+        # self.optim_partial: functools.partial = self.cfg.optimizer
+        # self.criterion = self.cfg.criterion
 
-        self.train_loader = self._create_dataloader(self.training_set, shuffle=cfg.shuffle)
-        self.test_loader = self._create_dataloader(self.test_set, shuffle=False)
-        self._optimizer: Optimizer = self.optim_partial(self._model.parameters())
+        # self.train_loader = self._create_dataloader(self.training_set, shuffle=cfg.shuffle)
+        # self.test_loader = self._create_dataloader(self.test_set, shuffle=False)
+        # self._optimizer: Optimizer = self.optim_partial(self._model.parameters())
 
         # self._debug_param: Tensor = None
 

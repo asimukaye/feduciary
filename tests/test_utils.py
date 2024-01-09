@@ -7,13 +7,14 @@ import os
 
 
 def compose_config() -> Config:
+    if not os.path.exists('test_outputs'):
+        os.makedirs('test_outputs', exist_ok=True)
+    os.chdir('test_outputs')
     gh =GlobalHydra.instance()
     gh.clear()
     initialize_config_dir(version_base=None, config_dir="/home/asim.ukaye/fed_learning/feduciary/conf", job_name="test_app")
     # print(os.getcwd())
-    if not os.path.exists('test_outputs'):
-        os.makedirs('test_outputs', exist_ok=True)
-    os.chdir('test_outputs')
+
     cs = ConfigStore.instance()
     cs.store('base_config', node=Config)
     cfg = compose(config_name='config')

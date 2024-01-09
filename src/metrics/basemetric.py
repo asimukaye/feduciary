@@ -14,7 +14,7 @@ class BaseMetric(ABC):
         self.answers.append(t)
 
     @abstractmethod
-    def summarize(self):
+    def summarize(self, out_prefix:str =''):
         pass
 
 

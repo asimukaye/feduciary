@@ -117,7 +117,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         self.cfg = cfg
         self.train_cfg = train_cfg
         self.server_dataset = dataset
-        self.metric_manager = MetricManager(train_cfg.eval_metrics, 0, 'server')
+        self.metric_manager = MetricManager(train_cfg.metric_cfg, 0, 'server')
         if result_manager:
             self.result_manager = result_manager
 

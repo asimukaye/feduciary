@@ -59,7 +59,7 @@ class BaseClient:
         self.test_set = dataset[1]
 
         
-        self.metric_mngr = MetricManager(self.cfg.eval_metrics, self._round, actor=self._identifier)
+        self.metric_mngr = MetricManager(self.cfg.metric_cfg, self._round, actor=self._identifier)
         self.optim_partial = self.cfg.optimizer
         self.criterion = self.cfg.criterion
 
