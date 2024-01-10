@@ -1,4 +1,4 @@
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 import typing as t
 from typing import Any
 
@@ -13,25 +13,19 @@ from src.strategy.basestrategy import passthrough_communication, random_client_s
 import src.common.typing as fed_t
 
 from src.config import *
-from src.client.baseclient import BaseClient
 
 import random
 # Type declarations
-ClientParams_t = dict[str, OrderedDict[str, Parameter]]
-ActorParams_t = OrderedDict[str, Parameter]
-ServerDeltas_t = OrderedDict[str, Tensor]
 
-Clients_t = dict[str, BaseClient]
 ScalarWeights_t = dict[str, float]
 TensorWeights_t = dict[str, Tensor]
 
-# FIXME: !!!!!!
 
-def gradient_average_update(server_params: ActorParams_t,
-                            client_params: ClientParams_t,
-                            weights: ScalarWeights_t) -> tuple[ActorParams_t, ServerDeltas_t]:
+def gradient_average_update(server_params: fed_t.ActorParams_t,
+                            client_params: fed_t.ClientParams_t,
+                            weights: ScalarWeights_t) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
     
-    server_deltas: ServerDeltas_t = {}
+    server_deltas: fed_t.ActorDeltas_t = {}
     
     for key, server_param in server_params.items():
         for cid, client_param in client_params.items():
@@ -49,10 +43,10 @@ def gradient_average_update(server_params: ActorParams_t,
     return server_params, server_deltas
 
 
-def gradient_average_with_delta_normalize(server_params: ActorParams_t,
-                            client_params: ClientParams_t,
+def gradient_average_with_delta_normalize(server_params: fed_t.ActorParams_t,
+                            client_params: fed_t.ClientParams_t,
                             weights: ScalarWeights_t,
-                            gamma: float) -> tuple[ActorParams_t, ServerDeltas_t]:
+                            gamma: float) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
     
     def _delta_normalize(delta: Tensor, gamma: float) -> Tensor:
         '''Normalize the parameter delta update and scale to prevent potential gradient explosion'''
@@ -65,7 +59,7 @@ def gradient_average_with_delta_normalize(server_params: ActorParams_t,
         return delta_norm
     
 
-    server_deltas: ServerDeltas_t = {}
+    server_deltas: fed_t.ActorDeltas_t = {}
 
     for key, server_param in server_params.items():
         for cid, client_param in client_params.items():
@@ -102,10 +96,10 @@ class FedOptStrategy(ABCStrategy):
 
         self.server_optimizer = torch.optim.Optimizer(model.parameters(), defaults)
         assert len(self.server_optimizer.param_groups) == 1, f'Multi param group yet to be implemented'
-        self._server_params: OrderedDict[str, Parameter] = model.state_dict()
-        self._server_deltas: OrderedDict[str, Tensor] = {param:torch.tensor(0.0) for param in self._server_params.keys()}
+        self._server_params: dict[str, Parameter] = model.state_dict()
+        self._server_deltas: dict[str, Tensor] = {param:torch.tensor(0.0) for param in self._server_params.keys()}
 
-        self._client_params: ClientParams_t = defaultdict(dict)
+        self._client_params: fed_t.ClientParams_t = defaultdict(dict)
         self._client_weights: dict[str, float] = defaultdict()
 
     def send_strategy(self, ins: Any) -> Any:

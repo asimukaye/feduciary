@@ -3,6 +3,7 @@ from collections import defaultdict, OrderedDict
 from torch import Tensor
 from torch.nn import Parameter
 import json
+import pickle
 import numpy as np
 import typing as t
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -110,7 +111,7 @@ class ResultManager:
         
         self.results_history = defaultdict(lambda: defaultdict)
 
-        self.phase_tracker: OrderedDict[str, int] = OrderedDict()
+        self.phase_tracker: dict[str, int] = {}
         self._phase_counter = 0
         self._step_counter = 0
         
@@ -276,6 +277,10 @@ class ResultManager:
     
     # Must call this to update results and round
     def flush_and_update_round(self, rnd:int):
+        #TODO: COmplete the pickle reading implementation
+        with get_time():
+            self.read_client_pickles()
+
         self.result_dict['round'] = self._round
         self.metric_event_actor_dict['round'] = self._round # type: ignore
 
@@ -289,6 +294,24 @@ class ResultManager:
 
         self._round = rnd+1  # setup for the next round
 
+    def read_client_pickles(self, root: str = 'temp') -> dict[str, dict]:
+        # Read the pickles from the client directories and return a dictionary of the results
+        #TODO: COmplete the implementation
+        if not os.path.exists(root):
+            return {}
+        client_dirs = os.listdir(root)
+        actor_dict= {}
+
+        for cdir in client_dirs:
+            files = sorted(os.listdir(f'{root}/{cdir}'))
+            print (files)
+            for pickle_file in files:
+                with open(f'{root}/{cdir}/{pickle_file}', 'rb') as f:
+                    cid_dict = pickle.load(f)
+                os.remove(f'{root}/{cdir}/{pickle_file}')
+
+                actor_dict[cdir] = cid_dict
+        return actor_dict
 
     def log_wandb_and_tb(self, result_dict: dict, tag='results'):
         # TODO: Make this function cleaner
@@ -338,7 +361,6 @@ class ResultManager:
             self._step_counter += 1
 
             # wandb.log(wandb_dict)
-
 
     def save_as_csv(self, result_dict: dict, filename='results.csv'):
         filename= f'{self.cfg.out_prefix}{filename}'

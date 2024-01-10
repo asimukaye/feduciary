@@ -100,7 +100,9 @@ class MetricConfig:
     # fairness_metrics: list
     log_to_file: bool = False
     file_prefix: str = field(default='')
-    cwd: Optional[str] = field(default=os.getcwd())
+    cwd: Optional[str] = field(default=None)
+    def __post_init__(self):
+        self.cwd = os.getcwd() if self.cwd is None else self.cwd
 
 @dataclass
 class ClientConfig:
@@ -183,7 +185,7 @@ def default_seed():
 @dataclass
 class FedstdevClientConfig(ClientConfig):
     seeds: list[int] = field(default_factory=default_seed)
-    
+    client_ids: list[str] = field(default_factory=list)
     def __post_init__(self):
         super().__post_init__()
 
@@ -209,11 +211,19 @@ class ServerConfig:
         assert self.eval_fraction == Range(0., 1.0)
         assert self.eval_type == 'both' # Remove later
 
-# TODO: Isolate strategy configuration from server configuration to avoid duplication
 @dataclass
 class StrategyConfig:
     train_fraction: float
     eval_fraction: float
+
+
+@dataclass
+class FedstdevConfig(StrategyConfig):
+    '''Config schema for Fedstdev strategy config'''
+    weighting_strategy: str
+    betas: list[float]
+    alpha: float
+    num_clients: int
 
 @dataclass
 class CGSVConfig(ServerConfig):
@@ -407,6 +417,7 @@ def register_configs():
     cs.store(group='server/cfg', name='base_cgsv', node=CGSVConfig)
     cs.store(group='strategy', name='strategy_schema', node=StrategySchema)
     cs.store(group='strategy/cfg', name='base_strategy', node=StrategyConfig)
+    cs.store(group='strategy/cfg', name='fedstdev_strategy', node=FedstdevConfig)
     cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
     cs.store(group='server/cfg', name='fedstdev_server', node=FedstdevServerConfig)
     cs.store(group='client/cfg', name='fedstdev_client', node=FedstdevClientConfig)

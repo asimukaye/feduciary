@@ -45,7 +45,7 @@ class BaseClient:
         # self._identifier: str = f'{id_seed:04}' # potential to convert to hash
         self._model: Module = model
         self.res_man = res_man
-        self._init_state_dict: OrderedDict = model.state_dict()
+        self._init_state_dict: dict = model.state_dict()
 
         self._round = 0
         self._epoch = 0

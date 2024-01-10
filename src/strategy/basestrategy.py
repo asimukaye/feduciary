@@ -1,4 +1,4 @@
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 import typing as t
 
 import random
@@ -9,17 +9,14 @@ from torch.nn import Module, Parameter
 from torch import Tensor
 
 import torch.optim
-from src.common.typing import ClientIns, ClientResult1, Result 
+import src.common.typing as fed_t
 from src.strategy.abcstrategy import ABCStrategy
 from src.config import *
 from src.client.baseclient import BaseClient
 from src.strategy.abcstrategy import *
-from src.common.typing import ClientIns, ClientIns_t, ClientResults_t
 from src.strategy.abcstrategy import StrategyIns
+
 # Type declarations
-# ClientParams_t = dict[str, OrderedDict[str, Parameter]]
-# ActorParams_t = OrderedDict[str, Parameter]
-# Clients_t = dict[str, BaseClient]
 ScalarWeights_t = dict[str, float]
 TensorWeights_t = dict[str, Tensor]
 
@@ -27,9 +24,9 @@ def passthrough_communication(ins: t.Any) -> t.Any:
     '''Simple passthrough communication logic'''
     return ins
 
-def weighted_parameter_averaging(param_keys: t.Iterable, in_params: ClientParams_t, weights: dict[str, float]) -> ActorParams_t:
+def weighted_parameter_averaging(param_keys: t.Iterable, in_params: fed_t.ClientParams_t, weights: dict[str, float]) -> fed_t.ActorParams_t:
 
-    out_params= OrderedDict()
+    out_params= {}
     for key in param_keys:
         temp_parameter = torch.Tensor()
 
@@ -42,7 +39,7 @@ def weighted_parameter_averaging(param_keys: t.Iterable, in_params: ClientParams
         out_params[key] = temp_parameter
     return out_params
 
-def random_client_selection(sampling_fraction: float, cids: list[str]) -> ClientIds_t:
+def random_client_selection(sampling_fraction: float, cids: list[str]) -> fed_t.ClientIds_t:
 
     num_clients = len(cids)
     num_sampled_clients = max(int(sampling_fraction * num_clients), 1)
@@ -50,7 +47,7 @@ def random_client_selection(sampling_fraction: float, cids: list[str]) -> Client
 
     return sampled_client_ids
 
-def select_all_clients(cids: ClientIds_t) -> ClientIds_t:
+def select_all_clients(cids: fed_t.ClientIds_t) -> fed_t.ClientIds_t:
     return cids
 
 
@@ -60,20 +57,21 @@ class StrategyCfgProtocol(t.Protocol):
     train_fraction: float
     eval_fraction: float
 
-# @dataclass
-# class BaseIns(StrategyIns):
-#     client_params: ClientParams_t
-#     data_sizes: dict[str, int]
+@dataclass
+class BaseInsProtocol(t.Protocol):
+    client_params: fed_t.ActorParams_t
+    data_size: int
+
 @dataclass
 class BaseIns(StrategyIns):
-    client_params: ActorParams_t
+    client_params: fed_t.ActorParams_t
     data_size: int
 
 AllIns_t = dict[str, BaseIns]
 
 @dataclass
 class BaseOuts(StrategyOuts):
-    server_params: ActorParams_t
+    server_params: fed_t.ActorParams_t
 
 
 class BaseStrategy(ABCStrategy):
@@ -83,7 +81,7 @@ class BaseStrategy(ABCStrategy):
         # super().__init__(model, cfg)
         self.cfg = cfg
         # * Server params is not required to be stored as a state fir
-        self._server_params: OrderedDict[str, Parameter] = OrderedDict(model.state_dict())
+        self._server_params: dict[str, Parameter] = model.state_dict()
         self._param_keys = self._server_params.keys()
 
         # self._client_params: ClientParams_t = defaultdict(dict)
@@ -92,18 +90,19 @@ class BaseStrategy(ABCStrategy):
 
     
     @classmethod
-    def client_receive_strategy(cls, ins: ClientIns) -> BaseOuts:
+    def client_receive_strategy(cls, ins: fed_t.ClientIns) -> BaseOuts:
         base_outs = BaseOuts(
             server_params=ins.params,
         )
         return base_outs
     
     @classmethod
-    def client_send_strategy(cls, ins: BaseIns) -> ClientResult1:
-        # TODO: Decide on the protocol for this later
-        return ClientResult1(ins.client_params, Result(size=ins.data_size)) 
+    def client_send_strategy(cls, ins: BaseInsProtocol, res: fed_t.Result) -> fed_t.ClientResult1:
+        result =res
+        result.size = ins.data_size
+        return fed_t.ClientResult1(ins.client_params, res) 
 
-    def receive_strategy(self, results: ClientResults_t) -> AllIns_t:
+    def receive_strategy(self, results: fed_t.ClientResults_t) -> AllIns_t:
         client_params = {}
         client_data_sizes = {}
         strat_ins = {}
@@ -113,20 +112,20 @@ class BaseStrategy(ABCStrategy):
         #                    data_sizes=client_data_sizes)
         return strat_ins
     
-    def send_strategy(self, ids: ClientIds_t) -> ClientIns_t:
+    def send_strategy(self, ids: fed_t.ClientIds_t) -> fed_t.ClientIns_t:
         '''Simple send the same model to all clients strategy'''
         clients_ins = {}
         for cid in ids:
-            clients_ins[cid] = ClientIns(
+            clients_ins[cid] = fed_t.ClientIns(
                 params=self._server_params,
-                metadata=OrderedDict()
+                metadata={}
             )
         return clients_ins
     
-    def train_selection(self, in_ids: ClientIds_t) -> ClientIds_t:
+    def train_selection(self, in_ids: fed_t.ClientIds_t) -> fed_t.ClientIds_t:
         return random_client_selection(self.cfg.train_fraction, in_ids)
     
-    def eval_selection(self, in_ids: ClientIds_t) -> ClientIds_t:
+    def eval_selection(self, in_ids: fed_t.ClientIds_t) -> fed_t.ClientIds_t:
         return random_client_selection(self.cfg.eval_fraction, in_ids)
 
 

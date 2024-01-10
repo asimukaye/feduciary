@@ -16,8 +16,10 @@ defaults:
   # - server: fedstdev
   # - server: fedavg
   # - strategy/cfg: base_strategy
+  - strategy/cfg: fedstdev_strategy
+
   
-  # - client: fedstdev
+  - client: fedstdev
   # - client: base
   # - train: base_trainer
   - _self_
@@ -28,32 +30,32 @@ defaults:
 #     batch_size: 512
 #     epochs: 1
 #     device: auto
-client:
-  _target_: src.client.baseflowerclient.BaseFlowerClient
-  _partial_: true
-  cfg:
-    epochs: 5
-    start_epoch: 0
-    device: auto
-    batch_size: 32
-    lr: 0.01
-    lr_decay: 0.977
-    optimizer:
-      _target_: torch.optim.SGD
-      _partial_: true
-      lr: ${client.cfg.lr}
-    criterion:
-      _target_: torch.nn.CrossEntropyLoss
-    lr_scheduler:
-      _target_: torch.optim.lr_scheduler.ExponentialLR
-      _partial_: true
-      gamma: ${client.cfg.lr_decay}
+# client:
+#   _target_: src.client.baseflowerclient.BaseFlowerClient
+#   _partial_: true
+#   cfg:
+#     epochs: 5
+#     start_epoch: 0
+#     device: auto
+#     batch_size: 32
+#     lr: 0.01
+#     lr_decay: 0.977
+#     optimizer:
+#       _target_: torch.optim.SGD
+#       _partial_: true
+#       lr: ${client.cfg.lr}
+#     criterion:
+#       _target_: torch.nn.CrossEntropyLoss
+#     lr_scheduler:
+#       _target_: torch.optim.lr_scheduler.ExponentialLR
+#       _partial_: true
+#       gamma: ${client.cfg.lr_decay}
 
-    shuffle: false
-    metric_cfg:
-      eval_metrics: ['acc1']
-      file_prefix: ''
-      log_to_file: false
+#     shuffle: false
+#     metric_cfg:
+#       eval_metrics: ['acc1']
+#       file_prefix: ''
+#       log_to_file: false
     # eval_metrics: ['acc1']
     # file_prefix: ''
 # server:
@@ -88,8 +90,8 @@ simulator:
   checkpoint_every: 20
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized', 'flower'
   # mode: centralized
-  mode: federated
-  # mode: flower 
+  # mode: federated
+  mode: flower 
   flwr_resources:
     num_cpus: 2
     num_gpus: 0.2 #TODO: Couple this with device init
@@ -110,8 +112,8 @@ dataset:
   split_conf:
     # split_type: one_label_fli`pped_client
     # split_type: one_imbalanced_client
-    # split_type: iid
-    split_type: one_noisy_client
+    split_type: iid
+    # split_type: one_noisy_client
     num_splits: ${simulator.num_clients}
     # Noise parameter is specific to one patho client
     test_fraction: 0.2 # Client train-test split
@@ -122,13 +124,32 @@ dataset:
       flip_percent: 1.0
   
 
+# strategy:
+#   _target_: src.strategy.basestrategy.BaseStrategy
+#   # _partial_: true
+#   cfg:
+#     train_fraction: 1.0
+#     eval_fraction: 1.0
+  
+
 strategy:
-  _target_: src.strategy.basestrategy.BaseStrategy
+  _target_: src.strategy.fedstdevstrategy.FedstdevStrategy
   # _partial_: true
   cfg:
     train_fraction: 1.0
     eval_fraction: 1.0
-  
+    betas:
+      - 1e3
+      - 1e3
+      - 1e4
+      - 1e3
+      - 1e4
+      - 1e3
+      - 1e3
+      - 1e3
+    alpha: 1e-8
+    num_clients: ${simulator.num_clients}
+    weighting_strategy: tanh
 
 # train_cfg:
   # epochs: 5

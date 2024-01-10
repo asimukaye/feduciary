@@ -1,5 +1,7 @@
 from collections import OrderedDict
+from dataclasses import dataclass
 import functools
+import typing as t
 import numpy as np
 from torch.utils.data import DataLoader
 from torch.nn import Module, Parameter
@@ -12,7 +14,13 @@ from hydra.utils import instantiate
 import logging
 
 from src.metrics.metricmanager import MetricManager
-from src.common.utils import log_tqdm, get_parameters_as_ndarray
+from src.common.utils import (log_tqdm,
+                              unroll_param_keys,
+                              roll_param_keys,
+                              get_model_as_ndarray, 
+                              convert_param_dict_to_ndarray,
+                              convert_ndarrays_to_param_dict,
+                              get_time)
 from src.config import ClientConfig, get_free_gpu
 from src.client.abcclient import ABCClient
 from src.results.resultmanager import ResultManager
@@ -33,8 +41,6 @@ from flwr.common import (
     GetParametersIns,
     GetParametersRes,
     Status,
-    ndarrays_to_parameters,
-    parameters_to_ndarrays,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,16 +49,23 @@ logger = logging.getLogger(__name__)
 def flatten_dict(nested: dict) -> dict:
     return pd.json_normalize(nested, sep='.').to_dict('records')[0]
 
-def results_to_flower_fitres(model: Module, res: fed_t.Result) -> FitRes:
-    ndarrays_updated = get_parameters_as_ndarray(model)
+def results_to_flower_fitres(client_res: fed_t.ClientResult1) -> FitRes:
+
+    ndarrays_updated = convert_param_dict_to_ndarray(client_res.params)
+    # ndarrays_updated = convert_param_list_to_ndarray(client_res.params)
+
         # Serialize ndarray's into a Parameters object
-    parameters_updated = ndarrays_to_parameters(ndarrays_updated)
+    parameters_updated = fl.common.ndarrays_to_parameters(ndarrays_updated)
     # print(asdict(res))
-    flattened_res = flatten_dict(asdict(res))
+    flattened_res = flatten_dict(asdict(client_res.result))
+    
+    flattened_res.update(roll_param_keys(list(client_res.params.keys())))
+
     # print("Flattened: ", flattened_res.keys())
+
     return FitRes(Status(code=Code.OK, message="Success"),
                     parameters=parameters_updated,
-                    num_examples=res.size,
+                    num_examples=client_res.result.size,
                     metrics=flattened_res)
 
 def results_to_flower_evalres(res: fed_t.Result) -> EvaluateRes:
@@ -62,11 +75,30 @@ def results_to_flower_evalres(res: fed_t.Result) -> EvaluateRes:
                     num_examples=res.size,
                     metrics=flattened_res)
 
+def flower_fitins_to_client_ins(ins: FitIns) -> fed_t.ClientIns:
+    ndarrays_original = fl.common.parameters_to_ndarrays(ins.parameters)
+    _param_keys = unroll_param_keys(ins.config) # type: ignore
+    # param_dict = convert_ndarrays_to_param_lists(ndarrays_original)
+    param_dict = convert_ndarrays_to_param_dict(_param_keys, ndarrays_original)
+    _round = int(ins.config.pop('_round'))
+    _request = fed_t.RequestType(ins.config.pop('_request'))
+    assert _request == fed_t.RequestType.TRAIN
+    return fed_t.ClientIns(params=param_dict, metadata=ins.config, _round=_round, request=_request)
+
+def flower_evalins_to_client_ins(ins: EvaluateIns) -> fed_t.ClientIns:
+    ndarrays_original = fl.common.parameters_to_ndarrays(ins.parameters)
+    _param_keys = unroll_param_keys(ins.config) # type: ignore
+    # param_dict = convert_ndarrays_to_param_lists(ndarrays_original)
+    param_dict = convert_ndarrays_to_param_dict(_param_keys, ndarrays_original)
+    _round = int(ins.config.pop('_round'))
+    _request = fed_t.RequestType(ins.config.pop('_request'))
+    assert _request == fed_t.RequestType.EVAL
+    return fed_t.ClientIns(params=param_dict, metadata=ins.config, _round=_round, request=_request)
+
 def set_parameters(net: Module, parameters: list[np.ndarray]):
     params_dict = zip(net.state_dict().keys(), parameters)
     state_dict = OrderedDict({k: torch.Tensor(v) for k, v in params_dict})
     net.load_state_dict(state_dict, strict=True)
-
 
 
 def model_eval_helper(model: Module,
@@ -90,6 +122,14 @@ def model_eval_helper(model: Module,
         mm.flush()
     return result
 
+@dataclass
+class ClientInProtocol(t.Protocol):
+    server_params: dict
+
+@dataclass
+class ClientOuts:
+    client_params: fed_t.ActorParams_t
+    data_size: int
 
 class BaseFlowerClient(ABCClient, fl.client.Client):
     """Class for client object having its own (private) data and resources to train a model.
@@ -98,13 +138,12 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
                  cfg: ClientConfig,
                  client_id: str,
                  dataset: tuple,
-                 model: Module,
-                 res_man: ResultManager = None): # type: ignore
+                 model: Module
+                 ):
         
         # NOTE: the client object for Flower uses its own tmp directory. May cause side effects
         self._cid = client_id 
         self._model: Module = model
-        self.res_man = res_man
         self._init_state_dict: OrderedDict = OrderedDict(model.state_dict())
 
         # FIXME: Stateful clients will not work with multiprocessing
@@ -171,14 +210,25 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         return DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, shuffle=shuffle)
     
     # def _fill_result_metadata(result = fed_t.Result)
+    def unpack_train_input(self, client_ins: fed_t.ClientIns) -> ClientInProtocol:
+        specific_ins = BaseStrategy.client_receive_strategy(client_ins)
+        return specific_ins
+    
+    def pack_train_result(self, result: fed_t.Result) -> fed_t.ClientResult1:
+        self._model.to('cpu')
+        client_outs = ClientOuts(client_params=self.model.state_dict(keep_vars=False), data_size=result.size)
+        general_res = BaseStrategy.client_send_strategy(client_outs, result)
+        return general_res
+
+    #TODO: Replicate packing unpacking for eval also 
+    
     def download(self, client_ins: fed_t.ClientIns) -> fed_t.RequestOutcome:
         # Download initiates training. Is a blocking call without concurrency implementation
-        # TODO: implement the client receive strategy correctlt later
-        # specific_ins = BaseStrategy.client_receive_strategy(client_ins)
+        specific_ins = self.unpack_train_input(client_ins=client_ins)
         # NOTE: Current implementation assumes state persistence between download and upload calls.
         self._round = client_ins._round
 
-        param_dict = client_ins.params
+        param_dict = specific_ins.server_params
 
         match client_ins.request:
             case fed_t.RequestType.NULL:
@@ -187,9 +237,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
                 return fed_t.RequestOutcome.COMPLETE
             case fed_t.RequestType.TRAIN:
                 # Reset the optimizer
-                self._model.load_state_dict(param_dict)
-                self._optimizer = self.optim_partial(self._model.parameters())
-                self._train_result = self.train()
+                self._train_result = self.train(specific_ins)
                 return fed_t.RequestOutcome.COMPLETE
             case fed_t.RequestType.EVAL:
                 self._model.load_state_dict(param_dict)
@@ -208,15 +256,11 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         match request_type:
             case fed_t.RequestType.TRAIN:
                 _result = self._train_result
-                self._model.to('cpu')
-                client_result = fed_t.ClientResult1(
-                    params=OrderedDict(self.model.state_dict(keep_vars=False)),
-                    result=_result)
-                return client_result
+                return self.pack_train_result(_result)
             case fed_t.RequestType.EVAL:
                 _result = self._eval_result
                 return fed_t.ClientResult1(
-                    params=OrderedDict(),
+                    params={},
                     result=_result)
             case _:
                 _result = fed_t.Result(actor=self._cid,
@@ -224,20 +268,23 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
                                 size=self.__len__())
                 self._model.to('cpu')
                 client_result = fed_t.ClientResult1(
-                    params=OrderedDict(self.model.state_dict(keep_vars=False)),
+                    params=self.model.state_dict(keep_vars=False),
                     result=_result)
                 return client_result
         
     
     # Adding temp fix to return model under multiprocessing
-    def train(self, resume_epoch=0) -> fed_t.Result:
+    def train(self, train_ins: ClientInProtocol) -> fed_t.Result:
         # Run a round on the client
         # logger.info(f'CLIENT {self.id} Starting update')
         # print('############# CWD: ##########', os.getcwd())
+        self._model.load_state_dict(train_ins.server_params)
+        self._optimizer = self.optim_partial(self._model.parameters())
         self.metric_mngr._round = self._round
         self._model.train()
         self._model.to(self.cfg.device)
 
+        resume_epoch = 0
         out_result = fed_t.Result()
         # iterate over epochs and then on the batches
         for epoch in log_tqdm(range(resume_epoch, resume_epoch + self.cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):
@@ -271,7 +318,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
 
     @torch.no_grad()
-    def eval(self) -> fed_t.Result:
+    def eval(self, eval_ins = None) -> fed_t.Result:
         # Run evaluation on the client
         self._eval_result = model_eval_helper(self._model, self.test_loader, self.cfg, self.metric_mngr, self._round)
         return self._eval_result
@@ -317,10 +364,10 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
     def get_parameters(self, ins: GetParametersIns) -> GetParametersRes:
         # Get parameters as a list of NumPy ndarray'sz
         # print("I AM BEING CALLED")
-        ndarrays = get_parameters_as_ndarray(self._model)
+        ndarrays = get_model_as_ndarray(self._model)
 
         # Serialize ndarray's into a Parameters object
-        parameters = ndarrays_to_parameters(ndarrays)
+        parameters = fl.common.ndarrays_to_parameters(ndarrays)
         # Build and return response
         status = Status(code=Code.OK, message="Success")
         return GetParametersRes(
@@ -332,17 +379,20 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         # print(f"[Client {self._cid}] fit, config: {ins.config}")
 
         # Deserialize parameters to NumPy ndarray's
-        parameters_original = ins.parameters
-        ndarrays_original = parameters_to_ndarrays(parameters_original)
+
         # Update local model, train, get updated parameters
         self._round = int(ins.config['_round'])
         # TODO: Need to use formal unpacking command here
         _metadata = ins.config
-        set_parameters(self._model, ndarrays_original)
+        # set_parameters(self._model, ndarrays_original)
+        client_ins = flower_fitins_to_client_ins(ins)
+        train_ins = self.unpack_train_input(client_ins=client_ins)
 
-        res = self.train()
-        
-        fit_res = results_to_flower_fitres(model=self._model, res=res)
+        res = self.train(train_ins)
+
+        client_res = self.pack_train_result(res)
+
+        fit_res = results_to_flower_fitres(client_res)
 
         # Build and return response
 
@@ -354,7 +404,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
         # Deserialize parameters to NumPy ndarray's
         parameters_original = ins.parameters
-        ndarrays_original = parameters_to_ndarrays(parameters_original)
+        ndarrays_original = fl.common.parameters_to_ndarrays(parameters_original)
         self._round = int(ins.config['_round'])
 
         # TODO: Need to use formal unpacking command here

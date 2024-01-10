@@ -52,12 +52,12 @@ class MetricManager:
         self._actor = actor
         self._log_to_file = cfg.log_to_file
 
-        self._pmea_dict = {}
+        self._pmea_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
         # Move it to a central directory creator to reduce overheads
         if cfg.log_to_file:
             # Hack to make the files visible in the project workspace
-            root_path = cfg.cwd
-            os.makedirs(f'{root_path}/temp', exist_ok=True)
+            self._temp_dir = f'{cfg.cwd}/temp/{actor}'
+            os.makedirs(self._temp_dir, exist_ok=True)
 
     def track(self, loss, pred, true):
         # update running loss
@@ -84,7 +84,7 @@ class MetricManager:
 
         self.figures = defaultdict(int)
 
-        # _save_pickle(self._pmea_dict, self._actor, root=f'{self.cfg.cwd}/temp')
+        # _save_pickle(self._pmea_dict, self._actor, root=self._temp_dir)
 
         return self._result
 
@@ -110,4 +110,4 @@ class MetricManager:
     def __del__(self):
         if self._log_to_file:
             # with get_time():
-            _save_pickle(deepcopy(self._pmea_dict), self._actor, root=f'{self.cfg.cwd}/temp')
+            _save_pickle(deepcopy(self._pmea_dict), self._actor, root=self._temp_dir)

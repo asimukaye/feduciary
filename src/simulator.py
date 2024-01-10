@@ -27,7 +27,7 @@ from src.client.baseflowerclient import BaseFlowerClient, model_eval_helper
 from src.data import load_vision_dataset
 from src.split import get_client_datasets, NoisySubset, LabelFlippedSubset
 from src.config import Config, SimConfig, FedstdevServerConfig, ClientSchema
-from src.common.utils  import log_tqdm, log_instance
+from src.common.utils  import log_tqdm, log_instance, generate_client_ids
 from results.postprocess import post_process
 from src.models.model import init_model
 from src.results.resultmanager import ResultManager
@@ -71,8 +71,6 @@ def create_clients(all_client_ids, client_datasets, model_instance, client_cfg: 
     return clients
 
 
-def generate_client_ids(num_clients):
-        return [f'{idx:04}' for idx in range(num_clients)]
 
 def make_checkpoint_dirs(has_server: bool, client_ids=[]):
     if has_server:
@@ -214,6 +212,8 @@ def run_federated_simulation(cfg: Config,
                              test_set: Subset,
                              model_instance: Module
                              ):
+    '''Runs the simulation in federated mode'''
+    
     # model_instance: Module = instantiate(cfg.model.model_spec)
     all_client_ids = generate_client_ids(cfg.simulator.num_clients)
     make_checkpoint_dirs(has_server=True, client_ids=all_client_ids)
@@ -246,7 +246,6 @@ def run_federated_simulation(cfg: Config,
 
 
     _round = 0
-    '''Runs the simulation in federated mode'''
     # clients = _create_clients(client_datasets)
     # server.initialize(clients, )
 
@@ -435,7 +434,7 @@ class Simulator:
 
         self.test_set, self.train_set, self.model_instance = init_dataset_and_model(cfg=cfg)
 
-        self.metric_manager = MetricManager(cfg.client.cfg.metric_cfg, self._round, actor='simulator')
+        # self.metric_manager = MetricManager(cfg.client.cfg.metric_cfg, self._round, actor='simulator')
 
         # self.result_manager = ResultManager(cfg.simulator, logger=logger)
 

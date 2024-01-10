@@ -1,14 +1,19 @@
 from dataclasses import dataclass, field
-from collections import OrderedDict
+from collections import defaultdict
 from enum import Enum, auto
 from torch.nn import Parameter
+from torch import Tensor
 import typing as t
 from torch.utils.data import Subset
 
 ClientIds_t =  list[str]
-ActorParams_t = OrderedDict[str, Parameter]
+ActorParams_t = dict[str, Parameter]
+ActorParamlist_t = list[Parameter]
+
 # dictionary of all clients' parameter sets
 ClientParams_t = dict[str, ActorParams_t]
+ActorDeltas_t = dict[str, Tensor]
+ClientDeltas_t = dict[str, ActorDeltas_t]
 
 class RequestType(Enum):
     TRAIN = auto()
@@ -34,15 +39,16 @@ class Result:
 
 @dataclass
 class ClientResult1:
-    params: OrderedDict[str, Parameter] = field(default_factory=OrderedDict)
+    params: dict[str, Parameter] = field(default_factory=dict)
     result: Result = field(default_factory=Result)
 
 
 @dataclass
 class ClientIns:
     # Fields set by the strategy
-    params: OrderedDict[str, Parameter] = field(default_factory=OrderedDict)
-    metadata: OrderedDict[str, t.Any] = field(default_factory=OrderedDict)
+    params: dict[str, Parameter] = field(default_factory=dict)
+    # param_keys: list[str] = field(default_factory=list)
+    metadata: dict[str, t.Any] = field(default_factory=dict)
     # Reserved fields to be set by the server
     _round: int = -1
     request: RequestType = RequestType.NULL
@@ -54,4 +60,4 @@ Results_t = dict[str, Result]
 ClientIns_t = dict[str, ClientIns]
 
 ClientDatasets_t = list[tuple[Subset, Subset]]
-# ClientParams_t = dict[str, OrderedDict[str, torch.nn.Parameter]]
+

@@ -24,7 +24,13 @@ from src.results.resultmanager import ResultManager
 
 from src.client.baseclient import BaseClient, model_eval_helper
 from src.metrics.metricmanager import MetricManager
-from src.common.utils  import log_tqdm, log_instance, get_parameters_as_ndarray, get_time
+from src.common.utils import (log_tqdm,
+                              unroll_param_keys,
+                              roll_param_keys,
+                              get_model_as_ndarray, 
+                              convert_param_dict_to_ndarray,
+                              convert_ndarrays_to_param_dict,
+                              get_time)
 from src.results.resultmanager import ResultManager
 import src.common.typing as fed_t
 
@@ -37,17 +43,6 @@ from src.strategy.basestrategy import BaseStrategy
 #  eventually be tied directly to the server algorithm
 logger = logging.getLogger(__name__)
 
-
-# def get_parameters_as_ndarray(net: Module) -> list[np.ndarray]:
-#     return [val.cpu().numpy() for _, val in net.state_dict().items()]
-
-def convert_param_dict_to_ndarray(param_dict: fed_t.ActorParams_t) -> fl.common.NDArrays:
-    return [val.cpu().numpy() for val in param_dict.values()]
-
-def create_param_dict(keys: list[str], parameters: List[np.ndarray]):
-    params_itr = zip(keys, parameters)
-    state_dict = OrderedDict({k: Parameter(data=Tensor(v)) for k, v in params_itr})
-    return state_dict
 
 def _nest_dict_rec(k: str, v, out: dict):
     k, *rest = k.split('.', 1)
@@ -85,17 +80,29 @@ def flower_eval_results_adapter(results: List[Tuple[ClientProxy, EvaluateRes]]) 
     return client_results
 
 
-def flower_train_results_adapter(param_keys, results: List[Tuple[ClientProxy, FitRes]]) -> fed_t.ClientResults_t:
+def flower_train_results_adapter(results: List[Tuple[ClientProxy, FitRes]]) -> fed_t.ClientResults_t:
     client_results = {}
     for client, result in results:
         nd_params = fl.common.parameters_to_ndarrays(result.parameters)
-        client_params = create_param_dict(param_keys, nd_params)
+        param_keys = unroll_param_keys(result.metrics) # type: ignore
+        client_params = convert_ndarrays_to_param_dict(param_keys, nd_params)
         client_result = flower_metrics_to_results(result)
-
         client_results[client.cid] = fed_t.ClientResult1(params=client_params, result=client_result)
 
     return client_results
 
+def client_in_to_flower_fitin(client_in: fed_t.ClientIns) -> FitIns:
+    config = client_in.metadata
+    config['_round'] = client_in._round
+    config['_request'] = client_in.request
+
+    config.update(roll_param_keys(list(client_in.params.keys())))
+    
+    nd_param = convert_param_dict_to_ndarray(client_in.params)
+    # nd_param = convert_param_list_to_ndarray(client_in.params)
+
+    flower_param = fl.common.ndarrays_to_parameters(nd_param)
+    return FitIns(parameters=flower_param, config=config)
 
 class BaseFlowerServer(ABCServer, fl_strat.Strategy):
     """Central server orchestrating the whole process of federated learning.
@@ -121,9 +128,6 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         if result_manager:
             self.result_manager = result_manager
 
-
-        # self.client_results: fed_t.ClientResults_t = defaultdict(fed_t.ClientResult1)
-        # self.client_ins_dict: fed_t.ClientIns_t = defaultdict(fed_t.ClientIns)
 
         self.param_keys = list(self.model.state_dict().keys())
         defaults = dict(lr=train_cfg.lr)
@@ -275,7 +279,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
     ) -> Optional[Parameters]:
         """Initialize global model parameters."""
 
-        ndarrays = get_parameters_as_ndarray(self.model)
+        ndarrays = get_model_as_ndarray(self.model)
         return fl.common.ndarrays_to_parameters(ndarrays)
     
     def configure_fit(self,
@@ -295,17 +299,21 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         # FIXME: dynamic client configurations
         # client_config = {"lr": 0.001}
 
+
         for out_id in out_ids:
             client = client_proxies[out_id]
             cl_in = clients_ins[out_id]
-
-            nd_param = convert_param_dict_to_ndarray(cl_in.params)
-            flower_param = fl.common.ndarrays_to_parameters(nd_param)
-            cl_config = cl_in.metadata
-            cl_config['_round'] = self._round
+            cl_in._round = self._round
+            cl_in.request = fed_t.RequestType.TRAIN
+            
+            fit_in = client_in_to_flower_fitin(cl_in)
+            # nd_param = convert_param_dict_to_ndarray(cl_in.params)
+            # flower_param = fl.common.ndarrays_to_parameters(nd_param)
+            # cl_config = cl_in.metadata
+            # cl_config['_round'] = self._round
 
             fit_configurations.append(
-                    (client, FitIns(flower_param, cl_config)) 
+                    (client, fit_in) 
                 )
         return fit_configurations
 
@@ -316,11 +324,12 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         
 
         with get_time():
-            train_results = flower_train_results_adapter(self.param_keys, results)
+            train_results = flower_train_results_adapter(results)
 
         strategy_ins = self.strategy.receive_strategy(train_results)
         strategy_outs = self.strategy.aggregate(strategy_ins)
 
+        # TODO: There might be a need for a strategy out adapter
         to_log = {cid: res.result for cid, res in train_results.items()}
         self.result_manager.log_clients_result(to_log, phase='pre_agg', event='local_train')
         # Validate the need for this.

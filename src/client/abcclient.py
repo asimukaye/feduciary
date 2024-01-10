@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import functools
 from torch.utils.data import DataLoader
@@ -12,9 +13,8 @@ from src.metrics.metricmanager import MetricManager
 from src.common.utils import log_tqdm
 from src.config import ClientConfig
 from src.results.resultmanager import ResultManager
-
+import src.common.typing as fed_t
 logger = logging.getLogger(__name__)
-
 
 
 
@@ -25,13 +25,11 @@ class ABCClient(ABC):
                  cfg: ClientConfig,
                  client_id: str,
                  dataset: tuple,
-                 model: Module,
-                 res_man: ResultManager = None): 
+                 model: Module): 
         
         self._identifier = client_id 
         # self._identifier: str = f'{id_seed:04}' # potential to convert to hash
         self._model = model
-        self.res_man = res_man
 
         self._init_state_dict: dict = model.state_dict()
 
@@ -90,6 +88,9 @@ class ABCClient(ABC):
             self.cfg.batch_size = len(self.training_set)
         return DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, shuffle=shuffle)
     
+    @dataclass
+    class ClientInProtocol:
+        server_params: fed_t.ActorParams_t
 
     @abstractmethod
     def reset_model(self) -> None:
@@ -106,7 +107,13 @@ class ABCClient(ABC):
         '''Upload the model back to the server'''
         pass
  
+    @abstractmethod
+    def unpack_train_input(self, client_ins: fed_t.ClientIns) -> ClientInProtocol:
+        pass
     
+    @abstractmethod
+    def pack_train_result(self, result: fed_t.Result) -> fed_t.ClientResult1:
+        pass
     @abstractmethod
     def train(self, return_model=False):
         '''How the model should train'''

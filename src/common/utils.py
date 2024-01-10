@@ -1,7 +1,8 @@
 import os
 import sys
 import torch
-
+from torch import Tensor
+from torch.nn import Parameter
 import logging
 import numpy as np
 import functools
@@ -14,11 +15,41 @@ from multiprocessing import Process
 
 from time import perf_counter
 from colorama import Fore, Style
-
+import src.common.typing as fed_t
 logger = logging.getLogger(__name__)
 
-def get_parameters_as_ndarray(net: torch.nn.Module) -> list[np.ndarray]:
+def unroll_param_keys(config_dict: dict[str, str]) -> list[str]:
+    param_keys = []
+    for k in list(config_dict.keys()):
+        if k.startswith('_param_key_'):
+            param_keys.append(config_dict.pop(k))
+    return param_keys
+
+def roll_param_keys(param_keys: list[str]) -> dict[str, str]:
+    config = {}
+    for i, key in enumerate(param_keys):
+        config[f'_param_key_{i}'] = key
+    return config
+
+def get_model_as_ndarray(net: torch.nn.Module) -> list[np.ndarray]:
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
+
+def convert_param_dict_to_ndarray(params: fed_t.ActorParams_t) -> list[np.ndarray]:
+    return [val.cpu().numpy() for val in params.values()]
+
+def convert_param_list_to_ndarray(params: fed_t.ActorParamlist_t) -> list[np.ndarray]:
+    return [val.cpu().numpy() for val in params]
+
+def convert_ndarrays_to_param_lists(nda :list[np.ndarray]) -> fed_t.ActorParamlist_t:
+    return [Parameter(data=Tensor(val)) for val in nda]
+
+def convert_ndarrays_to_param_dict(keys: list[str], parameters: list[np.ndarray]):
+    params_itr = zip(keys, parameters)
+    state_dict = {k: Parameter(data=Tensor(v)) for k, v in params_itr}
+    return state_dict
+
+def generate_client_ids(num_clients):
+        return [f'{idx:04}' for idx in range(num_clients)]
 
 def log_instance(attrs:list=[], m_logger=logger):
     def decorator(func):
