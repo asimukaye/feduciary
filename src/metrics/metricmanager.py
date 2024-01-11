@@ -1,7 +1,7 @@
 from collections import defaultdict
 import pickle
 from importlib import import_module
-from .basemetric import BaseMetric
+from .metricszoo import BaseMetric
 import src.common.typing as fed_t
 from src.common.utils import get_time
 from src.config import MetricConfig

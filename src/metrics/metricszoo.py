@@ -1,3 +1,6 @@
+from abc import ABC, abstractmethod
+
+
 import torch
 import numpy as np
 import warnings
@@ -9,9 +12,26 @@ from sklearn.metrics import accuracy_score, roc_auc_score, roc_curve,\
         mean_squared_error, mean_absolute_error, mean_absolute_percentage_error,\
             r2_score, d2_pinball_score, top_k_accuracy_score
 
-from .basemetric import BaseMetric
+
 
 warnings.filterwarnings('ignore')
+
+
+class BaseMetric(ABC):
+    '''wrapper for computing metrics over a list of values'''
+    def __init__(self):
+        self.scores = []
+        self.answers = []
+
+    def collect(self, pred:Tensor, true:Tensor):
+        p, t = pred.detach().cpu(), true.detach().cpu()
+        self.scores.append(p)
+        self.answers.append(t)
+
+    @abstractmethod
+    def summarize(self, out_prefix:str =''):
+        pass
+
 
 
 class Acc1(BaseMetric):
