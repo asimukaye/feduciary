@@ -27,8 +27,8 @@ class ABCClient(ABC):
                  dataset: tuple,
                  model: Module): 
         
-        self._identifier = client_id 
-        # self._identifier: str = f'{id_seed:04}' # potential to convert to hash
+        self._cid = client_id 
+        # self._cid: str = f'{id_seed:04}' # potential to convert to hash
         self._model = model
 
         self._init_state_dict: dict = model.state_dict()
@@ -44,7 +44,7 @@ class ABCClient(ABC):
         self.test_set = dataset[1]
 
         
-        # self.metric_mngr = MetricManager(self.cfg.metric_cfg, self._round, actor=self._identifier)
+        # self.metric_mngr = MetricManager(self.cfg.metric_cfg, self._round, actor=self._cid)
         # self.optim_partial: functools.partial = self.cfg.optimizer
         # self.criterion = self.cfg.criterion
 
@@ -56,7 +56,7 @@ class ABCClient(ABC):
 
     @property
     def id(self)->str:
-        return self._identifier
+        return self._cid
 
     @property
     def model(self)-> Module:

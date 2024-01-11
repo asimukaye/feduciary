@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import warnings
-
+import os
 from torch import Tensor
 import json
 from sklearn.metrics import accuracy_score, roc_auc_score, roc_curve,\
@@ -25,15 +25,30 @@ class Acc1(BaseMetric):
         self.scores = []
         self.answers = []
 
-        # with open(f'{out_prefix}answers.json', 'w') as answers_json:
+        # files = [filename for filename in os.listdir('temp') if filename.startswith(f'{out_prefix}answers')]
+
+        # if files:
+        #     files.sort(reverse=True)
+        #     last_num = int(files[0].removeprefix(f'{out_prefix}answers_').removesuffix('.json')) + 1
+        # else:
+        #     last_num = 0
+
+        # with open(f'{out_prefix}answers_{last_num}.json', 'w') as answers_json:
         #     json.dump(answers.tolist(), answers_json)
-        # print(f'scores: {scores.shape}')
+        # # print(f'scores: {scores.shape}')
         # print(f'answers: {answers.shape}')
         # with open(f'{out_prefix}scores.json', 'w') as scores_json:
         #     json.dump(scores.tolist(), scores_json)
         if scores.size(-1) > 1: # multi-class
             labels = scores.argmax(-1).numpy()
-            # with open(f'{out_prefix}labels.json', 'w') as labels_json:
+            # files = [filename for filename in os.listdir('temp') if filename.startswith(f'{out_prefix}labels')]
+
+            # if files:
+            #     files.sort(reverse=True)
+            #     last_num_2 = int(files[0].removeprefix(f'{out_prefix}labels_').removesuffix('.json')) + 1
+            # else:
+            #     last_num_2 = 0
+            # with open(f'{out_prefix}labels_{last_num_2}.json', 'w') as labels_json:
             #     json.dump(labels.tolist(), labels_json)
             # print(f'labels: {labels.shape}')
         else: # binary - use Youden's J to determine label

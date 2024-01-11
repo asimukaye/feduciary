@@ -41,8 +41,8 @@ class BaseClient:
     """Class for client object having its own (private) data and resources to train a model.
     """
     def __init__(self, cfg: ClientConfig, client_id: str, dataset: tuple, model: Module, res_man: ResultManager = None):
-        self._identifier = client_id 
-        # self._identifier: str = f'{id_seed:04}' # potential to convert to hash
+        self._cid = client_id 
+        # self._cid: str = f'{id_seed:04}' # potential to convert to hash
         self._model: Module = model
         self.res_man = res_man
         self._init_state_dict: dict = model.state_dict()
@@ -59,7 +59,7 @@ class BaseClient:
         self.test_set = dataset[1]
 
         
-        self.metric_mngr = MetricManager(self.cfg.metric_cfg, self._round, actor=self._identifier)
+        self.metric_mngr = MetricManager(self.cfg.metric_cfg, self._round, actor=self._cid)
         self.optim_partial = self.cfg.optimizer
         self.criterion = self.cfg.criterion
 
@@ -71,7 +71,7 @@ class BaseClient:
 
     @property
     def id(self)->str:
-        return self._identifier
+        return self._cid
 
     @property
     def model(self)-> Module:
@@ -224,7 +224,7 @@ class BaseClient:
             'epoch': epoch,
             'model_state_dict': self._model.state_dict(),
             'optimizer_state_dict' : self._optimizer.state_dict(),
-            }, f'client_ckpts/{self._identifier}/ckpt_r{self.round:003}_e{epoch:003}.pt')
+            }, f'client_ckpts/{self._cid}/ckpt_r{self.round:003}_e{epoch:003}.pt')
 
     def load_checkpoint(self, ckpt_path: str):
         checkpoint = torch.load(ckpt_path)

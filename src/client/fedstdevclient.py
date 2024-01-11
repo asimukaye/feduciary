@@ -2,6 +2,8 @@ import typing as t
 from dataclasses import dataclass, field
 from collections import OrderedDict
 import logging
+import json
+import os
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -59,9 +61,13 @@ class FedstdevClient(BaseFlowerClient):
         super().__init__(cfg, **kwargs)
 
         self.cfg = deepcopy(cfg)
-        # self.res_man: ResultManager = kwargs.get('res_man')
+        # self._root_dir = f'{self.cfg.metric_cfg.cwd}/temp_json'
+        # os.makedirs(self._root_dir, exist_ok=True)
+
+        self.train = self.train_single_thread
 
         self.train_loader_map = self._create_shuffled_loaders(self.training_set, cfg.seeds)
+        # self._model_map: dict[int, Module] = {}
         # Make m copies of the model for independent train iterations
         self._model_map: dict[int, Module] = {seed: deepcopy(self._model) for seed in cfg.seeds}
 
@@ -77,18 +83,24 @@ class FedstdevClient(BaseFlowerClient):
 
         self._grad_std :dict[str, Tensor] = deepcopy(self._grad_mu)
 
-        self.train = self.train_single_thread
 
 
     def _create_shuffled_loaders(self, dataset: Subset, seeds:list[int]) -> dict[int, DataLoader]:
         loader_dict = {}
+        self._generator = {}
         # HACK: Hack to fix the batch size based on dataset size for imbalanced dataset
         # FIXME: IMPORTANT: Formalize the iteration to batch size correlation for imbalanced data experiments
         for seed in seeds:
             gen = Generator()
             gen.manual_seed(seed)
             sampler = RandomSampler(data_source=dataset, generator=gen)
+            self._generator[seed] = gen
             loader_dict[seed] = DataLoader(dataset=dataset, sampler=sampler, batch_size=self.cfg.batch_size)
+            # for i, (inputs, targets) in enumerate(loader_dict[seed]):
+            #     with open(f'{self._root_dir}/{self.cfg.metric_cfg.file_prefix}_targets_pre_{self._round}_{seed}_{i}.json', 'w') as f:
+            #                 json.dump(targets.tolist(), f)
+
+
 
         return loader_dict
     
@@ -104,71 +116,7 @@ class FedstdevClient(BaseFlowerClient):
                 )
         specific_res = FedstdevStrategy.client_send_strategy(client_outs, result=result)
         return specific_res
-    
-    # def download(self, client_ins: fed_t.ClientIns) -> fed_t.RequestOutcome:
-    #     # Download initiates training. Is a blocking call without concurrency implementation
-    #     # TODO: implement the client receive strategy correctlt later
-    #     specific_ins = FedstdevStrategy.client_receive_strategy(client_ins)
-    #     # NOTE: Current implementation assumes state persistence between download and upload calls.
-    #     self._round = client_ins._round
-    #     param_dict = client_ins.params
-
-    #     match client_ins.request:
-    #         case fed_t.RequestType.NULL:
-    #             # Copy the model from the server
-    #             self._model.load_state_dict(param_dict)
-    #             return fed_t.RequestOutcome.COMPLETE
-    #         case fed_t.RequestType.TRAIN:
-    #             # Reset the optimizer
-    #             self._model.load_state_dict(param_dict)
-    #             self._optimizer = self.optim_partial(self._model.parameters())
-    #             for seed, model in self._model_map.items():
-    #                 model.load_state_dict(param_dict)
-    #                 self._optimizer_map[seed] = self.optim_partial(model.parameters())
-    #                 # self.res_man.log_parameters(self._model.state_dict(), 'post_agg', self._identifier, verbose=True)
-
-    #             self._train_result = self.train()
-    #             return fed_t.RequestOutcome.COMPLETE
-    #         case fed_t.RequestType.EVAL:
-    #             self._model.load_state_dict(param_dict)
-    #             self._eval_result = self.eval()
-    #             return fed_t.RequestOutcome.COMPLETE
-    #         case fed_t.RequestType.RESET:
-    #             # Reset the model to initial states
-    #             self._model.load_state_dict(self._init_state_dict)
-    #             return fed_t.RequestOutcome.COMPLETE
-    #         case _:
-    #             return fed_t.RequestOutcome.FAILED
-        
-
-
-    # def upload(self, request_type=fed_t.RequestType.NULL) -> fed_t.ClientResult1:
-    #     # Upload the model back to the server
-
-    #     match request_type:
-    #         case fed_t.RequestType.TRAIN:
-    #             self._model.to('cpu')
-    #             strategy_ins = FedstdevStrategy.FedstdevIns(
-    #                 client_params=self._model.state_dict(),
-    #                 client_param_stds=self._get_parameter_std_dev()
-    #             )
-    #             client_result = FedstdevStrategy.client_send_strategy(strategy_ins, result=self._train_result)
-    #             return client_result
-    #         case fed_t.RequestType.EVAL:
-    #             _result = self._eval_result
-    #             return fed_t.ClientResult1(
-    #                 params={},
-    #                 result=_result)
-    #         case _:
-    #             _result = fed_t.Result(actor=self._cid,
-    #                             _round=self._round,
-    #                             size=self.__len__())
-    #             self._model.to('cpu')
-    #             client_result = fed_t.ClientResult1(
-    #                 params=self.model.state_dict(keep_vars=False),
-    #                 result=_result)
-    #             return client_result
-            
+ 
 
     def _get_parameter_std_dev(self)->dict[str, Parameter]:
         return deepcopy(self._param_std)
@@ -227,11 +175,19 @@ class FedstdevClient(BaseFlowerClient):
         for metric, val in avg_metrics.items():
             avg_metrics[metric] = val / len(seed_results)
         
-        return fed_t.Result(metrics=avg_metrics, size=sample_res.size, metadata=sample_res.metadata,event=sample_res.event, phase=sample_res.phase, _round=self._round, actor=self._identifier)
+        return fed_t.Result(metrics=avg_metrics, size=sample_res.size, metadata=sample_res.metadata,event=sample_res.event, phase=sample_res.phase, _round=self._round, actor=self._cid)
     
     def train_single_thread(self, train_ins: ClientInProtocol) -> fed_t.Result:
+        # MAYBE THIS PART IS REDUNDANT
         self._model.load_state_dict(train_ins.server_params)
         self._optimizer = self.optim_partial(self._model.parameters())
+
+        # NOTE: It is important to reseed the generators here to ensure the tests pass across flower and non flower runs. Commenting for performance purposes
+        # self.train_loader_map = self._create_shuffled_loaders(self.training_set, self.cfg.seeds)
+        for seed, model in self._model_map.items():
+            model.load_state_dict(train_ins.server_params)
+            self._optimizer_map[seed] = self.optim_partial(model.parameters())
+
         # Run an round on the client
         empty_grads = {p_key: torch.empty_like(param.data, device=self.cfg.device) for p_key, param in self._model.named_parameters()}
 
@@ -242,10 +198,11 @@ class FedstdevClient(BaseFlowerClient):
         self._model.to(self.cfg.device)
 
         resume_epoch = 0
-        out_result= fed_t.Result()
+        # out_result= fed_t.Result()
         out_result_dict: dict[int, fed_t.Result] = {}
 
-        for seed, model in self._model_map.items():       
+        for seed, model in self._model_map.items():  
+            # logger.info(f'SEED: {seed}, STATE: {self._generator[seed].get_state()}')
             # set optimizer parameters
             # optimizer: Optimizer = self.optim_partial(model.parameters())
             optimizer: Optimizer = self._optimizer_map[seed]
@@ -254,7 +211,9 @@ class FedstdevClient(BaseFlowerClient):
             model.to(self.cfg.device)
             # iterate over epochs and then on the batches
             for epoch in range(resume_epoch, resume_epoch + self.cfg.epochs):
-                for inputs, targets in self.train_loader_map[seed]:
+                for i, (inputs, targets) in enumerate(self.train_loader_map[seed]):
+                    # with open(f'{self._root_dir}/{self.cfg.metric_cfg.file_prefix}_targets_{self._round}_{seed}_{i}.json', 'w') as f:
+                    #     json.dump(targets.tolist(), f)
 
                     inputs, targets = inputs.to(self.cfg.device), targets.to(self.cfg.device)
 
@@ -268,13 +227,7 @@ class FedstdevClient(BaseFlowerClient):
                         add_grad = 0 if param.grad is None else param.grad
                         self._cum_gradients_map[seed][p_key] = self._cum_gradients_map[seed].get(p_key, 0) + add_grad # type: ignore
 
-                    # ic(f'Grad values in loop {seed}:')
-                    # if not model.get_parameter(  'features.0.bias').grad is None:
-                    #     ic(model.get_parameter(  'features.0.bias').grad[0])
-                    #     ic(model.get_parameter('classifier.2.bias').grad[0])
-                    #     ic(model.get_parameter(  'features.3.bias').grad[0])
-                    #     ic(model.get_parameter('classifier.4.bias').grad[0])
-                    # accumulate metrics
+      
                     self.metric_mngr.track(loss.item(), outputs, targets)
                 else:
                     out_result_dict[seed] = self.metric_mngr.aggregate(len(self.training_set), epoch)
@@ -282,34 +235,8 @@ class FedstdevClient(BaseFlowerClient):
 
                 self._epoch = epoch
 
-          
-        
-            # ic(f'Grad values in loop per seed {seed}:')
-            # if not model.get_parameter(  'features.0.bias').grad is None:
-            #     ic(model.get_parameter(  'features.0.bias').grad[0])
-            #     ic(model.get_parameter('classifier.2.bias').grad[0])
-            #     ic(model.get_parameter(  'features.3.bias').grad[0])
-            #     ic(model.get_parameter('classifier.4.bias').grad[0])
-
-            # ic('In loop Param values:')
-            # ic(model.get_parameter(  'features.0.bias').data[0])
-            # ic(model.get_parameter('classifier.2.bias').data[0])
-            # ic(model.get_parameter(  'features.3.bias').data[0])
-            # ic(model.get_parameter('classifier.4.bias').data[0])
-
         self._compute_average_model_and_std(self._model_map)
-        
-        # ic('Param values:')
-        # ic(self._model.get_parameter(  'features.0.bias').data[0])
-        # ic(self._model.get_parameter('classifier.2.bias').data[0])
-        # ic(self._model.get_parameter(  'features.3.bias').data[0])
-        # ic(self._model.get_parameter('classifier.4.bias').data[0])
-
-        # ic('Grad values:')
-        # ic(self._model.get_parameter(  'features.0.bias').grad[0])
-        # ic(self._model.get_parameter('classifier.2.bias').grad[0])
-        # ic(self._model.get_parameter(  'features.3.bias').grad[0])
-        # ic(self._model.get_parameter('classifier.4.bias').grad[0])
+        out_result = self.aggregate_seed_results(out_result_dict)
  
         self._start_epoch = self._epoch + 1
 

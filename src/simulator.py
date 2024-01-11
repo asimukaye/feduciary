@@ -421,6 +421,7 @@ class Simulator:
 
         logger.info(f'[SIM MODE] : {self.sim_cfg.mode}')
         logger.info(f'[SERVER] : {self.cfg.server._target_.split(".")[-1]}')
+        logger.info(f'[STRATEGY] : {self.cfg.strategy._target_.split(".")[-1]}')
         logger.info(f'[CLIENT] : {self.cfg.client._target_.split(".")[-1]}')
 
         logger.info(f'[NUM ROUNDS] : {self.sim_cfg.num_rounds}')

@@ -32,8 +32,8 @@ def _save_pickle(obj, actor, out_prefix='', root='temp'):
         last_num = 0
 
     filename =  f'{root}/{out_prefix}{actor}_{last_num}.pickle'
-    with open(filename, 'ab') as handle:
-        pickle.dump(deepcopy(obj), handle, pickle.HIGHEST_PROTOCOL)
+    with open(filename, 'wb') as handle:
+        pickle.dump(obj, handle, pickle.HIGHEST_PROTOCOL)
 
 class MetricManager:
     """Lightweight class to compute metrics and log to pickle files. 
@@ -52,7 +52,9 @@ class MetricManager:
         self._actor = actor
         self._log_to_file = cfg.log_to_file
 
-        self._pmea_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+        # self._pmea_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+        self._pmea_dict = {}
+
         # Move it to a central directory creator to reduce overheads
         if cfg.log_to_file:
             # Hack to make the files visible in the project workspace
@@ -95,7 +97,7 @@ class MetricManager:
 
     def _add_metric(self, metric, event, phase, actor, value):
         # Metric addition of what metric, what contxt, when and who and what value
-        self._pmea_dict[phase][metric][event][actor] = value
+        self._pmea_dict[phase] = {metric: {event: {actor :value}}}
 
     def log_general_metric(self, metric_val, metric_name: str, actor: str, phase: str, event: str = ''):            
         if isinstance(metric_val, dict):

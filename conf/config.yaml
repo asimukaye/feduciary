@@ -3,10 +3,11 @@
 # Experiment mode: Switch between debug and experiment methods
 # mode: fedstdev_centralized
 # mode: base_centralized
-mode: debug
+mode: fedstdev
+# mode: debug
 # Description: A string to describe the intent of the run
 # desc: 'FedStdev centralized run with iid data, pilot run for centralized'
-desc: ' Fedstev centralized; one noisy, fixed sigma by mu logic'
+desc: ' Fedstev flower mode rerun'
 
 # desc: 'FedAvg rerun with fix delta normalize, iid, with delta_normalize'
 
@@ -21,43 +22,17 @@ defaults:
   
   - client: fedstdev
   # - client: base
+  # - client: baseflower
   # - train: base_trainer
   - _self_
 
 # CONFIG OVERRIDES
-# client:
-#   cfg:
-#     batch_size: 512
+client:
+  cfg:
+    batch_size: 128
 #     epochs: 1
-#     device: auto
-# client:
-#   _target_: src.client.baseflowerclient.BaseFlowerClient
-#   _partial_: true
-#   cfg:
-#     epochs: 5
-#     start_epoch: 0
-#     device: auto
-#     batch_size: 32
-#     lr: 0.01
-#     lr_decay: 0.977
-#     optimizer:
-#       _target_: torch.optim.SGD
-#       _partial_: true
-#       lr: ${client.cfg.lr}
-#     criterion:
-#       _target_: torch.nn.CrossEntropyLoss
-#     lr_scheduler:
-#       _target_: torch.optim.lr_scheduler.ExponentialLR
-#       _partial_: true
-#       gamma: ${client.cfg.lr_decay}
+    device: cuda
 
-#     shuffle: false
-#     metric_cfg:
-#       eval_metrics: ['acc1']
-#       file_prefix: ''
-#       log_to_file: false
-    # eval_metrics: ['acc1']
-    # file_prefix: ''
 # server:
 #   cfg:
 #     delta_normalize: false
@@ -75,8 +50,6 @@ server:
     eval_batch_size: 64
     eval_every: 1
   train_cfg: ${client.cfg}
-    # weighting_strategy: tanh
-    # weighting_strategy: tanh_sigma_by_mu
 # ########## OVERRIDES END HERE ##########
 
 simulator:
@@ -85,7 +58,7 @@ simulator:
   use_wandb: true
   save_csv: false
   out_prefix: ''
-  num_clients: 4
+  num_clients: 5
   num_rounds: 30
   checkpoint_every: 20
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized', 'flower'

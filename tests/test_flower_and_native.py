@@ -79,8 +79,6 @@ def test_flower_native_match():
 
     for value1, value2 in zip(result_flower.values(), result_feduciary.values()):
         if isinstance(value1, dict) and isinstance(value2, dict):
-            print(value1.keys())
-            print(value2.keys())
             assert value1.keys() ==value2.keys()
             
 

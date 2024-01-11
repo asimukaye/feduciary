@@ -127,6 +127,13 @@ class ClientConfig:
         assert self.batch_size >= 1
         if self.device == 'auto':
             if cuda.is_available():
+                        # Set visible GPUs
+                #TODO: MAke the gpu configurable
+                gpu_ids = get_free_gpus()
+                # logger.info('Selected GPUs:')
+                logger.info('Selected GPUs:'+",".join(map(str, gpu_ids)) )
+                os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, gpu_ids))
+
                 if cuda.device_count() > 1:
                     self.device = f'cuda:{get_free_gpu()}'
                 else:
@@ -371,12 +378,6 @@ class Config():
         # if self.dataset.use_model_tokenizer or self.dataset.use_pt_model:
         #     assert self.model.name in ['DistilBert', 'SqueezeBert', 'MobileBert'], 'Please specify a proper model!'
 
-        # Set visible GPUs
-        #TODO: MAke the gpu configurable
-        gpu_ids = get_free_gpus()
-        # logger.info('Selected GPUs:')
-        logger.info('Selected GPUs:'+",".join(map(str, gpu_ids)) )
-        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, gpu_ids))
 
         flat_cfg = json_normalize(asdict(self))
         if not all(arg in flat_cfg for arg in self.log_conf):
@@ -394,13 +395,15 @@ def set_debug_mode(cfg: Config):
     cfg.simulator.save_csv = True
 
     logger.debug(f'[Debug Override] Setting use_wandb to: {cfg.simulator.use_wandb}')
-    cfg.simulator.num_rounds = 3
+    cfg.simulator.num_rounds = 2
     logger.debug(f'[Debug Override] Setting rounds to: {cfg.simulator.num_rounds}')
     cfg.client.cfg.epochs = 1
     logger.debug(f'[Debug Override] Setting epochs to: {cfg.client.cfg.epochs}')
 
-    # cfg.simulator.num_clients = 3
-    # cfg.dataset.num_clients = 3
+    cfg.simulator.num_clients = 3
+    cfg.dataset.split_conf.num_splits = 3
+    if hasattr(cfg.strategy.cfg, 'num_clients'):
+        cfg.strategy.cfg.num_clients = 3
     logger.debug(f'[Debug Override] Setting num clients to: {cfg.simulator.num_clients}')
     
     cfg.dataset.subsample = True

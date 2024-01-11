@@ -297,6 +297,7 @@ class ResultManager:
     def read_client_pickles(self, root: str = 'temp') -> dict[str, dict]:
         # Read the pickles from the client directories and return a dictionary of the results
         #TODO: COmplete the implementation
+        #TODO: Make this function more robust
         if not os.path.exists(root):
             return {}
         client_dirs = os.listdir(root)
