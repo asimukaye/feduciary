@@ -3,54 +3,22 @@
 # Experiment mode: Switch between debug and experiment methods
 # mode: fedstdev_centralized
 # mode: base_centralized
-mode: fedstdev
-# mode: debug
-# Description: A string to describe the intent of the run
-# desc: 'FedStdev centralized run with iid data, pilot run for centralized'
+# mode: fedstdev
+mode: debug
 desc: ' Fedstev flower mode rerun'
-
-# desc: 'FedAvg rerun with fix delta normalize, iid, with delta_normalize'
 
 defaults:
   - base_config
   - hydra: custom
-  # - server: fedstdev
-  # - server: fedavg
-  # - strategy/cfg: base_strategy
-  - strategy/cfg: fedstdev_strategy
+  - server: baseflower
+  # - strategy: base
+  - strategy: fedstdev
 
-  
   - client: fedstdev
   # - client: base
   # - client: baseflower
   # - train: base_trainer
   - _self_
-
-# CONFIG OVERRIDES
-client:
-  cfg:
-    batch_size: 128
-#     epochs: 1
-    device: cuda
-
-# server:
-#   cfg:
-#     delta_normalize: false
-
-server:
-  _target_: src.server.baseflowerserver.BaseFlowerServer
-  _partial_: true
-  cfg:
-    sampling_fraction: 1.0
-    # server_lr: 1.0
-    # update_rule: param_average
-    rounds: ${simulator.num_rounds}
-    eval_type: both
-    eval_fraction: 1.0
-    eval_batch_size: 64
-    eval_every: 1
-  train_cfg: ${client.cfg}
-# ########## OVERRIDES END HERE ##########
 
 simulator:
   seed: 42
@@ -61,13 +29,37 @@ simulator:
   num_clients: 5
   num_rounds: 30
   checkpoint_every: 20
+  eval_type: both
+  eval_every: 1
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized', 'flower'
   # mode: centralized
-  # mode: federated
-  mode: flower 
+  mode: federated
+  # mode: flower 
   flwr_resources:
     num_cpus: 2
     num_gpus: 0.2 #TODO: Couple this with device init
+
+train_cfg:
+  epochs: 5
+  device: auto
+  batch_size: 128
+  eval_batch_size: 256
+  lr: 0.01
+  lr_decay: 0.977
+  optimizer:
+    _target_: torch.optim.SGD
+    _partial_: true
+    lr: ${train_cfg.lr}
+  criterion:
+    _target_: torch.nn.CrossEntropyLoss
+  lr_scheduler:
+    _target_: torch.optim.lr_scheduler.ExponentialLR
+    _partial_: true
+    gamma: ${train_cfg.lr_decay}
+  metric_cfg:
+    eval_metrics: ['acc1']
+    file_prefix: ''
+    log_to_file: false
 
 
 dataset:
@@ -95,51 +87,7 @@ dataset:
       mu: 0.0
       sigma: 0.5
       flip_percent: 1.0
-  
 
-# strategy:
-#   _target_: src.strategy.basestrategy.BaseStrategy
-#   # _partial_: true
-#   cfg:
-#     train_fraction: 1.0
-#     eval_fraction: 1.0
-  
-
-strategy:
-  _target_: src.strategy.fedstdevstrategy.FedstdevStrategy
-  # _partial_: true
-  cfg:
-    train_fraction: 1.0
-    eval_fraction: 1.0
-    betas:
-      - 1e3
-      - 1e3
-      - 1e4
-      - 1e3
-      - 1e4
-      - 1e3
-      - 1e3
-      - 1e3
-    alpha: 1e-8
-    num_clients: ${simulator.num_clients}
-    weighting_strategy: tanh
-
-# train_cfg:
-  # epochs: 5
-  # device: auto
-  # batch_size: 32
-  # lr: 0.01
-  # lr_decay: 0.977
-  # optimizer:
-  #   _target_: torch.optim.SGD
-  #   _partial_: true
-  #   lr: ${client.cfg.lr}
-  # criterion:
-  #   _target_: torch.nn.CrossEntropyLoss
-  # lr_scheduler:
-  #   _target_: torch.optim.lr_scheduler.ExponentialLR
-  #   _partial_: true
-  #   gamma: ${client.cfg.lr_decay}
 
 model:
   name: TwoCNN
@@ -155,6 +103,21 @@ model:
     num_classes: null 
 
 
+# CONFIG OVERRIDES
+# client:
+#   train_cfg:
+# #     epochs: 1
+#     device: auto
+
+# server:
+  # _target_: src.server.baseflowerserver.BaseFlowerServer
+  # _partial_: true
+  # cfg:
+  #   eval_every: 1
+  #   eval_type: 1
+  #   # server_lr: 1.0
+  # train_cfg: ${train_cfg}
+# ########## OVERRIDES END HERE ##########
 # Log Configuration: Additional configurations to be copied in the results summary section. Must be a valid configuration from the config tree.
 log_conf: []
 

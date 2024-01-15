@@ -21,7 +21,7 @@ from src.common.utils import (log_tqdm,
                               convert_param_dict_to_ndarray,
                               convert_ndarrays_to_param_dict,
                               get_time)
-from src.config import ClientConfig, get_free_gpu
+from src.config import ClientConfig, get_free_gpu, TrainConfig
 from src.client.abcclient import ABCClient
 from src.results.resultmanager import ResultManager
 import src.common.typing as fed_t
@@ -103,7 +103,7 @@ def set_parameters(net: Module, parameters: list[np.ndarray]):
 
 def model_eval_helper(model: Module,
                       dataloader: DataLoader,
-                      cfg: ClientConfig,
+                      cfg: TrainConfig,
                       mm: MetricManager,
                       round: int) -> fed_t.Result:
 
@@ -136,6 +136,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
     """
     def __init__(self,
                  cfg: ClientConfig,
+                 train_cfg: TrainConfig,
                  client_id: str,
                  dataset: tuple,
                  model: Module
@@ -155,18 +156,19 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
 
         #NOTE: IMPORTANT: Make sure to deepcopy the config in every child class
         self.cfg = deepcopy(cfg)
+        self.train_cfg = deepcopy(train_cfg)
 
         self.training_set = dataset[0]
         self.test_set = dataset[1]
 
         
-        self.metric_mngr = MetricManager(self.cfg.metric_cfg, self._round, actor=self._cid)
-        # self.optim_partial: functools.partial = instantiate(self.cfg.optimizer)
-        self.optim_partial: functools.partial = self.cfg.optimizer
+        self.metric_mngr = MetricManager(self.train_cfg.metric_cfg, self._round, actor=self._cid)
+        # self.optim_partial: functools.partial = instantiate(self.train_cfg.optimizer)
+        self.optim_partial: functools.partial = self.train_cfg.optimizer
 
-        self.criterion = self.cfg.criterion
+        self.criterion = self.train_cfg.criterion
 
-        self.train_loader = self._create_dataloader(self.training_set, shuffle=cfg.shuffle)
+        self.train_loader = self._create_dataloader(self.training_set, shuffle=cfg.data_shuffle)
         self.test_loader = self._create_dataloader(self.test_set, shuffle=False)
         self._optimizer: Optimizer = self.optim_partial(self._model.parameters())
 
@@ -188,7 +190,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         self._model = model
     
     def set_lr(self, lr:float) -> None:
-        self.cfg.lr = lr
+        self.train_cfg.lr = lr
 
     # @property
     # def round(self)-> int:
@@ -205,9 +207,9 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         self._model.load_state_dict(self._init_state_dict)
         
     def _create_dataloader(self, dataset, shuffle:bool)->DataLoader:
-        if self.cfg.batch_size == 0 :
-            self.cfg.batch_size = len(self.training_set)
-        return DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, shuffle=shuffle)
+        if self.train_cfg.batch_size == 0 :
+            self.train_cfg.batch_size = len(self.training_set)
+        return DataLoader(dataset=dataset, batch_size=self.train_cfg.batch_size, shuffle=shuffle)
     
     # def _fill_result_metadata(result = fed_t.Result)
     def unpack_train_input(self, client_ins: fed_t.ClientIns) -> ClientInProtocol:
@@ -282,14 +284,14 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         self._optimizer = self.optim_partial(self._model.parameters())
         self.metric_mngr._round = self._round
         self._model.train()
-        self._model.to(self.cfg.device)
+        self._model.to(self.train_cfg.device)
 
         resume_epoch = 0
         out_result = fed_t.Result()
         # iterate over epochs and then on the batches
-        for epoch in log_tqdm(range(resume_epoch, resume_epoch + self.cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):
+        for epoch in log_tqdm(range(resume_epoch, resume_epoch + self.train_cfg.epochs), logger=logger, desc=f'Client {self.id} updating: '):
             for inputs, targets in self.train_loader:
-                inputs, targets = inputs.to(self.cfg.device), targets.to(self.cfg.device)
+                inputs, targets = inputs.to(self.train_cfg.device), targets.to(self.train_cfg.device)
 
                 self._model.zero_grad(set_to_none=True)
 
@@ -320,7 +322,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
     @torch.no_grad()
     def eval(self, eval_ins = None) -> fed_t.Result:
         # Run evaluation on the client
-        self._eval_result = model_eval_helper(self._model, self.test_loader, self.cfg, self.metric_mngr, self._round)
+        self._eval_result = model_eval_helper(self._model, self.test_loader, self.train_cfg, self.metric_mngr, self._round)
         return self._eval_result
 
     def save_checkpoint(self, epoch=0):

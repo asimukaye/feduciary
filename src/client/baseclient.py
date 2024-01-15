@@ -8,16 +8,17 @@ from torch import Tensor
 import logging
 from src.metrics.metricmanager import MetricManager
 from src.common.utils import log_tqdm
-from src.config import ClientConfig
+from src.config import ClientConfig, TrainConfig
 from src.results.resultmanager import ResultManager
 import src.common.typing as fed_t
+from src.client.abcclient import ABCClient
 
 logger = logging.getLogger(__name__)
 
-
+#FIXME: Fix the implementation issues with the base client
 def model_eval_helper(model: Module,
                       dataloader: DataLoader,
-                      cfg: ClientConfig,
+                      cfg: TrainConfig,
                       mm: MetricManager,
                       round: int)->fed_t.Result:
     # mm = MetricManager(cfg.eval_metrics, round, actor)
@@ -37,10 +38,10 @@ def model_eval_helper(model: Module,
     return result
 
 
-class BaseClient:
+class BaseClient(ABCClient):
     """Class for client object having its own (private) data and resources to train a model.
     """
-    def __init__(self, cfg: ClientConfig, client_id: str, dataset: tuple, model: Module, res_man: ResultManager = None):
+    def __init__(self, cfg: ClientConfig,train_cfg: TrainConfig, client_id: str, dataset: tuple, model: Module):
         self._cid = client_id 
         # self._cid: str = f'{id_seed:04}' # potential to convert to hash
         self._model: Module = model
@@ -55,6 +56,8 @@ class BaseClient:
 
         #NOTE: IMPORTANT: Make sure to deepcopy the config in every child class
         self.cfg = deepcopy(cfg)
+        self.train_cfg = deepcopy(train_cfg)
+
         self.training_set = dataset[0]
         self.test_set = dataset[1]
 
@@ -82,7 +85,7 @@ class BaseClient:
         self._model = model
     
     def set_lr(self, lr:float) -> None:
-        self.cfg.lr = lr
+        self.train_cfg.lr = lr
 
     @property
     def round(self)->int:

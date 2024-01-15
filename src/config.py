@@ -17,7 +17,7 @@ import logging
 import inspect
 logger = logging.getLogger(__name__)
 
-def arg_check(args: dict, fn:str|None = None):
+def arg_check(args: dict, fn:str|None = None): # type: ignore
     # Figure out usage with string functions
     # Check if the argument spec is compatible with
     if fn is None:
@@ -58,7 +58,7 @@ def get_free_gpu():
     # print('GPU usage:\n{}'.format(gpu_df))
     gpu_df['memory.free'] = gpu_df['memory.free'].map(lambda x: int(x.rstrip(' [MiB]')))
     idx = gpu_df['memory.free'].idxmax()
-    logger.debug('Returning GPU:{} with {} free MiB'.format(idx, gpu_df.iloc[idx]['memory.free']))
+    logger.debug('Returning GPU:{} with {} free MiB'.format(idx, gpu_df.iloc[idx]['memory.free'])) # type: ignore
     return idx
 
 ########## Simulator Configurations ##########
@@ -82,6 +82,8 @@ class SimConfig:
     checkpoint_every: int = field(default=10)
     out_prefix: str = field(default='')
     # plot_every: int = field(default=10)
+    eval_every: int = field(default=1)
+    eval_type: str = field(default='both')
     mode: str = field(default='federated')
     # flower: Optional[FlowerConfig]
     flwr_resources: dict = field(default_factory=default_resources)
@@ -92,8 +94,7 @@ class SimConfig:
         assert (self.use_tensorboard or self.use_wandb or self.save_csv), f'Select any one logging method atleast to avoid losing results'
 
 
-########## Client Configurations ##########
-
+########## Training Configurations ##########
 @dataclass
 class MetricConfig:
     eval_metrics: list
@@ -104,26 +105,22 @@ class MetricConfig:
     def __post_init__(self):
         self.cwd = os.getcwd() if self.cwd is None else self.cwd
 
+########## Client Configurations ##########
+
 @dataclass
-class ClientConfig:
+class TrainConfig:
     epochs: int = field()
-    start_epoch: int = field()
     device: str = field()
     batch_size: int = field()
+    eval_batch_size: int = field()
     optimizer: dict = field()
     criterion: dict = field()
     lr: float = field()         # Client LR is optional
     lr_scheduler: Optional[dict] = field()
     lr_decay: Optional[float] = field()
     metric_cfg: MetricConfig = field()
-    shuffle: bool = field(default=False)
-    # eval_metrics: list = field(default_factory=list)
-    # file_prefix: str = field(default='')
-    
+
     def __post_init__(self):
-        # if self.device =='cuda':
-        
-        #     assert cuda.is_available(), 'Please check if your GPU is available !' 
         assert self.batch_size >= 1
         if self.device == 'auto':
             if cuda.is_available():
@@ -146,45 +143,13 @@ class ClientConfig:
             logger.info(f'Auto Configured device to: {self.device}')
         if self.lr_scheduler:
             arg_check(self.lr_scheduler)
-
         arg_check(self.optimizer)
 
-# Configs used by the server 
+
 @dataclass
-class TrainConfig:
-    epochs: int = field()
-    device: str = field()
-    batch_size: int = field()
-    optimizer: dict = field()
-    criterion: dict = field()
-    lr: float = field()         # Client LR is optional
-    lr_scheduler: Optional[dict] = field()
-    lr_decay: Optional[float] = field()
-    shuffle: bool = field(default=False)
-    eval_metrics: list = field(default_factory=list)
-    
-    def __post_init__(self):
-        # if self.device =='cuda':
-        #     assert cuda.is_available(), 'Please check if your GPU is available !' 
-        assert self.batch_size >= 1
-        if self.device == 'auto':
-            if cuda.is_available():
-                if cuda.device_count() > 1:
-                    self.device = f'cuda:{get_free_gpu()}'
-                else:
-                    self.device = 'cuda'
-
-            elif mps.is_available():
-                self.device = 'mps'
-            else:
-                self.device = 'cpu'
-            logger.info(f'Auto Configured device to: {self.device}')
-
-        if self.lr_scheduler:
-            arg_check(self.lr_scheduler)
-
-        arg_check(self.optimizer)
-
+class ClientConfig:
+    start_epoch: int = field(default=0)
+    data_shuffle: bool = field(default=False)
 
 def default_seed():
     return [1,2,3]
@@ -193,35 +158,40 @@ def default_seed():
 class FedstdevClientConfig(ClientConfig):
     seeds: list[int] = field(default_factory=default_seed)
     client_ids: list[str] = field(default_factory=list)
-    def __post_init__(self):
-        super().__post_init__()
+    # def __post_init__(self):
+    #     super().__post_init__()
 
 @dataclass
 class ClientSchema:
     _target_: str
     _partial_: bool
     cfg: ClientConfig
+    train_cfg: TrainConfig
 
 ########## Server Configurations ##########
 @dataclass
 class ServerConfig:
     eval_type: str  = field(default='both')
-    eval_fraction: float  = field(default=1.0)
+    # eval_fraction: float  = field(default=1.0)
     eval_every: int  = field(default=1)
-    eval_batch_size: int = field(default=64)
-    sampling_fraction: float = field(default=1.0)
-    rounds: int = 1
+    # eval_batch_size: int = field(default=64)
+    # sampling_fraction: float = field(default=1.0)
+    # rounds: int = 1
     # multiprocessing: bool = False
 
-    def __post_init__(self):
-        assert self.sampling_fraction == Range(0.0, 1.0), f'Invalid value {self.sampling_fraction} for sampling fraction'
-        assert self.eval_fraction == Range(0., 1.0)
-        assert self.eval_type == 'both' # Remove later
+    # def __post_init__(self):
+    #     assert self.sampling_fraction == Range(0.0, 1.0), f'Invalid value {self.sampling_fraction} for sampling fraction'
+    #     assert self.eval_fraction == Range(0., 1.0)
+    #     assert self.eval_type == 'both' # Remove later
 
+########### Strategy Configurations ##########
 @dataclass
 class StrategyConfig:
     train_fraction: float
     eval_fraction: float
+    def __post_init__(self):
+        assert self.train_fraction == Range(0.0, 1.0), f'Invalid value {self.train_fraction} for sampling fraction'
+        assert self.eval_fraction == Range(0., 1.0)
 
 
 @dataclass
@@ -233,7 +203,7 @@ class FedstdevConfig(StrategyConfig):
     num_clients: int
 
 @dataclass
-class CGSVConfig(ServerConfig):
+class CGSVConfig(StrategyConfig):
     beta: float = 1.5
     alpha: float = 0.95
     gamma: float = 0.5
@@ -244,7 +214,7 @@ class CGSVConfig(ServerConfig):
         
 
 @dataclass
-class FedavgConfig(ServerConfig):
+class FedavgConfig(StrategyConfig):
     momentum: Optional[float] = float('nan')
     update_rule: str = field(default='param_average')
     delta_normalize: bool = False
@@ -259,24 +229,11 @@ class FedavgConfig(ServerConfig):
 
 
 @dataclass
-class FedstdevServerConfig(ServerConfig):
-    alpha: float = 0.95
-    gamma: float = 0.5
-    betas: list = field(default_factory=list)
-    weighting_strategy: str = field(default='tanh')
-    delta_normalize: bool = False
-    
-    def __post_init__(self):
-        # super().__post_init__()
-        assert self.weighting_strategy in ['tanh', 'min_max', 'tanh_sigma_by_mu'], 'Incorrect weight scaling type'
-        
-
-@dataclass
 class ServerSchema:
     _target_: str
     _partial_: bool 
     cfg: ServerConfig
-    train_cfg: ClientConfig
+    train_cfg: TrainConfig
 
 @dataclass
 class StrategySchema:
@@ -284,7 +241,7 @@ class StrategySchema:
     # _partial_: bool
     cfg: StrategyConfig
 
-########## Other configurataions ##########
+########## Dataset configurataions ##########
 
 @dataclass
 class TransformsConfig:
@@ -336,6 +293,7 @@ class DatasetConfig:
         # assert self.test_fraction == Range(0.0, 1.0), f'Invalid value {self.test_fraction} for test fraction'
         self.data_path = to_absolute_path(self.data_path)
 
+########## Model Configurations ##########
 @dataclass
 class ModelSpecConfig:
     _target_: str
@@ -368,6 +326,8 @@ class Config():
     server: ServerSchema = field()
     strategy: StrategySchema = field()
     client: ClientSchema = field()
+    train_cfg: TrainConfig = field()
+
     dataset: DatasetConfig = field()
     model: ModelConfig = field()
     log_conf: list = field(default_factory=list)
@@ -378,7 +338,6 @@ class Config():
         # if self.dataset.use_model_tokenizer or self.dataset.use_pt_model:
         #     assert self.model.name in ['DistilBert', 'SqueezeBert', 'MobileBert'], 'Please specify a proper model!'
 
-
         flat_cfg = json_normalize(asdict(self))
         if not all(arg in flat_cfg for arg in self.log_conf):
             raise(KeyError(f'Recheck the keys set in log_conf: {self.log_conf}'))
@@ -386,7 +345,7 @@ class Config():
             set_debug_mode(self)
 
 
-
+########## Debug Configurations ##########
 def set_debug_mode(cfg: Config):
     '''Debug mode overrides to the configuration object'''
     logger.root.setLevel(logging.DEBUG)
@@ -397,13 +356,13 @@ def set_debug_mode(cfg: Config):
     logger.debug(f'[Debug Override] Setting use_wandb to: {cfg.simulator.use_wandb}')
     cfg.simulator.num_rounds = 2
     logger.debug(f'[Debug Override] Setting rounds to: {cfg.simulator.num_rounds}')
-    cfg.client.cfg.epochs = 1
-    logger.debug(f'[Debug Override] Setting epochs to: {cfg.client.cfg.epochs}')
+    cfg.client.train_cfg.epochs = 1
+    logger.debug(f'[Debug Override] Setting epochs to: {cfg.client.train_cfg.epochs}')
 
     cfg.simulator.num_clients = 3
     cfg.dataset.split_conf.num_splits = 3
     if hasattr(cfg.strategy.cfg, 'num_clients'):
-        cfg.strategy.cfg.num_clients = 3
+        cfg.strategy.cfg.num_clients = 3 # type: ignore
     logger.debug(f'[Debug Override] Setting num clients to: {cfg.simulator.num_clients}')
     
     cfg.dataset.subsample = True
@@ -417,10 +376,15 @@ def register_configs():
     cs.store(group='client', name='client_schema', node=ClientSchema)
     cs.store(group='client/cfg', name='base_client', node=ClientConfig)
     cs.store(group='server', name='base_server', node=ServerSchema)
-    cs.store(group='server/cfg', name='base_cgsv', node=CGSVConfig)
+    cs.store(group='server', name='base_flower_server', node=ServerSchema)
+
+    cs.store(group='train_cfg', name='base_train', node=TrainConfig)
+
+
+    cs.store(group='strategy/cfg', name='base_cgsv', node=CGSVConfig)
     cs.store(group='strategy', name='strategy_schema', node=StrategySchema)
     cs.store(group='strategy/cfg', name='base_strategy', node=StrategyConfig)
     cs.store(group='strategy/cfg', name='fedstdev_strategy', node=FedstdevConfig)
-    cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
-    cs.store(group='server/cfg', name='fedstdev_server', node=FedstdevServerConfig)
+    # cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
+    # cs.store(group='server/cfg', name='fedstdev_server', node=FedstdevServerConfig)
     cs.store(group='client/cfg', name='fedstdev_client', node=FedstdevClientConfig)

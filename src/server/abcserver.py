@@ -46,16 +46,6 @@ class ABCServer(ABC):
                  dataset: Dataset,
                  result_manager: ResultManager):
         pass
-        # self.model = model
-        # self.clients = clients
-        # self.num_clients = len(self.clients)
-        # self.strategy = strategy
-        # self.cfg = cfg
-        # self.train_cfg = train_cfg
-        # self.server_dataset = dataset
-        # self.metric_manager = MetricManager(train_cfg.eval_metrics, 0, 'server')
-        # if result_manager:
-        #     self.result_manager = result_manager
 
     
     @abstractmethod

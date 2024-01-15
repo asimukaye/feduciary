@@ -1,0 +1,21 @@
+defaults:
+  - 'strategy_schema'
+  - cfg: fedstdev_strategy
+  - _self_
+
+_target_: src.strategy.fedstdevstrategy.FedstdevStrategy
+cfg:
+  train_fraction: 1.0
+  eval_fraction: 1.0
+  betas:
+    - 1e3
+    - 1e3
+    - 1e4
+    - 1e3
+    - 1e4
+    - 1e3
+    - 1e3
+    - 1e3
+  alpha: 1e-8
+  num_clients: ${simulator.num_clients}
+  weighting_strategy: tanh

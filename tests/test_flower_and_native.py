@@ -27,8 +27,8 @@ def set_test_params(cfg: Config):
     cfg.simulator.save_csv = False
     cfg.simulator.num_rounds = 2
 
-    cfg.client.cfg.epochs = 1
-    cfg.client.cfg.metric_cfg.log_to_file = True
+    cfg.client.train_cfg.epochs = 1
+    cfg.client.train_cfg.metric_cfg.log_to_file = True
 
     cfg.simulator.num_clients = 2
     cfg.dataset.split_conf.num_splits = 2
@@ -54,8 +54,8 @@ def test_flower_native_match():
     flower_cfg.simulator.out_prefix = 'flower_'
     fed_cfg.simulator.out_prefix = 'fed_'
 
-    flower_cfg.client.cfg.metric_cfg.file_prefix = 'flower_'
-    fed_cfg.client.cfg.metric_cfg.file_prefix = 'fed_'
+    flower_cfg.client.train_cfg.metric_cfg.file_prefix = 'flower_'
+    fed_cfg.client.train_cfg.metric_cfg.file_prefix = 'fed_'
 
     flower_cfg.server.train_cfg.metric_cfg.file_prefix = 'flower_'
     fed_cfg.server.train_cfg.metric_cfg.file_prefix = 'fed_'

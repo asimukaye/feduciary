@@ -20,15 +20,15 @@ import flwr as fl
 #FIXME: Eventually everything should also work with the base server and base server. Merge once the first logical tests pass for flower
 # from src.server.baseserver import BaseServer
 from src.server.baseflowerserver import BaseFlowerServer
-from src.server.fedstdevserver import FedstdevClient, FedstdevOptimizer
+# from src.server.fedstdevserver import FedstdevClient, FedstdevOptimizer
 # from src.client.baseclient import BaseClient, model_eval_helper
 from src.client.baseflowerclient import BaseFlowerClient, model_eval_helper
 
 from src.data import load_vision_dataset
 from src.split import get_client_datasets, NoisySubset, LabelFlippedSubset
-from src.config import Config, SimConfig, FedstdevServerConfig, ClientSchema
+from src.config import Config, SimConfig, ClientSchema
 from src.common.utils  import log_tqdm, log_instance, generate_client_ids
-from results.postprocess import post_process
+from src.results.postprocess import post_process
 from src.models.model import init_model
 from src.results.resultmanager import ResultManager
 from src.metrics.metricmanager import MetricManager
@@ -167,13 +167,13 @@ def run_flower_simulation(cfg: Config,
         client_datasets_map[cid] = dataset
 
     if torch.cuda.is_available():
-        cfg.client.cfg.device = 'cuda:0'
+        cfg.client.train_cfg.device = 'cuda:0'
         cfg.server.train_cfg.device = 'cuda:0'
     elif mps.is_available():
-        cfg.client.cfg.device = 'mps'
+        cfg.client.train_cfg.device = 'mps'
         cfg.server.train_cfg.device = 'mps'
     else:
-        cfg.client.cfg.device = 'cpu'
+        cfg.client.train_cfg.device = 'cpu'
         cfg.server.train_cfg.device = 'cpu'
 
     result_manager = ResultManager(cfg.simulator, logger=logger)
@@ -195,7 +195,9 @@ def run_flower_simulation(cfg: Config,
     # Flower simulation arguments
     # runtime_env = {"env_vars": {"CUDA_VISIBLE_DEVICES": ",".join(map(str, gpu_ids))}}
     runtime_env = {}
-    runtime_env['working_dir'] = "/home/asim.ukaye/fed_learning/feduciary/"
+    # runtime_env['working_dir'] = "/home/asim.ukaye/fed_learning/feduciary/"
+    runtime_env['working_dir'] = os.getcwd()
+
 
     fl.simulation.start_simulation(
         strategy=server,
@@ -234,9 +236,9 @@ def run_federated_simulation(cfg: Config,
     # HACK: Fixing batch size for imbalanced client case
     # FIXME: Formalize this later
     if cfg.dataset.split_conf.split_type == 'one_imbalanced_client':
-        clients['0000'].cfg.batch_size = int(clients['0000'].cfg.batch_size/2)
+        clients['0000'].train_cfg.batch_size = int(clients['0000'].train_cfg.batch_size/2)
         for cid, cl in clients.items():
-            logger.debug(f'[BATCH SIZES:] CID: {cid}, batch size: {cl.cfg.batch_size}')
+            logger.debug(f'[BATCH SIZES:] CID: {cid}, batch size: {cl.train_cfg.batch_size}')
 
     # all_client_ids = list(clients.keys())
     # NOTE: later, consider making a copy of client to avoid simultaneous edits to clients dictionary
@@ -263,7 +265,7 @@ def run_federated_simulation(cfg: Config,
         update_ids = server.update(all_client_ids)
 
         ## evaluate on clients not sampled (for measuring generalization performance)
-        if curr_round % cfg.server.cfg.eval_every == 0:
+        if curr_round % cfg.simulator.eval_every == 0:
             # Can have specific evaluations later
             eval_ids = all_client_ids
             server.server_eval()
@@ -329,9 +331,9 @@ def run_centralized_simulation(cfg: Config,
         params = trainer.upload()
         result_manager.log_parameters(params, 'post_train', 'sim', verbose=True)
 
-        param_stdev = trainer.get_parameter_std_dev()
-        grad_stdev = trainer.get_gradients_std_dev()
-        grad_mu = trainer.get_gradients_average()
+        param_stdev = trainer._get_parameter_std_dev()
+        grad_stdev = trainer._get_gradients_std_dev()
+        grad_mu = trainer._get_gradients_average()
 
 
         param_sigma_by_mu = FedstdevOptimizer._compute_sigma_by_mu(param_stdev, params)

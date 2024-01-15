@@ -11,7 +11,7 @@ from torch import Tensor
 import logging
 from src.metrics.metricmanager import MetricManager
 from src.common.utils import log_tqdm
-from src.config import ClientConfig
+from src.config import ClientConfig, TrainConfig
 from src.results.resultmanager import ResultManager
 import src.common.typing as fed_t
 logger = logging.getLogger(__name__)
@@ -21,53 +21,41 @@ logger = logging.getLogger(__name__)
 class ABCClient(ABC):
     """Class for client object having its own (private) data and resources to train a model.
     """
+
     def __init__(self,
                  cfg: ClientConfig,
+                 train_cfg: TrainConfig,
                  client_id: str,
                  dataset: tuple,
                  model: Module): 
         
         self._cid = client_id 
-        # self._cid: str = f'{id_seed:04}' # potential to convert to hash
         self._model = model
 
-        self._init_state_dict: dict = model.state_dict()
+        # self._init_state_dict: dict = model.state_dict()
 
-        # self._round = 0
-        # self._epoch = 0
-        # self._start_epoch = 0
-        # self._is_resumed = False
-
-        #NOTE: IMPORTANT: Make sure to deepcopy the config in every child class
+        # #NOTE: IMPORTANT: Make sure to deepcopy the config in every child class
         self.cfg = deepcopy(cfg)
+        self.train_cfg = deepcopy(train_cfg)
+
         self.training_set = dataset[0]
         self.test_set = dataset[1]
 
-        
-        # self.metric_mngr = MetricManager(self.cfg.metric_cfg, self._round, actor=self._cid)
-        # self.optim_partial: functools.partial = self.cfg.optimizer
-        # self.criterion = self.cfg.criterion
 
-        # self.train_loader = self._create_dataloader(self.training_set, shuffle=cfg.shuffle)
-        # self.test_loader = self._create_dataloader(self.test_set, shuffle=False)
-        # self._optimizer: Optimizer = self.optim_partial(self._model.parameters())
+    # @property
+    # def id(self)->str:
+    #     return self._cid
 
-        # self._debug_param: Tensor = None
-
-    @property
-    def id(self)->str:
-        return self._cid
-
-    @property
-    def model(self)-> Module:
-        return self._model
+    # @property
+    # def model(self)-> Module:
+    #     return self._model
     
-    # @model.setter
-    def set_model(self, model: Module):
-        self._model = model
+    # # @model.setter
+    # def set_model(self, model: Module):
+    #     self._model = model
     
-    def set_lr(self, lr:float) -> None:
-        self.cfg.lr = lr
+    # def set_lr(self, lr:float) -> None:
+    #     self.train_cfg.lr = lr
 
     # @property
     # def _round(self)->int:
@@ -76,17 +64,21 @@ class ABCClient(ABC):
     # def _round(self, value: int):
     #     self._round = value
     
-    @property
-    def epoch(self)->int:
-        return self._epoch
-    @epoch.setter
-    def epoch(self, value: int):
-        self._epoch = value
+    # @property
+    # def epoch(self)->int:
+    #     return self._epoch
+    # @epoch.setter
+    # def epoch(self, value: int):
+    #     self._epoch = value
     
+    # def _create_dataloader(self, dataset, shuffle:bool)->DataLoader:
+    #     if self.train_cfg.batch_size == 0 :
+    #         self.train_cfg.batch_size = len(self.training_set)
+    #     return DataLoader(dataset=dataset, batch_size=self.train_cfg.batch_size, shuffle=shuffle)
+    
+    @abstractmethod
     def _create_dataloader(self, dataset, shuffle:bool)->DataLoader:
-        if self.cfg.batch_size == 0 :
-            self.cfg.batch_size = len(self.training_set)
-        return DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, shuffle=shuffle)
+        pass
     
     @dataclass
     class ClientInProtocol:
@@ -137,6 +129,6 @@ class ABCClient(ABC):
         return len(self.training_set)
 
     def __repr__(self):
-        return f'CLIENT < {self.id:03} >'
+        return f'CLIENT < {self._cid:03} >'
     
 

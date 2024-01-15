@@ -142,11 +142,11 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
                         client: BaseFlowerClient,
                         request_type: fed_t.RequestType,
                         _round=-1) -> fed_t.RequestOutcome:
-            # NOTE: Consider setting keep vars to true later if gradients are required
-            client_ins.request = request_type
-            client_ins._round = _round
-            out = client.download(client_ins)
-            return out
+        # NOTE: Consider setting keep vars to true later if gradients are required
+        client_ins.request = request_type
+        client_ins._round = _round
+        out = client.download(client_ins)
+        return out
 
     def _broadcast_models(self,
                         ids: list[str],

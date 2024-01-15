@@ -14,13 +14,13 @@ from torch.optim import Optimizer
 import torch
 from .baseflowerclient import  BaseFlowerClient, MetricManager, ClientConfig
 from src.strategy.fedstdevstrategy import FedstdevStrategy
-from src.config import FedstdevClientConfig
+from src.config import FedstdevClientConfig, TrainConfig
 from src.common.utils import get_time
 import src.common.typing as fed_t
 
 logger = logging.getLogger(__name__)
  # NOTE: Multithreading causes atleast 3x slowdown for 2 epoch case. DO not use until necessary
-def train_one_model(model:Module, dataloader: DataLoader, seed: int, cfg: ClientConfig, optim_partial, criterion, mm: MetricManager)->t.Tuple[int, Module,fed_t.Result]:
+def train_one_model(model:Module, dataloader: DataLoader, seed: int, cfg: TrainConfig, optim_partial, criterion, mm: MetricManager)->t.Tuple[int, Module,fed_t.Result]:
     out_result = fed_t.Result()
     optimizer: Optimizer = optim_partial(model.parameters())
     model.train()
@@ -95,7 +95,7 @@ class FedstdevClient(BaseFlowerClient):
             gen.manual_seed(seed)
             sampler = RandomSampler(data_source=dataset, generator=gen)
             self._generator[seed] = gen
-            loader_dict[seed] = DataLoader(dataset=dataset, sampler=sampler, batch_size=self.cfg.batch_size)
+            loader_dict[seed] = DataLoader(dataset=dataset, sampler=sampler, batch_size=self.train_cfg.batch_size)
             # for i, (inputs, targets) in enumerate(loader_dict[seed]):
             #     with open(f'{self._root_dir}/{self.cfg.metric_cfg.file_prefix}_targets_pre_{self._round}_{seed}_{i}.json', 'w') as f:
             #                 json.dump(targets.tolist(), f)
@@ -189,13 +189,13 @@ class FedstdevClient(BaseFlowerClient):
             self._optimizer_map[seed] = self.optim_partial(model.parameters())
 
         # Run an round on the client
-        empty_grads = {p_key: torch.empty_like(param.data, device=self.cfg.device) for p_key, param in self._model.named_parameters()}
+        empty_grads = {p_key: torch.empty_like(param.data, device=self.train_cfg.device) for p_key, param in self._model.named_parameters()}
 
         self._cum_gradients_map = {seed: deepcopy(empty_grads) for seed in self._model_map.keys()}
 
         self.metric_mngr._round = self._round
         self._model.train()
-        self._model.to(self.cfg.device)
+        self._model.to(self.train_cfg.device)
 
         resume_epoch = 0
         # out_result= fed_t.Result()
@@ -208,14 +208,14 @@ class FedstdevClient(BaseFlowerClient):
             optimizer: Optimizer = self._optimizer_map[seed]
 
             model.train()
-            model.to(self.cfg.device)
+            model.to(self.train_cfg.device)
             # iterate over epochs and then on the batches
-            for epoch in range(resume_epoch, resume_epoch + self.cfg.epochs):
+            for epoch in range(resume_epoch, resume_epoch + self.train_cfg.epochs):
                 for i, (inputs, targets) in enumerate(self.train_loader_map[seed]):
                     # with open(f'{self._root_dir}/{self.cfg.metric_cfg.file_prefix}_targets_{self._round}_{seed}_{i}.json', 'w') as f:
                     #     json.dump(targets.tolist(), f)
 
-                    inputs, targets = inputs.to(self.cfg.device), targets.to(self.cfg.device)
+                    inputs, targets = inputs.to(self.train_cfg.device), targets.to(self.train_cfg.device)
 
                     model.zero_grad(set_to_none=True)
 
@@ -260,11 +260,11 @@ class FedstdevClient(BaseFlowerClient):
     
         self.metric_mngr._round = self._round
         self._model.train()
-        self._model.to(self.cfg.device)
+        self._model.to(self.train_cfg.device)
         out_result = fed_t.Result()
         # for seed, model in self._model_map.items():   
         with ThreadPoolExecutor(max_workers=len(self._model_map)) as exec:
-            futures = {exec.submit(train_one_model, model, self.train_loader_map[seed], seed, self.cfg, self.optim_partial, self.criterion, deepcopy(self.metric_mngr)) for seed, model in self._model_map.items()}
+            futures = {exec.submit(train_one_model, model, self.train_loader_map[seed], seed, self.train_cfg, self.optim_partial, self.criterion, deepcopy(self.metric_mngr)) for seed, model in self._model_map.items()}
             for fut in as_completed(futures):
                 seed, model, out_result = fut.result()
                 self._model_map[seed] = model
