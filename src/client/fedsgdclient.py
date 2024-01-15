@@ -2,7 +2,6 @@ from .baseclient import BaseClient
 from src.metrics.metricmanager import MetricManager
 
 
-
 class FedsgdClient(BaseClient):
     def __init__(self, **kwargs):
         super(FedsgdClient, self).__init__(**kwargs)
@@ -25,6 +24,6 @@ class FedsgdClient(BaseClient):
 
             mm.track(loss.item(), outputs, targets)
         else:
-            mm.aggregate(len(self.training_set), 1)
-        return mm.results
+            res = mm.aggregate(len(self.training_set), 1)
+        return res
     

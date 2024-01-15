@@ -1,6 +1,6 @@
 from collections import defaultdict
 import typing as t
-
+from dataclasses import dataclass, field
 import numpy as np
 import torch
 
@@ -9,10 +9,8 @@ from torch import Tensor
 
 import torch.optim
 from src.common.typing import ClientIns, ClientResult1, Result 
-from src.config import *
-from src.client.baseclient import BaseClient
 import src.common.typing as fed_t
-from src.strategy.abcstrategy import ABCStrategy, StrategyIns, StrategyOuts
+from src.strategy.abcstrategy import *
 from src.strategy.basestrategy import random_client_selection
 from src.strategy.fedoptstrategy import gradient_average_update
 ### Define the configurations required for this strategy

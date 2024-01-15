@@ -17,7 +17,7 @@ import logging
 import inspect
 logger = logging.getLogger(__name__)
 
-def arg_check(args: dict, fn:str|None = None): # type: ignore
+def arg_check(args: dict, fn: str|None = None): # type: ignore
     # Figure out usage with string functions
     # Check if the argument spec is compatible with
     if fn is None:

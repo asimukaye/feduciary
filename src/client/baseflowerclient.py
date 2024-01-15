@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import functools
 import typing as t
 import numpy as np
@@ -8,7 +8,6 @@ from torch.nn import Module, Parameter
 from torch.optim import Optimizer
 from copy import deepcopy
 import torch
-from torch.backends import mps
 from torch import Tensor
 from hydra.utils import instantiate
 import logging
@@ -21,15 +20,13 @@ from src.common.utils import (log_tqdm,
                               convert_param_dict_to_ndarray,
                               convert_ndarrays_to_param_dict,
                               get_time)
-from src.config import ClientConfig, get_free_gpu, TrainConfig
-from src.client.abcclient import ABCClient
+from src.config import ClientConfig, TrainConfig
+from src.client.abcclient import ABCClient, model_eval_helper
 from src.results.resultmanager import ResultManager
 import src.common.typing as fed_t
 import pandas as pd
-from dataclasses import asdict
 # DEFINE WHAT STRATEGY IS SUPPORTED HERE. This might be needed to support packing and unpacking
 from src.strategy.basestrategy import BaseStrategy
-import os
 import flwr as fl
 
 from flwr.common import (
@@ -101,27 +98,9 @@ def set_parameters(net: Module, parameters: list[np.ndarray]):
     net.load_state_dict(state_dict, strict=True)
 
 
-def model_eval_helper(model: Module,
-                      dataloader: DataLoader,
-                      cfg: TrainConfig,
-                      mm: MetricManager,
-                      round: int) -> fed_t.Result:
-
-    mm._round = round
-    model.eval()
-    model.to(cfg.device)
-    criterion = cfg.criterion
-
-    for inputs, targets in dataloader:
-        inputs, targets = inputs.to(cfg.device), targets.to(cfg.device)
-        outputs = model(inputs)
-        loss:Tensor = criterion(outputs, targets) #type: ignore
-        mm.track(loss.item(), outputs, targets)
-    else:
-        result = mm.aggregate(len(dataloader.dataset), -1) # type: ignore
-        mm.flush()
-    return result
-
+@dataclass
+class ClientConfigProtocol(t.Protocol):
+    optimizer: functools.partial
 @dataclass
 class ClientInProtocol(t.Protocol):
     server_params: dict
@@ -175,7 +154,6 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         self._train_result = fed_t.Result(actor=client_id)
         self._eval_result = fed_t.Result(actor=client_id)
 
-        # self._debug_param: Tensor = None
 
     @property
     def id(self)->str:
@@ -211,7 +189,6 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
             self.train_cfg.batch_size = len(self.training_set)
         return DataLoader(dataset=dataset, batch_size=self.train_cfg.batch_size, shuffle=shuffle)
     
-    # def _fill_result_metadata(result = fed_t.Result)
     def unpack_train_input(self, client_ins: fed_t.ClientIns) -> ClientInProtocol:
         specific_ins = BaseStrategy.client_receive_strategy(client_ins)
         return specific_ins

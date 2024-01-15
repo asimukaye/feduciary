@@ -16,7 +16,26 @@ from src.results.resultmanager import ResultManager
 import src.common.typing as fed_t
 logger = logging.getLogger(__name__)
 
+def model_eval_helper(model: Module,
+                      dataloader: DataLoader,
+                      cfg: TrainConfig,
+                      mm: MetricManager,
+                      round: int) -> fed_t.Result:
 
+    mm._round = round
+    model.eval()
+    model.to(cfg.device)
+    criterion = cfg.criterion
+
+    for inputs, targets in dataloader:
+        inputs, targets = inputs.to(cfg.device), targets.to(cfg.device)
+        outputs = model(inputs)
+        loss:Tensor = criterion(outputs, targets) #type: ignore
+        mm.track(loss.item(), outputs, targets)
+    else:
+        result = mm.aggregate(len(dataloader.dataset), -1) # type: ignore
+        mm.flush()
+    return result
 
 class ABCClient(ABC):
     """Class for client object having its own (private) data and resources to train a model.

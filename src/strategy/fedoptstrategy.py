@@ -1,6 +1,7 @@
 from collections import defaultdict
 import typing as t
 from typing import Any
+# from dataclasses import dataclass, field
 
 import torch
 
@@ -8,13 +9,11 @@ from torch.nn import Module, Parameter
 from torch import Tensor
 
 import torch.optim 
-from src.strategy.abcstrategy import ABCStrategy
+from src.strategy.abcstrategy import *
 from src.strategy.basestrategy import passthrough_communication, random_client_selection
 import src.common.typing as fed_t
 
-from src.config import *
 
-import random
 # Type declarations
 
 ScalarWeights_t = dict[str, float]

@@ -36,10 +36,7 @@ import src.common.typing as fed_t
 
 logger = logging.getLogger('SIMULATOR')
 
-# @dataclass
-# class SimIns:
-#     cfg: Config
-#     train_set: 
+
 def set_seed(seed):
     torch.manual_seed(seed)
     random.seed(seed)
@@ -69,7 +66,6 @@ def create_clients(all_client_ids, client_datasets, model_instance, client_cfg: 
         client_obj = _create_client(cid, datasets, model_instance, client_cfg)
         clients[cid] = client_obj
     return clients
-
 
 
 def make_checkpoint_dirs(has_server: bool, client_ids=[]):
