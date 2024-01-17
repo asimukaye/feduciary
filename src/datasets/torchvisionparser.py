@@ -27,7 +27,7 @@ class VisionClassificationDataset(data.Subset):
 
 # helper method to fetch dataset from `torchvision.datasets`
 # FIXME: Factorize this for clarity
-def fetch_torchvision_dataset(dataset_name:str, root, transforms):
+def fetch_torchvision_dataset(dataset_name:str, root, transforms)->tuple[data.Subset, data.Subset, DatasetModelSpec]:
     logger.debug(f'[DATA LOAD] Fetching dataset: {dataset_name.upper()}')
     
     # Initialize dataset dependent model spec
@@ -194,3 +194,18 @@ def fetch_torchvision_dataset(dataset_name:str, root, transforms):
     model_spec.num_classes = len(torch.unique(torch.as_tensor(raw_train.dataset.targets)))  
     logger.info(f'[DATA LOAD] Fetched dataset: {dataset_name.upper()}')
     return raw_train, raw_test, model_spec
+
+
+def get_model_spec(dataset_name: str, dataset: VisionClassificationDataset) -> DatasetModelSpec:
+    model_spec =  DatasetModelSpec(num_classes=2,in_channels=1)
+
+    single_channel_datasets = ['MNIST', 'FashionMNIST', 'QMNIST',
+                               'KMNIST', 'EMNIST', 'USPS', 'SEMEION', 'Omniglot']
+
+    if dataset_name in single_channel_datasets:
+        model_spec.in_channels = 1
+    else:
+        model_spec.in_channels = 3
+
+    model_spec.num_classes = len(torch.unique(torch.as_tensor(dataset.targets)))  
+    return model_spec

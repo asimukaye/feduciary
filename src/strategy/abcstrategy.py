@@ -12,7 +12,6 @@ import torch.optim
 
 from src.config import *
 
-
 @dataclass
 class StrategyIns(ABC):
     '''Define the inputs required from each client for aggregation of your strategy'''

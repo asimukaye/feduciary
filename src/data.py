@@ -8,18 +8,17 @@ import transformers
 from torch.utils import data
 import concurrent.futures
 from hydra.utils import instantiate
-
+import src.common.typing as fed_t
 from src.common.utils  import TqdmToLogger
 from src.datasets import *
 from src.split import get_client_datasets
 import torchvision.transforms as tvt
-from typing import Optional
 logger = logging.getLogger(__name__)
 from src.config import DatasetConfig, TransformsConfig, DatasetModelSpec
 
 
 def get_train_transform(cfg: TransformsConfig):
-    train_list:list = instantiate(cfg.train_cfg)
+    train_list: list = instantiate(cfg.train_cfg)
     train_list.append(tvt.ToTensor())
     if cfg.normalize:
         train_list.append(instantiate(cfg.normalize))
@@ -54,21 +53,86 @@ def load_vision_dataset(cfg: DatasetConfig) -> tuple[data.Subset, data.Subset, D
     return raw_test, raw_train, model_spec
 
 
+def load_raw_dataset(cfg: DatasetConfig) -> tuple[data.Subset, data.Subset, DatasetModelSpec]:
+    """Fetch and split requested datasets.
+    
+    Args:
+        cfg: DatasetConfig"
+
+    Returns: raw_test, raw_train, model_spec
+    """
+
+    transforms = [get_train_transform(cfg.transforms), get_test_transform(cfg.transforms)]
+
+    match cfg.dataset_family:
+        case 'torchvision':
+            raw_train, raw_test, model_spec = fetch_torchvision_dataset(dataset_name=cfg.name, root=cfg.data_path, transforms= transforms)
+        case 'torchtext':
+            raise NotImplementedError()
+        case 'leaf':
+            raise NotImplementedError()
+        case 'flamby':
+            logger.warn('Flamby datasets use their own transformations. Ignoring the transforms config.')
+            # if cfg.split_conf.split_type == 'defacto':
+            #     temp = fetch_flamby_federated(dataset_name=cfg.name, root=cfg.data_path, num_splits=cfg.split_conf.num_splits)
+              #FIXME:
+            # else:
+            #     raw_train, raw_test = fetch_flamby_pooled(dataset_name=cfg.name, root=cfg.data_path)
+            # model_spec = get_flamby_model_spec(dataset_name=cfg.name, root=cfg.data_path)
+            raise NotImplementedError()
+
+        case _:
+            raise NotImplementedError()
+
+    if cfg.subsample:
+        get_subset = lambda set, fraction: data.Subset(set, np.random.randint(0, len(set)-1, int(fraction * len(set))))
+        
+        raw_train = get_subset(raw_train, cfg.subsample_fraction)
+        raw_test = get_subset(raw_test, cfg.subsample_fraction)
+
+    # adjust the number of classes in binary case
+    if model_spec.num_classes == 2:
+        raise NotImplementedError()
+
+
+    return raw_train, raw_test, model_spec
+
+def load_federated_dataset(cfg: DatasetConfig) -> tuple[ fed_t.ClientDatasets_t, data.Subset, DatasetModelSpec]:
+    #FIXME: This is a hack to get the model spec
+    if cfg.split_conf.split_type == 'defacto':
+        if cfg.dataset_family == 'flamby':
+            client_datasets, raw_test = fetch_flamby_federated(dataset_name=cfg.name, root=cfg.data_path, num_splits=cfg.split_conf.num_splits)
+            model_spec = get_flamby_model_spec(dataset_name=cfg.name, root=cfg.data_path)
+        else:
+            raise NotImplementedError()
+    else:
+        raw_train, raw_test, model_spec = load_raw_dataset(cfg)
+
+        client_datasets = get_client_datasets(cfg.split_conf, raw_train, raw_test)
+
+    return client_datasets, raw_test, model_spec
+
+
+def subsample_dataset(dataset: data.Dataset, fraction: float):
+    return data.Subset(dataset, np.random.randint(0, len(dataset)-1, int(fraction * len(dataset))))
+
+
+
 # TODO: Remove me Broken usage as of now
 # DEPRECATED
-def get_transform(cfg: TransformsConfig, train=False):
-    transform = tvt.Compose(
-        [
-            tvt.Resize((cfg.resize, cfg.resize)) if cfg.resize is not None else tvt.Lambda(lambda x: x),
-            tvt.RandomRotation(cfg.randrot) if (cfg.randrot is not None and train) else tvt.Lambda(lambda x: x),
-            tvt.RandomHorizontalFlip(cfg.randhf) if (cfg.randhf is not None and train) else tvt.Lambda(lambda x: x),
-            tvt.RandomVerticalFlip(cfg.randvf) if (cfg.randvf is not None and train) else tvt.Lambda(lambda x: x),
-            tvt.ColorJitter(brightness=cfg.randjit, contrast=cfg.randjit, saturation=cfg.randjit, hue=cfg.randjit) if (cfg.randjit is not None and train) else tvt.Lambda(lambda x: x),
-            tvt.ToTensor(),
-            tvt.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) if cfg.imnorm else tvt.Lambda(lambda x: x)
-        ]
-    )
-    return transform
+# def get_transform(cfg: TransformsConfig, train=False):
+#     transform = tvt.Compose(
+#         [
+#             tvt.Resize((cfg.resize, cfg.resize)) if cfg.resize is not None else tvt.Lambda(lambda x: x),
+#             tvt.RandomRotation(cfg.randrot) if (cfg.randrot is not None and train) else tvt.Lambda(lambda x: x),
+#             tvt.RandomHorizontalFlip(cfg.randhf) if (cfg.randhf is not None and train) else tvt.Lambda(lambda x: x),
+#             tvt.RandomVerticalFlip(cfg.randvf) if (cfg.randvf is not None and train) else tvt.Lambda(lambda x: x),
+#             tvt.ColorJitter(brightness=cfg.randjit, contrast=cfg.randjit, saturation=cfg.randjit, hue=cfg.randjit) if (cfg.randjit is not None and train) else tvt.Lambda(lambda x: x),
+#             tvt.ToTensor(),
+#             tvt.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) if cfg.imnorm else tvt.Lambda(lambda x: x)
+#         ]
+#     )
+#     return transform
 
 
 # DEPRECATED: Kept for code retrieval only

@@ -6,7 +6,7 @@ import json
 import os
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+import numpy as np
 from torch.utils.data import Dataset, RandomSampler, DataLoader, Subset
 from torch import Generator, tensor, Tensor
 from torch.nn import Module, Parameter
@@ -45,6 +45,17 @@ def train_one_model(model:Module, dataloader: DataLoader, seed: int, cfg: TrainC
             mm.flush()
     return (seed, model, out_result)
 
+
+def get_to_nearest_log2(num, quotient):
+    max_batch = num//quotient
+    exp = int(np.log2(max_batch))
+    new_batch = 2**exp
+    while num//new_batch != quotient:
+        residue = max_batch - new_batch
+        new_batch = new_batch + 2**int(np.log2(residue))
+    return new_batch
+
+
 @dataclass
 class ClientInProtocol(t.Protocol):
     server_params: dict
@@ -71,6 +82,14 @@ class FedstdevClient(BaseFlowerClient):
         # Make m copies of the model for independent train iterations
         self._model_map: dict[int, Module] = {seed: deepcopy(self._model) for seed in cfg.seeds}
 
+
+        if cfg.n_iters -1 != len(self.training_set)//self.train_cfg.batch_size:
+            logger.debug(f'NITERS_BEFORE: {len(self.training_set)//self.train_cfg.batch_size +1}')
+            self.train_cfg.batch_size = get_to_nearest_log2(len(self.training_set), cfg.n_iters -1)
+            logger.debug(f'NITERS_AFTER: {len(self.training_set)//self.train_cfg.batch_size +1}')
+
+        logger.debug(f'[BATCH SIZES:] CID: {self._cid}, batch size: {self.train_cfg.batch_size}')
+
         self._optimizer_map: dict[int, Optimizer] = {}
         for seed, model in self._model_map.items():
             self._optimizer_map[seed] = self.optim_partial(model.parameters())
@@ -83,6 +102,10 @@ class FedstdevClient(BaseFlowerClient):
 
         self._grad_std :dict[str, Tensor] = deepcopy(self._grad_mu)
 
+    def _normalize_batch_size(self, data_size: int, niters: int)->int:
+        batch_base_2 = get_to_nearest_log2(data_size, niters-1)
+        return batch_base_2  
+        
 
 
     def _create_shuffled_loaders(self, dataset: Subset, seeds:list[int]) -> dict[int, DataLoader]:

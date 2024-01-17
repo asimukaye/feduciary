@@ -4,7 +4,7 @@ from enum import Enum, auto
 from torch.nn import Parameter
 from torch import Tensor
 import typing as t
-from torch.utils.data import Subset
+from torch.utils.data import Subset, Dataset
 
 ClientIds_t =  list[str]
 ActorParams_t = dict[str, Parameter]
@@ -60,4 +60,5 @@ Results_t = dict[str, Result]
 ClientIns_t = dict[str, ClientIns]
 
 ClientDatasets_t = list[tuple[Subset, Subset]]
+DatasetPair_t= tuple[Subset, Subset]
 

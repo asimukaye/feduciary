@@ -24,7 +24,7 @@ from src.server.baseflowerserver import BaseFlowerServer
 # from src.client.baseclient import BaseClient, model_eval_helper
 from src.client.baseflowerclient import BaseFlowerClient, model_eval_helper
 
-from src.data import load_vision_dataset
+from src.data import load_vision_dataset, load_raw_dataset
 from src.split import get_client_datasets, NoisySubset, LabelFlippedSubset
 from src.config import Config, SimConfig, ClientSchema
 from src.common.utils  import log_tqdm, log_instance, generate_client_ids
@@ -49,7 +49,7 @@ def set_seed(seed):
     logger.info(f'[SEED] Simulator global seed is set to: {seed}!')
 
 
-def _create_client(cid: str, datasets, model: Module, client_cfg: ClientSchema) -> BaseFlowerClient:
+def _create_client(cid: str, datasets: fed_t.DatasetPair_t, model: Module, client_cfg: ClientSchema) -> BaseFlowerClient:
 
     client_partial: partial = instantiate(client_cfg)
     # NOTE:IMPORTANT Sharing models without deepcopy could potentially have same references to parameters
@@ -61,7 +61,7 @@ def _create_client(cid: str, datasets, model: Module, client_cfg: ClientSchema) 
 def create_clients(all_client_ids, client_datasets, model_instance, client_cfg: ClientSchema) -> dict[str, BaseFlowerClient]:
 
     clients = {}
-    for cid, datasets in log_tqdm(zip(all_client_ids,client_datasets), logger=logger, desc=f' creating clients '):
+    for cid, datasets in log_tqdm(zip(all_client_ids, client_datasets), logger=logger, desc=f'creating clients '):
         # client_id = f'{idx:04}' # potential to convert to a unique hash
         client_obj = _create_client(cid, datasets, model_instance, client_cfg)
         clients[cid] = client_obj
@@ -105,23 +105,16 @@ def save_checkpoints(server: BaseFlowerServer, clients: dict[str, BaseFlowerClie
         for client in clients.values():
             client.save_checkpoint()
 
-# TODO: Test method to load client checkpoints
-# def load_state(self, server_ckpt_path: str, client_ckpts: dict):
-#     if server_ckpt_path:
-#         self.server.load_checkpoint(server_ckpt_path)
-#         self._round = self.server._round
-#     if client_ckpts:
-#         for cid, ckpt in client_ckpts.items():
-#             self.clients[cid].load_checkpoint(ckpt)
-#             if self._round == 0:
-    
+
 
 def init_dataset_and_model(cfg: Config) -> tuple[Subset, Subset, Module]:
     '''Initialize the dataset and the model here'''
     # NOTE: THIS FUNCTION MODIFIES THE RANDOM NUMBER SEEDS
+    # NOTE: This function modifies the config objec insitu
+
     # NOTE: THe model spec is being modified in place here.
     # TODO: Generalize this logic for all datasets
-    test_set, train_set, dataset_model_spec  = load_vision_dataset(cfg.dataset)
+    train_set, test_set, dataset_model_spec  = load_raw_dataset(cfg.dataset)
     # client_sets = get_client_datasets(cfg.dataset.split_conf, train_set)
 
     model_spec = cfg.model.model_spec
@@ -141,7 +134,16 @@ def init_dataset_and_model(cfg: Config) -> tuple[Subset, Subset, Module]:
 
     # model_instance: Module = instantiate(cfg.model.model_spec)
     model_instance = init_model(cfg.model)
-    return test_set, train_set, model_instance
+
+    # Set the value of n_iters for the client
+    per_client_set_size = len(train_set)//cfg.simulator.num_clients
+    cfg.client.cfg.n_iters = per_client_set_size//cfg.client.train_cfg.batch_size + (1 if per_client_set_size%cfg.client.train_cfg.batch_size else 0)
+    logger.debug(f'[DATA_SPLIT] N iters : `{cfg.client.cfg.n_iters}`')
+    logger.debug(f'[DATA_SPLIT] batch size : `{cfg.client.train_cfg.batch_size}`')
+
+
+
+    return train_set, test_set, model_instance
 
 
 def run_flower_simulation(cfg: Config,
@@ -219,26 +221,27 @@ def run_federated_simulation(cfg: Config,
     server_partial: partial = instantiate(cfg.server)
     clients: dict[str, BaseFlowerClient] = dict()
     
+    strategy = instantiate(cfg.strategy, model=model_instance)
+
     result_manager = ResultManager(cfg.simulator, logger=logger)
     
     #  Server gets the test set
     server_dataset = test_set
     # Clients get the splits of the train set with an inbuilt test set
-    client_datasets =  get_client_datasets(cfg.dataset.split_conf, train_set)
+    client_datasets =  get_client_datasets(cfg.dataset.split_conf, train_set, test_set, match_train_distribution=False)
 
     # NOTE:IMPORTANT Sharing models without deepcopy could potentially have same references to parameters
     clients = create_clients(all_client_ids, client_datasets, model_instance, cfg.client)
 
     # HACK: Fixing batch size for imbalanced client case
     # FIXME: Formalize this later
-    if cfg.dataset.split_conf.split_type == 'one_imbalanced_client':
-        clients['0000'].train_cfg.batch_size = int(clients['0000'].train_cfg.batch_size/2)
-        for cid, cl in clients.items():
-            logger.debug(f'[BATCH SIZES:] CID: {cid}, batch size: {cl.train_cfg.batch_size}')
+    # if cfg.dataset.split_conf.split_type == 'one_imbalanced_client':
+    #     clients['0000'].train_cfg.batch_size = int(clients['0000'].train_cfg.batch_size/2)
+    #     for cid, cl in clients.items():
+    #         logger.debug(f'[BATCH SIZES:] CID: {cid}, batch size: {cl.train_cfg.batch_size}')
 
     # all_client_ids = list(clients.keys())
     # NOTE: later, consider making a copy of client to avoid simultaneous edits to clients dictionary
-    strategy = instantiate(cfg.strategy, model=model_instance)
 
     server: BaseFlowerServer = server_partial(model=model_instance, strategy=strategy, dataset=server_dataset, clients= clients, result_manager=result_manager)
 
@@ -431,7 +434,7 @@ class Simulator:
         # self.algo = cfg.server.algorithm.name
         # Remove calls like thes to make things more testable
 
-        self.test_set, self.train_set, self.model_instance = init_dataset_and_model(cfg=cfg)
+        self.train_set, self.test_set, self.model_instance = init_dataset_and_model(cfg=cfg)
 
         # self.metric_manager = MetricManager(cfg.client.cfg.metric_cfg, self._round, actor='simulator')
 

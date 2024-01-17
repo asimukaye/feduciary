@@ -18,7 +18,10 @@ logger = logging.getLogger(__name__)
 def run_feduciary(cfg: Config):
 
     cfg_obj: Config = OmegaConf.to_object(cfg)
-    logger.debug((OmegaConf.to_yaml(cfg_obj)))
+    logger.debug((OmegaConf.to_yaml(cfg)))
+    # logger.debug(cfg_obj.dataset.split_conf.__dict__)
+    # logger.debug(cfg_obj.client.cfg.__dict__)
+
 
     sim = Simulator(cfg_obj)
     sim.run_simulation()

@@ -149,6 +149,7 @@ class TrainConfig:
 @dataclass
 class ClientConfig:
     start_epoch: int = field(default=0)
+    n_iters: int = field(init=False) # TO be initialized after dataset is loaded
     data_shuffle: bool = field(default=False)
 
 def default_seed():
@@ -271,11 +272,15 @@ class SplitConfig:
     split_type: str
     noise: Optional[NoiseConfig]
     num_splits: int  # should be equal to num_clients
-    # Train test split ratio within the client
-    test_fraction: float 
+    # Train test split ratio within the client,
+    # Now this is auto determined by the test set size
+    test_fractions: list[float] = field(init=False) 
     def __post_init__(self):
-        assert self.test_fraction == Range(0.0, 1.0), f'Invalid value {self.test_fraction} for test fraction'
-        known_splits =  ['one_noisy_client', 'one_label_flipped_client', 'iid', 'unbalanced', 'one_imbalanced_client' ]
+        # assert self.test_fraction == Range(0.0, 1.0), f'Invalid value {self.test_fraction} for test fraction'
+        known_splits =  ['one_noisy_client',
+                         'one_label_flipped_client',
+                         'iid', 'unbalanced',
+                         'one_imbalanced_client' ]
         assert self.split_type in known_splits, f'Invalid split type: {self.split_type}'
 
 
@@ -283,15 +288,19 @@ class SplitConfig:
 class DatasetConfig:
     name: str
     data_path: str
-    transforms: Optional[TransformsConfig]
+    dataset_family: str
+    transforms: TransformsConfig
+    federated: bool
     split_conf: SplitConfig
-    subsample_fraction: float = 0.0  # subsample the dataset with the given fraction
     subsample: bool = False
+    subsample_fraction: float = 0.0  # subsample the dataset with the given fraction
 
 
     def __post_init__(self):
         # assert self.test_fraction == Range(0.0, 1.0), f'Invalid value {self.test_fraction} for test fraction'
         self.data_path = to_absolute_path(self.data_path)
+        if self.federated == False:
+            assert self.split_conf.num_splits == 1, 'Non-federated datasets should have only one split'
 
 ########## Model Configurations ##########
 @dataclass
@@ -316,7 +325,6 @@ class ModelConfig:
     model_spec: ModelSpecConfig
 
 
-
 ########## Master Configurations ##########
 @dataclass
 class Config():
@@ -337,10 +345,15 @@ class Config():
     def __post_init__(self):
         # if self.dataset.use_model_tokenizer or self.dataset.use_pt_model:
         #     assert self.model.name in ['DistilBert', 'SqueezeBert', 'MobileBert'], 'Please specify a proper model!'
+        if self.simulator.mode == 'centralized':
+            self.dataset.federated = False
+            logger.info('Setting federated cfg in dataset cfg to False')
+        else:
+            assert self.dataset.split_conf.num_splits == self.simulator.num_clients, 'Number of clients in dataset and simulator should be equal'
 
-        flat_cfg = json_normalize(asdict(self))
-        if not all(arg in flat_cfg for arg in self.log_conf):
-            raise(KeyError(f'Recheck the keys set in log_conf: {self.log_conf}'))
+        # flat_cfg = json_normalize(asdict(self))
+        # if not all(arg in flat_cfg for arg in self.log_conf):
+        #     raise(KeyError(f'Recheck the keys set in log_conf: {self.log_conf}'))
         if self.mode == 'debug':
             set_debug_mode(self)
 

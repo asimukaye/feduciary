@@ -26,7 +26,7 @@ simulator:
   use_wandb: true
   save_csv: false
   out_prefix: ''
-  num_clients: 5
+  num_clients: 3
   num_rounds: 30
   checkpoint_every: 20
   eval_type: both
@@ -36,11 +36,11 @@ simulator:
   mode: federated
   # mode: flower 
   flwr_resources:
-    num_cpus: 2
+    num_cpus: 3
     num_gpus: 0.2 #TODO: Couple this with device init
 
 train_cfg:
-  epochs: 5
+  epochs: 1
   device: auto
   batch_size: 128
   eval_batch_size: 256
@@ -63,10 +63,13 @@ train_cfg:
 
 
 dataset:
+  dataset_family: torchvision
   name: CIFAR10
   data_path: data/
   subsample: false
-  subsample_fraction: 1.0
+  subsample_fraction: 1.0 # Fraction of the dataset to use. Only works when subsample is true
+  federated: true
+
   transforms:
     resize:
       _target_: torchvision.transforms.Resize
@@ -76,12 +79,13 @@ dataset:
 
   split_conf:
     # split_type: one_label_fli`pped_client
-    # split_type: one_imbalanced_client
-    split_type: iid
+    split_type: one_imbalanced_client
+    # split_type: iid
     # split_type: one_noisy_client
     num_splits: ${simulator.num_clients}
     # Noise parameter is specific to one patho client
-    test_fraction: 0.2 # Client train-test split
+    # Obsolete now
+    # test_fraction: 0.1 # Client train-test split
 
     noise:
       mu: 0.0
