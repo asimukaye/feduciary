@@ -3,7 +3,7 @@ defaults:
   - cfg: base_client
   - _self_
 
-_target_: src.client.baseflowerclient.BaseFlowerClient
+_target_: feduciary.client.baseflowerclient.BaseFlowerClient
 _partial_: true
 cfg:
   start_epoch: 0

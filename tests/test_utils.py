@@ -1,4 +1,4 @@
-from src.config import Config, register_configs
+from feduciary.config import Config, register_configs
 from omegaconf import OmegaConf
 from hydra import compose, initialize_config_dir, initialize
 from hydra.core.config_store import ConfigStore

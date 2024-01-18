@@ -2,7 +2,7 @@ defaults:
   - base_flower_server
   - _self_
 
-_target_: src.server.baseflowerserver.BaseFlowerServer
+_target_: feduciary.server.baseflowerserver.BaseFlowerServer
 _partial_: true
 cfg:
   eval_every: ${simulator.eval_every}

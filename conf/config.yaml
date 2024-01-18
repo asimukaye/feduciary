@@ -33,8 +33,8 @@ simulator:
   eval_every: 1
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized', 'flower'
   # mode: centralized
-  mode: federated
-  # mode: flower 
+  # mode: federated
+  mode: flower 
   flwr_resources:
     num_cpus: 3
     num_gpus: 0.2 #TODO: Couple this with device init
@@ -79,8 +79,8 @@ dataset:
 
   split_conf:
     # split_type: one_label_fli`pped_client
-    split_type: one_imbalanced_client
-    # split_type: iid
+    # split_type: one_imbalanced_client
+    split_type: iid
     # split_type: one_noisy_client
     num_splits: ${simulator.num_clients}
     # Noise parameter is specific to one patho client
@@ -99,7 +99,7 @@ model:
   init_gain: 1.0
   dropout: 0.0
   model_spec:           # Optional model spec provided for quick tuning
-    _target_: src.models.twocnn.TwoCNN
+    _target_: feduciary.models.twocnn.TwoCNN
     _partial_: false
     hidden_size: 200
     # Option to override in_channels and num_classes. Otherwise auto set by the dataset
@@ -114,7 +114,7 @@ model:
 #     device: auto
 
 # server:
-  # _target_: src.server.baseflowerserver.BaseFlowerServer
+  # _target_: feduciary.server.baseflowerserver.BaseFlowerServer
   # _partial_: true
   # cfg:
   #   eval_every: 1

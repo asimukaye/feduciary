@@ -3,7 +3,7 @@ defaults:
   - cfg: fedstdev_strategy
   - _self_
 
-_target_: src.strategy.fedstdevstrategy.FedstdevStrategy
+_target_: feduciary.strategy.fedstdevstrategy.FedstdevStrategy
 cfg:
   train_fraction: 1.0
   eval_fraction: 1.0

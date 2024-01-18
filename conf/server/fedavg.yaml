@@ -1,9 +1,10 @@
+#deprecated
 defaults:
   - base_server
   - cfg: base_fedavg
   - _self_
 
-_target_: src.server.fedavgserver.FedavgServer
+_target_: feduciary.server.fedavgserver.FedavgServer
 _partial_: true
 cfg:
   sampling_fraction: 1.0

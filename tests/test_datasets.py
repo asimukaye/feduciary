@@ -1,5 +1,5 @@
-from src.simulator import init_dataset_and_model, set_seed, ResultManager, get_client_datasets
-from src.config import Config
+from feduciary.simulator import init_dataset_and_model, set_seed, ResultManager, get_client_datasets
+from feduciary.config import Config
 import logging
 logger = logging.getLogger('TEST_DATA')
 

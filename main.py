@@ -1,7 +1,7 @@
 import hydra
 from omegaconf import OmegaConf
-from src.simulator import Simulator
-from src.config import Config, register_configs
+from feduciary.simulator import Simulator
+from feduciary.config import Config, register_configs
 import logging
 import torch.multiprocessing as torch_mp
 import cProfile, pstats

@@ -3,7 +3,9 @@ defaults:
   - cfg: fedstdev_server
   - _self_
 
-_target_: src.server.fedstdevserver.FedstdevServer
+
+#Deprecated
+_target_: feduciary.server.fedstdevserver.FedstdevServer
 _partial_: true
 cfg:
   sampling_fraction: 1.0

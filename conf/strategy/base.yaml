@@ -3,7 +3,7 @@ defaults:
   - cfg: base_strategy
   - _self_
 
-_target_: src.strategy.basestrategy.BaseStrategy
+_target_: feduciary.strategy.basestrategy.BaseStrategy
 cfg:
   train_fraction: 1.0
   eval_fraction: 1.0

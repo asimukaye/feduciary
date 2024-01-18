@@ -3,7 +3,7 @@ defaults:
   - cfg: base_client
   - _self_
 
-_target_: src.client.baseclient.BaseClient
+_target_: feduciary.client.baseclient.BaseClient
 _partial_: true
 cfg:
   start_epoch: 0

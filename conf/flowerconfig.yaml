@@ -25,7 +25,7 @@ defaults:
 
 # CONFIG OVERRIDES
 client:
-  _target_: src.client.baseflowerclient.BaseFlowerClient
+  _target_: feduciary.client.baseflowerclient.BaseFlowerClient
   _partial_: true
   cfg:
     epochs: 5
@@ -49,13 +49,13 @@ client:
 
 
 strategy:
-  _target_: src.server.baseflowerserver.BaseFlowerServer
+  _target_: feduciary.server.baseflowerserver.BaseFlowerServer
   cfg:
     train_fraction: 1.0
     eval_fraction: 1.0
 
 server:
-  _target_: src.server.baseflowerserver.BaseFlowerServer
+  _target_: feduciary.server.baseflowerserver.BaseFlowerServer
   _partial_: true
   cfg:
     sampling_fraction: 1.0
@@ -137,7 +137,7 @@ model:
   init_gain: 1.0
   dropout: 0.0
   model_spec:           # Optional model spec provided for quick tuning
-    _target_: src.models.twocnn.TwoCNN
+    _target_: feduciary.models.twocnn.TwoCNN
     _partial_: false
     hidden_size: 200
     # Option to override in_channels and num_classes. Otherwise auto set by the dataset

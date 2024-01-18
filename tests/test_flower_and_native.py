@@ -1,5 +1,5 @@
-from src.simulator import run_flower_simulation, run_federated_simulation, init_dataset_and_model, set_seed, ResultManager, get_client_datasets
-from src.config import Config
+from feduciary.simulator import run_flower_simulation, run_federated_simulation, init_dataset_and_model, set_seed, ResultManager, get_client_datasets
+from feduciary.config import Config
 from omegaconf import OmegaConf
 from hydra import compose, initialize_config_dir
 from hydra.core.config_store import ConfigStore

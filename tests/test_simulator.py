@@ -1,4 +1,4 @@
-from src.simulator import generate_client_ids
+from feduciary.simulator import generate_client_ids
 
 def test_generate_client_ids():
     ids = generate_client_ids(5)

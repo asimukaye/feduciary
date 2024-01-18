@@ -3,7 +3,7 @@ defaults:
   - cfg: fedstdev_client
   - _self_
 
-_target_: src.client.fedstdevclient.FedstdevClient
+_target_: feduciary.client.fedstdevclient.FedstdevClient
 _partial_: true
 cfg:
   start_epoch: 0
