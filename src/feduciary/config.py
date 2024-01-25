@@ -149,7 +149,7 @@ class TrainConfig:
 @dataclass
 class ClientConfig:
     start_epoch: int = field(default=0)
-    n_iters: int = field(init=False) # TO be initialized after dataset is loaded
+    n_iters: int = field(init=False, default=-1) # TO be initialized after dataset is loaded
     data_shuffle: bool = field(default=False)
 
 def default_seed():
@@ -274,7 +274,7 @@ class SplitConfig:
     num_splits: int  # should be equal to num_clients
     # Train test split ratio within the client,
     # Now this is auto determined by the test set size
-    test_fractions: list[float] = field(init=False) 
+    test_fractions: list[float] = field(init=False, default_factory=list) 
     def __post_init__(self):
         # assert self.test_fraction == Range(0.0, 1.0), f'Invalid value {self.test_fraction} for test fraction'
         known_splits =  ['one_noisy_client',

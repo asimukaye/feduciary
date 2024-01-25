@@ -173,7 +173,7 @@ def run_flower_simulation(cfg: Config,
 
     result_manager = ResultManager(cfg.simulator, logger=logger)
 
-    strategy = instantiate(cfg.strategy, model)
+    strategy = instantiate(cfg.strategy, model=model, res_man=result_manager)
 
     server_partial = instantiate(cfg.server)
     server: BaseFlowerServer = server_partial(model=model, dataset=server_dataset, clients= clients, strategy=strategy, result_manager=result_manager)
@@ -218,9 +218,11 @@ def run_federated_simulation(cfg: Config,
     server_partial: partial = instantiate(cfg.server)
     clients: dict[str, BaseFlowerClient] = dict()
     
-    strategy = instantiate(cfg.strategy, model=model_instance)
+    # strategy = instantiate(cfg.strategy, model=model_instance)
+
 
     result_manager = ResultManager(cfg.simulator, logger=logger)
+    strategy = instantiate(cfg.strategy, model=model_instance, res_man=result_manager)
     
     #  Server gets the test set
     server_dataset = test_set
@@ -406,10 +408,7 @@ class Simulator:
         self.cfg: Config = cfg
         self.sim_cfg: SimConfig = cfg.simulator
    
-        if self.sim_cfg.use_wandb:
-            wandb.init(project='fed_ml', job_type=cfg.mode,
-                        config=asdict(cfg), resume=True, notes=cfg.desc)
-
+ 
         logger.info(f'[SIM MODE] : {self.sim_cfg.mode}')
         logger.info(f'[SERVER] : {self.cfg.server._target_.split(".")[-1]}')
         logger.info(f'[STRATEGY] : {self.cfg.strategy._target_.split(".")[-1]}')
@@ -425,6 +424,11 @@ class Simulator:
         # Remove calls like thes to make things more testable
 
         self.train_set, self.test_set, self.model_instance = init_dataset_and_model(cfg=cfg)
+
+        # NOTE: cfg object conversion to asdict breaks when init fields are not set
+        if self.sim_cfg.use_wandb:
+            wandb.init(project='fed_ml', job_type=cfg.mode,
+                        config=asdict(cfg), resume=True, notes=cfg.desc)
 
         # self.metric_manager = MetricManager(cfg.client.cfg.metric_cfg, self._round, actor='simulator')
 
@@ -461,6 +465,7 @@ class Simulator:
             case 'standalone':
                 run_standalone_simulation(cfg=self.cfg,
                                           train_set=self.train_set,
+                                          test_set=self.test_set,
                                           model_instance=self.model_instance)            
             case 'centralized':
                 run_centralized_simulation(cfg = self.cfg,

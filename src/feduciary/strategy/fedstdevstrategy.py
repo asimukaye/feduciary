@@ -8,7 +8,8 @@ from torch.nn import Module, Parameter
 from torch import Tensor
 
 import torch.optim
-from feduciary.common.typing import ClientIns, ClientResult1, Result 
+# from feduciary.common.typing import ClientIns, ClientResult1, Result
+from feduciary.results.resultmanager import ResultManager
 import feduciary.common.typing as fed_t
 from feduciary.strategy.abcstrategy import *
 from feduciary.strategy.basestrategy import random_client_selection
@@ -34,6 +35,18 @@ Weights_T =t.TypeVar('Weights_T', ScalarWeights_t, TensorWeights_t)
 # AllIns_t = dict[str, FedstdevIns]
 ClientScalarWeights_t= dict[str, ScalarWeights_t]
 ClientTensorWeights_t= dict[str, TensorWeights_t]
+
+def get_dict_avg(param_dict: dict, wts: dict) -> dict:
+    # Helper function to compute average of the last layer of the dictionary
+    # wtd_avg = 0.0
+    # wight_sums = np.sum(self.param_dims.values())
+    # if wts is None:
+    wts_list = list(wts.values())
+
+    avg = np.mean(list(param_dict.values()))
+    wtd_avg = np.average(list(param_dict.values()), weights=wts_list)
+
+    return {'avg':avg, 'wtd_avg':wtd_avg}
 
 def gradient_update_per_param(server_params: fed_t.ActorParams_t,client_params: fed_t.ClientParams_t,
     weights: ClientScalarWeights_t) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
@@ -65,14 +78,17 @@ def add_weight_momentum(old_weights: Weights_T, omegas: Weights_T, alpha: float)
 class FedstdevStrategy(ABCStrategy):
     def __init__(self,
                  model: Module,
-                 cfg: FedstdevCfgProtocol) -> None:
+                 cfg: FedstdevCfgProtocol,
+                 res_man: ResultManager) -> None:
         
         # super().__init__(model, cfg)
         self.cfg = cfg
+        self.res_man = res_man
         # * Server params is not required to be stored as a state fir
         self._server_params: dict[str, Parameter] = model.state_dict()
         # HACK: Strategy class should not be aware of the client ids
         client_ids = generate_client_ids(cfg.num_clients)
+        self._client_ids = client_ids
         param_keys = self._server_params.keys()
         self.param_keys = list(param_keys)
         self.param_dims = {p_key: np.prod(list(param.size())) for p_key, param in self._server_params.items()}
@@ -115,19 +131,19 @@ class FedstdevStrategy(ABCStrategy):
     AllIns_t = dict[str, FedstdevIns]
 
     @classmethod
-    def client_receive_strategy(cls, ins: ClientIns) -> FedstdevOuts:
+    def client_receive_strategy(cls, ins: fed_t.ClientIns) -> FedstdevOuts:
         base_outs = cls.FedstdevOuts(
             server_params=ins.params,
         )
         return base_outs
     
     @classmethod
-    def client_send_strategy(cls, ins: FedstdevInsProtocol, result: Result) -> ClientResult1:
+    def client_send_strategy(cls, ins: FedstdevInsProtocol, result: fed_t.Result) -> fed_t.ClientResult1:
         out_params = ins.client_params
         for key, val in ins.client_param_stds.items():
             out_params[f'{key}_std'] = val
 
-        return ClientResult1(params=out_params, result=result) 
+        return fed_t.ClientResult1(params=out_params, result=result) 
 
     def receive_strategy(self, results: fed_t.ClientResults_t) -> AllIns_t:
         client_params= {}
@@ -145,7 +161,7 @@ class FedstdevStrategy(ABCStrategy):
         '''Simple send the same model to all clients strategy'''
         clients_ins = {}
         for cid in ids:
-            clients_ins[cid] = ClientIns(
+            clients_ins[cid] = fed_t.ClientIns(
                 params=self._server_params,
                 metadata={}
             )
@@ -187,6 +203,17 @@ class FedstdevStrategy(ABCStrategy):
             logger.error(f'Unknown weight scaling type: {self.cfg.weighting_strategy}')
 
         self._client_wts = self.normalize_scalar_weights(self._client_wts)
+
+
+        # LOGGING CODE
+        for cid in strategy_ins.keys():
+            # logging omega and weight averages
+            self.res_man.log_general_metric(get_dict_avg(self._client_omegas[cid], self.param_dims), f'omegas/{cid}', 'server', 'post_agg')
+
+            self.res_man.log_general_metric(get_dict_avg(self._client_wts[cid], self.param_dims), metric_name=f'client_weights/{cid}', phase='post_agg', actor='server')
+
+        self.res_man.log_general_metric(self._client_omegas, 'omegas', 'server', 'post_agg')
+        self.res_man.log_general_metric(self._client_wts, metric_name='client_weights', phase='post_agg', actor='server')
 
         self._server_params, server_deltas = gradient_update_per_param(self._server_params, _clients_params, self._client_wts)
 

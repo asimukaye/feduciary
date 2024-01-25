@@ -3,9 +3,9 @@
 # Experiment mode: Switch between debug and experiment methods
 # mode: fedstdev_centralized
 # mode: base_centralized
-# mode: fedstdev
-mode: debug
-desc: ' Fedstev flower mode rerun'
+mode: fedstdev
+# mode: debug
+desc: ' Fedstev flower mode default run with one label flipped client'
 
 defaults:
   - base_config
@@ -21,23 +21,23 @@ defaults:
   - _self_
 
 simulator:
-  seed: 42
-  use_tensorboard: false
-  use_wandb: true
-  save_csv: false
-  out_prefix: ''
-  num_clients: 3
-  num_rounds: 30
-  checkpoint_every: 20
-  eval_type: both
-  eval_every: 1
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized', 'flower'
   # mode: centralized
   # mode: federated
   mode: flower 
+  seed: 42
+  use_tensorboard: false
+  use_wandb: true
+  save_csv: true
+  out_prefix: ''
+  num_clients: 6
+  num_rounds: 50
+  checkpoint_every: 10
+  eval_type: both
+  eval_every: 1
   flwr_resources:
-    num_cpus: 3
-    num_gpus: 0.2 #TODO: Couple this with device init
+    num_cpus: 4
+    num_gpus: 0.5 #TODO: Couple this with device init
 
 train_cfg:
   epochs: 1
@@ -78,9 +78,9 @@ dataset:
         - 28
 
   split_conf:
-    # split_type: one_label_fli`pped_client
+    split_type: one_label_flipped_client
     # split_type: one_imbalanced_client
-    split_type: iid
+    # split_type: iid
     # split_type: one_noisy_client
     num_splits: ${simulator.num_clients}
     # Noise parameter is specific to one patho client
@@ -90,7 +90,7 @@ dataset:
     noise:
       mu: 0.0
       sigma: 0.5
-      flip_percent: 1.0
+      flip_percent: 0.5
 
 
 model:

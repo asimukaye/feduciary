@@ -11,6 +11,7 @@ import feduciary.common.typing as fed_t
 # from feduciary.strategy.abcstrategy import ABCStrategy
 from feduciary.strategy.abcstrategy import *
 # from feduciary.strategy.abcstrategy import StrategyIns
+from feduciary.results.resultmanager import ResultManager
 
 # Type declarations
 ScalarWeights_t = dict[str, float]
@@ -73,7 +74,8 @@ class BaseOuts(StrategyOuts):
 class BaseStrategy(ABCStrategy):
     def __init__(self,
                  model: Module,
-                 cfg: StrategyCfgProtocol) -> None:
+                 cfg: StrategyCfgProtocol,
+                 res_man: ResultManager) -> None:
         # super().__init__(model, cfg)
         self.cfg = cfg
         # * Server params is not required to be stored as a state fir

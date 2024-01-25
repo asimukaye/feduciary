@@ -3,6 +3,7 @@ import typing as t
 
 import feduciary.common.typing as fed_t
 import torch
+from feduciary.results.resultmanager import ResultManager
 
 import numpy as np
 from torch.nn import Module, ParameterDict, Parameter
@@ -31,7 +32,9 @@ class ABCStrategy(ABC):
     
     @abstractmethod
     def __init__(self,  model: Module,
-                 cfg: StrategyConfig, **kwargs) -> None:
+                 cfg: StrategyConfig,
+                 res_man:ResultManager,
+                   **kwargs) -> None:
         pass
         # self.cfg = cfg
         # defaults = dict(lr=client_lr)
