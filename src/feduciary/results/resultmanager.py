@@ -7,7 +7,7 @@ import numpy as np
 import typing as t
 from torch.utils.tensorboard.writer import SummaryWriter
 from enum import Enum, auto
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, is_dataclass
 from logging import Logger
 import pandas as pd
 import wandb
@@ -102,6 +102,7 @@ class ResultManager:
         self.result_dict = defaultdict()
         self.last_result = defaultdict()
 
+        # os.makedirs('debug', exist_ok=True)
         # Metric Event+Phase Actor dictionary with the phase lumped along with the event
         self.metric_event_actor_dict: dict[str, dict[str, dict[str, dict]]] = defaultdict(lambda: defaultdict(dict))
 
@@ -388,7 +389,20 @@ class ResultManager:
             self.save_as_csv(result_dict=result_dict)
         # with get_time():
         with open(f'{self.cfg.out_prefix}int_result.json', 'w') as f:
-                json.dump(result_dict, f, indent=4)
+            json.dump(result_dict, f, indent=4)
+
+    
+    def json_dump(self, metric_val, metric_name: str, actor: str, phase: str, event: str = ''):
+        # if not isinstance(metric_val, (float, int, dict, list)):
+        #     err_str = f'Metric logging for {metric_name} of type: {type(metric_val)} is not supported'
+        #     logger.error(err_str)
+        #     raise TypeError(err_str)
+        # else
+        if is_dataclass(metric_val):
+            metric_val = asdict(metric_val)
+        os.makedirs(f'debug/r_{self._round}', exist_ok=True)
+        with open(f'debug/r_{self._round}/{metric_name}_{event}_{actor}_{phase}.json', 'w') as f:
+            json.dump(metric_val, f, indent=4)
 
 
     def finalize(self):
@@ -405,16 +419,16 @@ class ResultManager:
 
 
     # Some valiant effort functions, maybe useful later
-    def fuse_events(self, metric: str, past_event: str, present_event: str, actor: str, x, x_key:str ,delta_x=0.5, actor_2: str = '', y_key: str =''):
-        # TODO: Think of a better way to do this function
+    # def fuse_events(self, metric: str, past_event: str, present_event: str, actor: str, x, x_key:str ,delta_x=0.5, actor_2: str = '', y_key: str =''):
+    #     # TODO: Think of a better way to do this function
 
-        if actor_2 is None:
-            actor_2 = actor
-        y_past = self.metric_event_actor_dict[metric][past_event][actor]
-        y_present = self.metric_event_actor_dict[metric][present_event][actor_2]
+    #     if actor_2 is None:
+    #         actor_2 = actor
+    #     y_past = self.metric_event_actor_dict[metric][past_event][actor]
+    #     y_present = self.metric_event_actor_dict[metric][present_event][actor_2]
 
-        self.results_history[f'{metric}/{actor}'][x_key].extend([x, x + delta_x])
-        self.results_history[f'{metric}/{actor}'][metric].extend([y_past, y_present])
+    #     self.results_history[f'{metric}/{actor}'][x_key].extend([x, x + delta_x])
+    #     self.results_history[f'{metric}/{actor}'][metric].extend([y_past, y_present])
 
     def add_matplotlib_plot(self, input_dict: dict, title: str = ''):
         fig = plt.figure()

@@ -200,7 +200,7 @@ class FedstdevClient(BaseFlowerClient):
         for seed, model in self._model_map.items():
             model.load_state_dict(train_ins.server_params)
             self._optimizer_map[seed] = self.optim_partial(model.parameters())
-
+            # self.metric_mngr.json_dump(self.train_loader_map[seed].dataset.indices.tolist(), 'indices', 'train', f'seed_{seed}')
         # Run an round on the client
         empty_grads = {p_key: torch.empty_like(param.data, device=self.train_cfg.device) for p_key, param in self._model.named_parameters()}
 
@@ -227,7 +227,7 @@ class FedstdevClient(BaseFlowerClient):
                 for i, (inputs, targets) in enumerate(self.train_loader_map[seed]):
                     # with open(f'{self._root_dir}/{self.cfg.metric_cfg.file_prefix}_targets_{self._round}_{seed}_{i}.json', 'w') as f:
                     #     json.dump(targets.tolist(), f)
-                    logger.debug(f'CLIENT {self.id} SEED: {seed}, EPOCH: {epoch}, BATCH: {i}')
+                    # logger.debug(f'CLIENT {self.id} SEED: {seed}, EPOCH: {epoch}, BATCH: {i}')
                     inputs, targets = inputs.to(self.train_cfg.device), targets.to(self.train_cfg.device)
 
                     model.zero_grad(set_to_none=True)
@@ -258,6 +258,11 @@ class FedstdevClient(BaseFlowerClient):
         for seed, out_result in out_result_dict.items():
             self.metric_mngr.log_general_metric(out_result.metrics['loss'], 'train_loss', f'seed_{seed}', 'pre_avg')
             self.metric_mngr.log_general_metric(out_result.metrics['acc1'], 'train_acc', f'seed_{seed}', 'pre_avg')
+        
+        # self.metric_mngr.json_dump(self._get_parameter_std_dev(), 'param_std', 'train', 'pre_avg')
+        # self.metric_mngr.json_dump(self._parameters, 'grad_std', 'train', 'pre_avg')
+        
+
         # FIXME: OUt result is only for the last seed
         return out_result
 

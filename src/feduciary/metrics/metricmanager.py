@@ -7,6 +7,7 @@ from feduciary.common.utils import get_time
 from feduciary.config import MetricConfig
 import os
 from copy import deepcopy
+import json
 # TODO: Consider merging with Result Manager Later
 ##################
 # Metric manager #
@@ -99,15 +100,26 @@ class MetricManager:
         # Metric addition of what metric, what contxt, when and who and what value
         self._pmea_dict[phase] = {metric: {event: {actor :value}}}
 
-    def log_general_metric(self, metric_val, metric_name: str, actor: str, phase: str, event: str = ''):            
+    def log_general_metric(self, metric_val, metric_name: str, phase: str, event: str = ''):            
         if isinstance(metric_val, dict):
             for key, val in metric_val.items():
-                self.log_general_metric(val, f'{metric_name}/{key}', actor, phase, event)
+                self.log_general_metric(val, f'{metric_name}/{key}', phase, event)
         elif isinstance(metric_val, (float, int)):
-            self._add_metric(metric_name, event, phase, actor, metric_val)
+            self._add_metric(metric_name, event, phase, self._actor, metric_val)
         else:
             err_str = f'Metric logging for {metric_name} of type: {type(metric_val)} is not supported'
             raise TypeError(err_str)
+        
+        
+    def json_dump(self, metric_val, metric_name: str, phase: str, event: str = ''):
+        if not isinstance(metric_val, (float, int, dict, list)):
+            err_str = f'Metric logging for {metric_name} of type: {type(metric_val)} is not supported'
+            raise TypeError(err_str)
+        else:  
+            os.makedirs(f'debug/{self._actor}/r_{self._round}', exist_ok=True)
+            with open(f'debug/{self._actor}/r_{self._round}/{metric_name}_{event}_{phase}.json', 'w') as f:
+                json.dump(metric_val, f, indent=4)
+
     
     def __del__(self):
         if self._log_to_file:

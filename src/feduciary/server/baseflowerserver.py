@@ -114,7 +114,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
                  clients: dict[str, BaseFlowerClient],
                  model: Module, cfg: ServerConfig,
                  strategy: BaseStrategy,
-                 train_cfg: ClientConfig,
+                 train_cfg: TrainConfig,
                  dataset: Dataset,
                  result_manager: ResultManager):
         self.model = model
@@ -185,9 +185,15 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
 
         # Uncomment this when adding GPU support to server
         # self.model.to('cpu')
-        results = {}
+        results: dict[str, fed_t.ClientResult1] = {}
         for idx in log_tqdm(ids, desc=f'collecting results: ', logger=logger):
             results[idx] = self.clients[idx].upload(request_type)
+            # self.result_manager.json_dump(results[idx].result, f'client_{idx}_res', 'post_agg', 'flowerserver', request_type.name)
+            # if request_type == fed_t.RequestType.TRAIN:
+            #     # ic(idx)
+            #     # ic(results[idx].params[list(results[idx].params.keys())[0]][:5])
+            #     params = self.result_manager.log_parameters(results[idx].params, f'client_{idx}_params', 'post_agg', 'flowerserver', request_type.name, verbose=True)
+            #     self.result_manager.json_dump(params, f'client_{idx}_params', 'post_agg', 'flowerserver', request_type.name)
         return results
 
 
@@ -249,7 +255,9 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         collect_ids = [cid for cid, out in outcomes.items() if out==fed_t.RequestOutcome.COMPLETE]
 
         train_results = self._collect_results(collect_ids, fed_t.RequestType.TRAIN)
+
         strategy_ins = self.strategy.receive_strategy(train_results)
+        # self.result_manager.json_dump(strategy_ins, 'strategy_ins', 'pre_agg', 'flowerserver')
         strategy_outs = self.strategy.aggregate(strategy_ins)
         self.model.load_state_dict(strategy_outs.server_params)
 

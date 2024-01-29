@@ -36,7 +36,7 @@ simulator:
   eval_type: both
   eval_every: 1
   flwr_resources:
-    num_cpus: 4
+    num_cpus: 3
     num_gpus: 0.5 #TODO: Couple this with device init
 
 train_cfg:
