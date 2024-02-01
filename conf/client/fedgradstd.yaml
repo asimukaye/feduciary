@@ -1,0 +1,13 @@
+defaults:
+  - client_schema
+  - cfg: fedgradstd_client
+  - _self_
+
+_target_: feduciary.client.fedgradstdclient.FedgradstdClient
+_partial_: true
+cfg:
+  start_epoch: 0
+  data_shuffle: false
+  seeds: [15, 25, 35, 45, 55]
+  abs_before_mean: true
+train_cfg: ${train_cfg}

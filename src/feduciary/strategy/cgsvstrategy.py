@@ -6,17 +6,18 @@ from torch.nn.utils import parameters_to_vector
 
 from feduciary.config import ClientConfig, CGSVConfig
 from feduciary.results.resultmanager import ClientResult
-from .baseserver import BaseServer, BaseStrategy
+from feduciary.strategy import ABCStrategy
 logger = logging.getLogger(__name__)
 
 
-class CgsvOptimizer(BaseStrategy):
+# FIXME: Complete this
+
+class CgsvStrategy(ABCStrategy):
     def __init__(self, params, client_ids, **kwargs):
         self.gamma = kwargs.get('gamma')
         self.lr = kwargs.get('lr')
 
         defaults = dict(lr=self.lr)
-        super(CgsvOptimizer, self).__init__(params=params, defaults=defaults)
 
         self.alpha = kwargs.get('alpha')
         self.local_grad_norm = None

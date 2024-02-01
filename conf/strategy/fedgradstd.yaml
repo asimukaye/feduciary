@@ -3,7 +3,7 @@ defaults:
   - cfg: fedstdev_strategy
   - _self_
 
-_target_: feduciary.strategy.fedstdevstrategy.FedstdevStrategy
+_target_: feduciary.strategy.fedgradstdstrategy.FedgradstdStrategy
 cfg:
   train_fraction: 1.0
   eval_fraction: 1.0
@@ -18,4 +18,4 @@ cfg:
     - 1e3
   alpha: 0.2
   num_clients: ${simulator.num_clients}
-  weighting_strategy: tanh_sigma_by_mu
+  weighting_strategy: grad_sigma_by_mu_layer_wise

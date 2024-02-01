@@ -159,6 +159,12 @@ def default_seed():
 class FedstdevClientConfig(ClientConfig):
     seeds: list[int] = field(default_factory=default_seed)
     client_ids: list[str] = field(default_factory=list)
+
+@dataclass
+class FedgradstdClientConfig(ClientConfig):
+    seeds: list[int] = field(default_factory=default_seed)
+    client_ids: list[str] = field(default_factory=list)
+    abs_before_mean: bool = field(default=False)
     # def __post_init__(self):
     #     super().__post_init__()
 
@@ -401,3 +407,4 @@ def register_configs():
     # cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
     # cs.store(group='server/cfg', name='fedstdev_server', node=FedstdevServerConfig)
     cs.store(group='client/cfg', name='fedstdev_client', node=FedstdevClientConfig)
+    cs.store(group='client/cfg', name='fedgradstd_client', node=FedgradstdClientConfig)

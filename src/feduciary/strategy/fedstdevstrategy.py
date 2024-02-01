@@ -16,7 +16,7 @@ from feduciary.strategy.basestrategy import random_client_selection
 from feduciary.strategy.fedoptstrategy import gradient_average_update
 ### Define the configurations required for this strategy
 from feduciary.common.utils import generate_client_ids
-
+from enum import Enum
 @dataclass
 class FedstdevCfgProtocol(t.Protocol):
     '''Protocol for Fedstdev strategy config'''
@@ -28,6 +28,13 @@ class FedstdevCfgProtocol(t.Protocol):
     num_clients: int
 
 
+class WeightingStrategy(str, Enum):
+    PARAM_SIGMA_LAYER_WIS = 'param_sigma'
+    PARAM_SIGMA_SCALAR = 'param_sigma_scalar'
+    PARAM_SIGMA_BY_MU_FULL_DIM = 'param_sigma_by_mu_full_dim'
+    PARAM_SIGMA_BY_MU_SCALAR_AVG = 'param_sigma_by_mu_scalar_avg'
+    PARAM_SIGMA_BY_MU_SCALAR_WTD_AVG = 'param_sigma_by_mu_scalar_wtd_avg'
+    PARAM_SIGMA_BY_MU_LAYER_WISE = 'param_sigma_by_mu_layer_wise'
 # Type declarations
 ScalarWeights_t = dict[str, float]
 TensorWeights_t = dict[str, Tensor]
@@ -131,7 +138,6 @@ class FedstdevStrategy(ABCStrategy):
         self._clnt_sigma_by_mu: fed_t.ClientParams_t = {cid: {param: Parameter(torch.empty_like(val.data)) for param, val in self._server_params.items()} for cid in client_ids}
         # tracking client deltas for logging
         self._client_deltas: fed_t.ClientDeltas_t = {cid: {param: torch.empty_like(val.data) for param, val in self._server_params.items()} for cid in client_ids}
-
 
 
     @classmethod
@@ -261,6 +267,7 @@ class FedstdevStrategy(ABCStrategy):
 
         return outs
     
+
     @classmethod
     def _compute_sigma_by_mu(cls, sigmas: fed_t.ActorParams_t, mus: fed_t.ActorParams_t) -> fed_t.ActorParams_t:
         '''Computes sigma/mu for each parameter'''

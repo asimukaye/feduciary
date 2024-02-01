@@ -3,18 +3,20 @@
 # Experiment mode: Switch between debug and experiment methods
 # mode: fedstdev_centralized
 # mode: base_centralized
-mode: fedstdev
+# mode: fedstdev
+mode: fedgradstd
 # mode: debug
-desc: ' Fedstev flower mode default run with one label flipped client'
+desc: ' Fedgradstd flower mode default run with iid'
 
 defaults:
   - base_config
   - hydra: custom
   - server: baseflower
   # - strategy: base
-  - strategy: fedstdev
-
-  - client: fedstdev
+  # - strategy: fedstdev
+  - strategy: fedgradstd
+  # - client: fedstdev
+  - client: fedgradstd
   # - client: base
   # - client: baseflower
   # - train: base_trainer
@@ -78,9 +80,9 @@ dataset:
         - 28
 
   split_conf:
-    split_type: one_label_flipped_client
+    # split_type: one_label_flipped_client
     # split_type: one_imbalanced_client
-    # split_type: iid
+    split_type: iid
     # split_type: one_noisy_client
     num_splits: ${simulator.num_clients}
     # Noise parameter is specific to one patho client
