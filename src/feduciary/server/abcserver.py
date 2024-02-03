@@ -12,7 +12,7 @@ from torch import Tensor
 
 from torch.optim.lr_scheduler import LRScheduler
 
-from feduciary.client.baseclient import BaseClient, model_eval_helper
+from feduciary.client.baseclient import BaseClient, simple_evaluator
 from feduciary.metrics.metricmanager import MetricManager
 from feduciary.common.utils  import log_tqdm, log_instance
 # from feduciary.common.typing import ClientParams_t

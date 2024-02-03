@@ -21,7 +21,7 @@ from feduciary.common.utils import (log_tqdm,
                               convert_ndarrays_to_param_dict,
                               get_time)
 from feduciary.config import ClientConfig, TrainConfig
-from feduciary.client.abcclient import ABCClient, model_eval_helper
+from feduciary.client.abcclient import ABCClient, simple_evaluator
 from feduciary.results.resultmanager import ResultManager
 import feduciary.common.typing as fed_t
 import pandas as pd
@@ -117,7 +117,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
                  cfg: ClientConfig,
                  train_cfg: TrainConfig,
                  client_id: str,
-                 dataset: tuple,
+                 dataset: fed_t.DatasetPair_t,
                  model: Module
                  ):
         
@@ -299,7 +299,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
     @torch.no_grad()
     def eval(self, eval_ins = None) -> fed_t.Result:
         # Run evaluation on the client
-        self._eval_result = model_eval_helper(self._model, self.test_loader, self.train_cfg, self.metric_mngr, self._round)
+        self._eval_result = simple_evaluator(self._model, self.test_loader, self.train_cfg, self.metric_mngr, self._round)
         return self._eval_result
 
     def save_checkpoint(self, epoch=0):

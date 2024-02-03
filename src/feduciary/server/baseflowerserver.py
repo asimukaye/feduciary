@@ -22,7 +22,7 @@ from feduciary.client.baseflowerclient import BaseFlowerClient
 from feduciary.config import ClientConfig, ServerConfig
 from feduciary.results.resultmanager import ResultManager
 
-from feduciary.client.baseclient import BaseClient, model_eval_helper
+from feduciary.client.baseclient import BaseClient, simple_evaluator
 from feduciary.metrics.metricmanager import MetricManager
 from feduciary.common.utils import (log_tqdm,
                               unroll_param_keys,
@@ -205,7 +205,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         server_loader = DataLoader(dataset=self.server_dataset,
                                    batch_size=self.train_cfg.batch_size, shuffle=False)
         # log result
-        result = model_eval_helper(self.model, server_loader, self.train_cfg, self.metric_manager, self._round)
+        result = simple_evaluator(self.model, server_loader, self.train_cfg, self.metric_manager, self._round)
         self.result_manager.log_general_result(result, phase='post_agg', actor='server', event='central_eval')
         return result
 

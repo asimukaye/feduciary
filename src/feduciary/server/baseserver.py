@@ -15,7 +15,7 @@ from torch.multiprocessing import Queue
 from logging.handlers import  QueueListener, QueueHandler
 from torch.optim.lr_scheduler import LRScheduler
 
-from feduciary.client.baseclient import BaseClient, model_eval_helper
+from feduciary.client.baseclient import BaseClient, simple_evaluator
 from feduciary.metrics.metricmanager import MetricManager
 from feduciary.common.utils  import log_tqdm, log_instance
 from feduciary.results.resultmanager import ResultManager, ClientResultStats
@@ -249,7 +249,7 @@ class BaseServer(ABC):
         # FIXME: Formalize phase argument passing
         server_loader = DataLoader(dataset=self.server_dataset, batch_size=self.client_cfg.batch_size, shuffle=False)
         # log result
-        result = model_eval_helper(self.model, server_loader, self.client_cfg, self.metric_manager, self._round)
+        result = simple_evaluator(self.model, server_loader, self.client_cfg, self.metric_manager, self._round)
         self.result_manager.log_general_result(result, phase='post_agg', actor='server', event='central_eval')
         return result
 

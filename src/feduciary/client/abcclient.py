@@ -16,7 +16,7 @@ from feduciary.results.resultmanager import ResultManager
 import feduciary.common.typing as fed_t
 logger = logging.getLogger(__name__)
 
-def model_eval_helper(model: Module,
+def simple_evaluator(model: Module,
                       dataloader: DataLoader,
                       cfg: TrainConfig,
                       mm: MetricManager,
@@ -30,7 +30,33 @@ def model_eval_helper(model: Module,
     for inputs, targets in dataloader:
         inputs, targets = inputs.to(cfg.device), targets.to(cfg.device)
         outputs = model(inputs)
-        loss:Tensor = criterion(outputs, targets) #type: ignore
+        loss: Tensor = criterion(outputs, targets) #type: ignore
+        mm.track(loss.item(), outputs, targets)
+    else:
+        result = mm.aggregate(len(dataloader.dataset), -1) # type: ignore
+        mm.flush()
+    return result
+
+
+def simple_trainer(model: Module,
+                    dataloader: DataLoader,
+                    cfg: TrainConfig,
+                    mm: MetricManager,
+                    round: int) -> fed_t.Result:
+
+    mm._round = round
+    model.eval()
+    model.to(cfg.device)
+    criterion  = cfg.criterion
+    optimizer: Optimizer = cfg.optimizer
+
+    for inputs, targets in dataloader:
+        optimizer.zero_grad()
+        inputs, targets = inputs.to(cfg.device), targets.to(cfg.device)
+        outputs = model(inputs)
+        loss: Tensor = criterion(outputs, targets) #type: ignore
+        loss.backward()
+        optimizer.step()
         mm.track(loss.item(), outputs, targets)
     else:
         result = mm.aggregate(len(dataloader.dataset), -1) # type: ignore

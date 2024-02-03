@@ -97,6 +97,24 @@ def load_raw_dataset(cfg: DatasetConfig) -> tuple[data.Subset, data.Subset, Data
 
     return raw_train, raw_test, model_spec
 
+
+def pool_datasets(cfg: DatasetConfig, client_sets: list[fed_t.DatasetPair_t]):
+    """Pools datasets from clients into a single dataset.
+
+    Args:
+        cfg: DatasetConfig
+        client_sets: list[fed_t.DatasetPair_t]
+            List of client datasets
+    """
+    if cfg.dataset_family == 'flamby':
+        raise NotImplementedError()
+    else:
+        pooled_train = data.ConcatDataset([pair[0] for pair in client_sets])
+        pooled_test = data.ConcatDataset([pair[1] for pair in client_sets])
+    
+    return pooled_train, pooled_test
+        
+
 def load_federated_dataset(cfg: DatasetConfig) -> tuple[ fed_t.ClientDatasets_t, data.Subset, DatasetModelSpec]:
     #FIXME: This is a hack to get the model spec
     if cfg.split_conf.split_type == 'defacto':

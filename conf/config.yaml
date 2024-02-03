@@ -2,11 +2,12 @@
 ---
 # Experiment mode: Switch between debug and experiment methods
 # mode: fedstdev_centralized
-# mode: base_centralized
+# mode: centralized
+mode: fedavg
 # mode: fedstdev
-mode: fedgradstd
+# mode: fedgradstd
 # mode: debug
-desc: ' Fedgradstd flower mode default run with iid'
+desc: 'Fedavg run with CIFAR10 and Two CNN'
 
 defaults:
   - base_config
@@ -33,7 +34,7 @@ simulator:
   save_csv: true
   out_prefix: ''
   num_clients: 6
-  num_rounds: 50
+  num_rounds: 200
   checkpoint_every: 10
   eval_type: both
   eval_every: 1
