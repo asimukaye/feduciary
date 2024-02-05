@@ -1,5 +1,7 @@
 import logging
 from collections import OrderedDict
+import typing as t
+from dataclasses import dataclass
 # from torch.optim.lr_scheduler import ExponentialLR
 from torch.nn import CosineSimilarity, Parameter
 from torch.nn.utils import parameters_to_vector
@@ -7,10 +9,20 @@ from torch.nn.utils import parameters_to_vector
 from feduciary.config import ClientConfig, CGSVConfig
 from feduciary.results.resultmanager import ClientResult
 from feduciary.strategy import ABCStrategy
+import feduciary.common.typing as fed_t
+
+
 logger = logging.getLogger(__name__)
 
 
 # FIXME: Complete this
+
+@dataclass
+class CgsvCfgProtocol(t.Protocol):
+    lr: float = 0.01
+    gamma: float = 0.1
+    alpha: float = 0.9
+
 
 class CgsvStrategy(ABCStrategy):
     def __init__(self, params, client_ids, **kwargs):
@@ -121,7 +133,12 @@ class CgsvStrategy(ABCStrategy):
         cgsv = self._compute_cgsv(server_grads, local_grads)
 
         self._update_coefficients(client_id, cgsv)
+    
+    def aggregate(self):
 
+
+
+      
 class CgsvServer(BaseServer):
     name:str = 'CgsvServer'
 

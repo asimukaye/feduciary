@@ -8,14 +8,14 @@ cfg:
   train_fraction: 1.0
   eval_fraction: 1.0
   betas:
+    - 1e2
+    - 1e2
     - 1e3
+    - 1e2
     - 1e3
-    - 1e4
-    - 1e3
-    - 1e4
-    - 1e3
-    - 1e3
-    - 1e3
+    - 1e2
+    - 1e2
+    - 1e2
   alpha: 0.2
   num_clients: ${simulator.num_clients}
   weighting_strategy: grad_sigma_by_mu_layer_wise

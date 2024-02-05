@@ -1,0 +1,11 @@
+defaults:
+  - 'strategy_schema'
+  - cfg: fedavgmanual
+  - _self_
+
+_target_: feduciary.strategy.fedavgmanual.FedavgManual
+cfg:
+  train_fraction: 1.0
+  eval_fraction: 1.0
+  weights: [0.25, 1, 1, 1, 1, 1]
+  num_clients: ${simulator.num_clients}

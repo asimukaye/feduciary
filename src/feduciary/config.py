@@ -220,20 +220,31 @@ class CGSVConfig(StrategyConfig):
         super().__post_init__()
         
 
+# @dataclass
+# class FedavgConfig(StrategyConfig):
+#     momentum: Optional[float] = float('nan')
+#     update_rule: str = field(default='param_average')
+#     delta_normalize: bool = False
+#     gamma: float = 1.0
+
+#     def __post_init__(self):
+#         super().__post_init__()
+#         # assert self.momentum >= 0.0
+#         assert self.update_rule in ['param_average', 'gradient_average']
+#         if self.update_rule == 'param_average' and self.delta_normalize:
+#             logger.warn("Delta normalize flag will be ignored in parameter averaging mode")
+
 @dataclass
-class FedavgConfig(StrategyConfig):
-    momentum: Optional[float] = float('nan')
-    update_rule: str = field(default='param_average')
-    delta_normalize: bool = False
-    gamma: float = 1.0
+class FedavgManualConfig(StrategyConfig):
+    weights : list[float]
+    num_clients: int
 
     def __post_init__(self):
         super().__post_init__()
-        # assert self.momentum >= 0.0
-        assert self.update_rule in ['param_average', 'gradient_average']
-        if self.update_rule == 'param_average' and self.delta_normalize:
-            logger.warn("Delta normalize flag will be ignored in parameter averaging mode")
-
+        assert len(self.weights) == self.num_clients, 'Number of weights should be equal to number of clients'
+        # Auto normalize the weights
+        self.weights = [w/sum(self.weights) for w in self.weights]
+        
 
 @dataclass
 class ServerSchema:
@@ -403,6 +414,7 @@ def register_configs():
     cs.store(group='strategy/cfg', name='base_cgsv', node=CGSVConfig)
     cs.store(group='strategy', name='strategy_schema', node=StrategySchema)
     cs.store(group='strategy/cfg', name='base_strategy', node=StrategyConfig)
+    cs.store(group='strategy/cfg', name='fedavgmanual', node=FedavgManualConfig)
     cs.store(group='strategy/cfg', name='fedstdev_strategy', node=FedstdevConfig)
     # cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
     # cs.store(group='server/cfg', name='fedstdev_server', node=FedstdevServerConfig)

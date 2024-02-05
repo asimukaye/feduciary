@@ -3,23 +3,28 @@
 # Experiment mode: Switch between debug and experiment methods
 # mode: fedstdev_centralized
 # mode: centralized
-mode: fedavg
+# mode: fedavg
+mode: fedavgmanual
+
 # mode: fedstdev
 # mode: fedgradstd
 # mode: debug
-desc: 'Fedavg run with CIFAR10 and Two CNN'
+desc: 'Fegrad run with CIFAR10 and Two CNN, one label flipped client. Increased betas'
 
 defaults:
   - base_config
   - hydra: custom
   - server: baseflower
   # - strategy: base
+  - strategy: fedavgmanual
+
   # - strategy: fedstdev
-  - strategy: fedgradstd
+  # - strategy: fedgradstd
+
   # - client: fedstdev
-  - client: fedgradstd
+  # - client: fedgradstd
   # - client: base
-  # - client: baseflower
+  - client: baseflower
   # - train: base_trainer
   - _self_
 
@@ -81,9 +86,9 @@ dataset:
         - 28
 
   split_conf:
-    # split_type: one_label_flipped_client
+    split_type: one_label_flipped_client
     # split_type: one_imbalanced_client
-    split_type: iid
+    # split_type: iid
     # split_type: one_noisy_client
     num_splits: ${simulator.num_clients}
     # Noise parameter is specific to one patho client
@@ -93,7 +98,7 @@ dataset:
     noise:
       mu: 0.0
       sigma: 0.5
-      flip_percent: 0.5
+      flip_percent: 0.75
 
 
 model:
