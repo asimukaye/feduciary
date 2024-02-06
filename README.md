@@ -2,10 +2,13 @@
 
 This repository is a modular Federated Learning sandbox in PyTorch for quick research prototyping. This package exposes abstract APIs required to model a FL strategy with the core design principle resembling around the Flower Framework with supporting modules for configuration management and results/logging. 
 
-## Why not just use Flower?
+`NOTE: This repository is under active development and will see breaking changes regularly for some time.`
+
+### Why not just use Flower?
 While Flower allows for massive scaling and parallel processing capabilities, it comes at the cost of opacity and dependencies on the underlying libraries (flower is built on the Ray Library for parallel processing, for instance). Feduciary has a native sequential execution path for ease of debugging and complete whiteboxing with the possibility of using debuggers through the entire code pipeling. It is also helpful identifying unintentional side-effects of parallel execution, such as race conditions and or ordering errors. Further, the native code path also allows eases the passing of python objects without encountering serialization or pickling errors. Once the desired results are obtained , the existing strategy can be run on the Flower pipeline with a single mode switch to take advantage of the scalability that Flower provides. Layering its modules over flower also provides Feduciary the ability to run the packages on different devices.
 
 
+## Modules:
 The Feduciary package contains of the following modules:
 
 - **Client**: The client module contains of submodules that define different types of clients available for training. The BaseClient Module is the simplest client module with a simple training and evaluation loop. The BaseFlowerClient is mixin of the BaseClient and The FlowerClient which enables the client to run within the Flower Framework. All the derived clients of BaseFlowerClient need not redefine the interfaces for Flower.

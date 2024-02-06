@@ -102,9 +102,10 @@ def set_parameters(net: Module, parameters: list[np.ndarray]):
 @dataclass
 class ClientConfigProtocol(t.Protocol):
     optimizer: functools.partial
+
 @dataclass
 class ClientInProtocol(t.Protocol):
-    server_params: dict
+    in_params: dict
 
 @dataclass
 class ClientOuts:
@@ -208,7 +209,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         # NOTE: Current implementation assumes state persistence between download and upload calls.
         self._round = client_ins._round
 
-        param_dict = specific_ins.server_params
+        param_dict = specific_ins.in_params
 
         match client_ins.request:
             case fed_t.RequestType.NULL:
@@ -258,7 +259,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
         # Run a round on the client
         # logger.info(f'CLIENT {self.id} Starting update')
         # print('############# CWD: ##########', os.getcwd())
-        self._model.load_state_dict(train_ins.server_params)
+        self._model.load_state_dict(train_ins.in_params)
         self._optimizer = self.optim_partial(self._model.parameters())
         self.metric_mngr._round = self._round
         self._model.train()

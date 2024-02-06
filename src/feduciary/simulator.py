@@ -337,66 +337,65 @@ def run_single_client(cfg: Config,
     split_conf = cfg.dataset.split_conf
     logger.info(f'[DATA_SPLIT] Simulated dataset split : `{split_conf.split_type}`')
 
-    if split_conf.split_type == 'one_noisy_client':
-        train_set =  NoisySubset(train_set, split_conf.noise.mu, split_conf.noise.sigma)
-    elif cfg.dataset.split_conf.split_type == 'one_label_flipped_client':
-        train_set = LabelFlippedSubset(train_set, split_conf.noise.flip_percent)
+    # if split_conf.split_type == 'one_noisy_client':
+    #     train_set =  NoisySubset(train_set, split_conf.noise.mu, split_conf.noise.sigma)
+    # elif cfg.dataset.split_conf.split_type == 'one_label_flipped_client':
+    #     train_set = LabelFlippedSubset(train_set, split_conf.noise.flip_percent)
 
-    clients['centralized'] = _create_client('centralized', (train_set, test_set),  model, cfg.client)
+    # clients['centralized'] = _create_client('centralized', (train_set, test_set),  model, cfg.client)
 
     result_manager = ResultManager(cfg.simulator, logger=logger)
 
-        # FIXME: Clean this part for general centralized runs
-    # trainer: FedstdevClient
-    trainer: FedstdevClient = clients['centralized']
+    #     # FIXME: Clean this part for general centralized runs
+    # # trainer: FedstdevClient
+    # trainer: FedstdevClient = clients['centralized']
 
-    # Additional code for current usecase. Factorize later
-    strat_cfg: FedstdevServerConfig = cfg.server.cfg
+    # # Additional code for current usecase. Factorize later
+    # strat_cfg: FedstdevServerConfig = cfg.server.cfg
 
-    param_dims = {p_key: np.prod(param.size()) for p_key, param in model_instance.named_parameters()} #type: ignore
-    param_keys = param_dims.keys()
-    betas = {param: beta for param, beta in zip(param_keys, strat_cfg.betas)}
-    _round = 0
+    # param_dims = {p_key: np.prod(param.size()) for p_key, param in model_instance.named_parameters()} #type: ignore
+    # param_keys = param_dims.keys()
+    # betas = {param: beta for param, beta in zip(param_keys, strat_cfg.betas)}
+    # _round = 0
 
-    for curr_round in range(_round, cfg.simulator.num_rounds):
+    for curr_round in range(cfg.simulator.num_rounds):
         logger.info(f'-------- Round: {curr_round} --------\n')
-        # wandb.log({'_round': curr_round})
         loop_start = time.time()
-        _round = curr_round
-        trainer._round = curr_round
+    #     _round = curr_round
+    #     trainer._round = curr_round
 
-        train_result = trainer.train()
-        result_manager.log_general_result(train_result, 'post_train', 'sim', 'central_train')
+    #     train_result = trainer.train()
+    #     result_manager.log_general_result(train_result, 'post_train', 'sim', 'central_train')
         
-        #  Logging and evaluating specific to fedstdev
-        params = trainer.upload()
-        result_manager.log_parameters(params, 'post_train', 'sim', verbose=True)
+    #     #  Logging and evaluating specific to fedstdev
+    #     params = trainer.upload()
+    #     result_manager.log_parameters(params, 'post_train', 'sim', verbose=True)
 
-        param_stdev = trainer._get_parameter_std_dev()
-        grad_stdev = trainer._get_gradients_std_dev()
-        grad_mu = trainer._get_gradients_average()
+    #     param_stdev = trainer._get_parameter_std_dev()
+    #     grad_stdev = trainer._get_gradients_std_dev()
+    #     grad_mu = trainer._get_gradients_average()
 
 
-        param_sigma_by_mu = FedstdevOptimizer._compute_sigma_by_mu(param_stdev, params)
+    #     param_sigma_by_mu = FedstdevOptimizer._compute_sigma_by_mu(param_stdev, params)
 
-        grad_sigma_by_mu = FedstdevOptimizer._compute_sigma_by_mu(grad_stdev, grad_mu)
+    #     grad_sigma_by_mu = FedstdevOptimizer._compute_sigma_by_mu(grad_stdev, grad_mu)
             
 
-        omegas = FedstdevOptimizer._compute_scaled_weights(betas, std_dict=grad_sigma_by_mu)
+    #     omegas = FedstdevOptimizer._compute_scaled_weights(betas, std_dict=grad_sigma_by_mu)
 
         
-        param_std_dct = result_manager.log_parameters(param_stdev, 'post_train', 'sim',metric='param_std', verbose=True)
-        param_sbm_dct = result_manager.log_parameters(param_sigma_by_mu, 'post_train', 'sim', metric='sigma_by_mu', verbose=True)
-        grad_mu_dct = result_manager.log_parameters(grad_mu, 'post_train', 'sim',metric='grad_mu')
-        grad_std_dct = result_manager.log_parameters(grad_stdev, 'post_train', 'sim',metric='grad_std')
-        grad_sbm_dct = result_manager.log_parameters(grad_sigma_by_mu, 'post_train', 'sim', metric='grad_sigma_by_mu')
+    #     param_std_dct = result_manager.log_parameters(param_stdev, 'post_train', 'sim',metric='param_std', verbose=True)
+    #     param_sbm_dct = result_manager.log_parameters(param_sigma_by_mu, 'post_train', 'sim', metric='sigma_by_mu', verbose=True)
+    #     grad_mu_dct = result_manager.log_parameters(grad_mu, 'post_train', 'sim',metric='grad_mu')
+    #     grad_std_dct = result_manager.log_parameters(grad_stdev, 'post_train', 'sim',metric='grad_std')
+    #     grad_sbm_dct = result_manager.log_parameters(grad_sigma_by_mu, 'post_train', 'sim', metric='grad_sigma_by_mu')
 
-        result_manager.log_general_metric(FedstdevOptimizer.get_dict_avg(omegas, param_dims), f'omegas', 'sim', 'post_train')
+    #     result_manager.log_general_metric(FedstdevOptimizer.get_dict_avg(omegas, param_dims), f'omegas', 'sim', 'post_train')
 
-        # Logging code ends here
+    #     # Logging code ends here
 
-        eval_result = trainer.eval()
-        result_manager.log_general_result(eval_result, 'post_eval', 'sim', 'central_eval')
+    #     eval_result = trainer.eval()
+    #     result_manager.log_general_result(eval_result, 'post_eval', 'sim', 'central_eval')
 
         # if curr_round % sim_cfg.checkpoint_every == 0:
         #     save_checkpoints()

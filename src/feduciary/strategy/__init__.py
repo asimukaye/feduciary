@@ -1,3 +1,3 @@
 from .abcstrategy import *
-# from . import basestrategy 
+from .basestrategy import * 
 # from . import fedoptstrategy 

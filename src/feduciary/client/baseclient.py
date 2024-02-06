@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ClientInProtocol(t.Protocol):
-    server_params: dict
+    in_params: dict
 
 @dataclass
 class ClientOuts:
@@ -125,7 +125,7 @@ class BaseClient(ABCClient):
         # NOTE: Current implementation assumes state persistence between download and upload calls.
         self._round = client_ins._round
 
-        param_dict = specific_ins.server_params
+        param_dict = specific_ins.in_params
 
         match client_ins.request:
             case fed_t.RequestType.NULL:
@@ -175,7 +175,7 @@ class BaseClient(ABCClient):
         # Run a round on the client
         # logger.info(f'CLIENT {self.id} Starting update')
         # print('############# CWD: ##########', os.getcwd())
-        self._model.load_state_dict(train_ins.server_params)
+        self._model.load_state_dict(train_ins.in_params)
         self._optimizer = self.optim_partial(self._model.parameters())
         self.metric_mngr._round = self._round
         self._model.train()

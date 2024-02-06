@@ -34,7 +34,7 @@ def get_to_nearest_log2(num, quotient):
 
 @dataclass
 class ClientInProtocol(t.Protocol):
-    server_params: dict
+    in_params: dict
 
 # @dataclass
 # class ClientOuts:
@@ -164,13 +164,13 @@ class FedgradstdClient(BaseFlowerClient):
     
     def train(self, train_ins: ClientInProtocol) -> fed_t.Result:
         # MAYBE THIS PART IS REDUNDANT
-        self._model.load_state_dict(train_ins.server_params)
+        self._model.load_state_dict(train_ins.in_params)
         self._optimizer = self.optim_partial(self._model.parameters())
 
         # NOTE: It is important to reseed the generators here to ensure the tests pass across flower and non flower runs.
         self.train_loader_map = self._create_shuffled_loaders(self.training_set, self.cfg.seeds)
         for seed, model in self._model_map.items():
-            model.load_state_dict(train_ins.server_params)
+            model.load_state_dict(train_ins.in_params)
             self._optimizer_map[seed] = self.optim_partial(model.parameters())
             # self.metric_mngr.json_dump(self.train_loader_map[seed].dataset.indices.tolist(), 'indices', 'train', f'seed_{seed}')
         # Run an round on the client

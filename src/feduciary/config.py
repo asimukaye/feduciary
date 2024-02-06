@@ -49,7 +49,6 @@ def get_free_gpus(min_memory_reqd= 4096):
         logger.debug('Returning GPU:{} with {} free MiB'.format(id, gpu_df.iloc[id]['memory.free']))
     return ids.to_list()
 
-
 def get_free_gpu():
     gpu_stats = subprocess.check_output(["nvidia-smi", "--format=csv", "--query-gpu=memory.used,memory.free"])
     gpu_df = pd.read_csv(StringIO(gpu_stats.decode()),
@@ -179,17 +178,8 @@ class ClientSchema:
 @dataclass
 class ServerConfig:
     eval_type: str  = field(default='both')
-    # eval_fraction: float  = field(default=1.0)
     eval_every: int  = field(default=1)
-    # eval_batch_size: int = field(default=64)
-    # sampling_fraction: float = field(default=1.0)
-    # rounds: int = 1
-    # multiprocessing: bool = False
 
-    # def __post_init__(self):
-    #     assert self.sampling_fraction == Range(0.0, 1.0), f'Invalid value {self.sampling_fraction} for sampling fraction'
-    #     assert self.eval_fraction == Range(0., 1.0)
-    #     assert self.eval_type == 'both' # Remove later
 
 ########### Strategy Configurations ##########
 @dataclass
@@ -200,6 +190,17 @@ class StrategyConfig:
         assert self.train_fraction == Range(0.0, 1.0), f'Invalid value {self.train_fraction} for sampling fraction'
         assert self.eval_fraction == Range(0., 1.0)
 
+@dataclass
+class FedOptConfig(StrategyConfig):
+    alpha: float = 0.95
+    gamma: float = 0.5
+    delta_normalize: bool = False
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.delta_normalize:
+            assert self.gamma > 0.0, 'Gamma should be greater than 0 for delta normalization'
+        assert self.alpha == Range(0.0, 1.0), f'Invalid value {self.alpha} for alpha'
 
 @dataclass
 class FedstdevConfig(StrategyConfig):
@@ -218,7 +219,10 @@ class CGSVConfig(StrategyConfig):
 
     def __post_init__(self):
         super().__post_init__()
-        
+        if self.delta_normalize:
+            assert self.gamma > 0.0, 'Gamma should be greater than 0 for delta normalization'
+        assert self.alpha == Range(0.0, 1.0), f'Invalid value {self.alpha} for alpha'
+        assert self.beta >= 1.0, f'Invalid value {self.beta} for beta'
 
 # @dataclass
 # class FedavgConfig(StrategyConfig):
@@ -422,6 +426,9 @@ def register_configs():
     cs.store(group='strategy', name='strategy_schema', node=StrategySchema)
     cs.store(group='strategy/cfg', name='base_strategy', node=StrategyConfig)
     cs.store(group='strategy/cfg', name='fedavgmanual', node=FedavgManualConfig)
+    cs.store(group='strategy/cfg', name='fedopt', node=FedOptConfig)
+    cs.store(group='strategy/cfg', name='cgsv', node=CGSVConfig)
+
     cs.store(group='strategy/cfg', name='fedstdev_strategy', node=FedstdevConfig)
     # cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)
     # cs.store(group='server/cfg', name='fedstdev_server', node=FedstdevServerConfig)

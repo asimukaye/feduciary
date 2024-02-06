@@ -1,19 +1,14 @@
 defaults:
-  - base_server
-  - cfg: base_cgsv
+  - 'strategy_schema'
+  - cfg: cgsv
   - _self_
 
-#Deprecated
-_target_: feduciary.server.cgsvserver.CgsvServer
-_partial_: true
+_target_: feduciary.strategy.cgsvstrategy.CgsvStrategy
 cfg:
-  sampling_fraction: 1.0
-  rounds: 1
-  eval_type: both
+  train_fraction: 1.0
   eval_fraction: 1.0
-  eval_every: 1
+  delta_normalize: true
   beta: 1.5
   alpha: 0.95
   gamma: 0.15
-  multiprocessing: false
-client_cfg: ${client.cfg}
+

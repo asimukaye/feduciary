@@ -56,8 +56,7 @@ def get_dict_avg(param_dict: dict, wts: dict) -> dict:
 
     return {'avg':avg, 'wtd_avg':wtd_avg}
 
-def gradient_update_per_param(server_params: fed_t.ActorParams_t,client_params: fed_t.ClientParams_t,
-    weights: ClientScalarWeights_t) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
+def gradient_update_per_param(server_params: fed_t.ActorParams_t,client_params: fed_t.ClientParams_t, weights: ClientScalarWeights_t) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
 
     server_deltas: fed_t.ActorDeltas_t = {}
     

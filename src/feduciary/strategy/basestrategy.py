@@ -101,8 +101,7 @@ class BaseStrategy(ABCStrategy):
         return fed_t.ClientResult(ins.client_params, res) 
 
     def receive_strategy(self, results: fed_t.ClientResults_t) -> AllIns_t:
-        client_params = {}
-        client_data_sizes = {}
+
         strat_ins = {}
         for cid, res in results.items():
             strat_ins[cid] = BaseIns(client_params=res.params, data_size=res.result.size)

@@ -3,15 +3,16 @@
 # Experiment mode: Switch between debug and experiment methods
 # mode: fedstdev_centralized
 # mode: centralized
-mode: fedavg
+# mode: fedavg
 # mode: fedavgmanual
 # mode: standalone
 # mode: fedstdev
 # mode: fedgradstd
+mode: fedopt
 # mode: debug
 # desc: 'Centralized run with three label flipped client'
-desc: 'Fedavg run with three label flipped client'
-
+# desc: 'Fedgradstd run with three label flipped client'
+desc: Fedopt run with three label flipped clients
 # desc: 'Fedavg manual run with three label flipped client'
 
 
@@ -19,11 +20,11 @@ defaults:
   - base_config
   - hydra: custom
   - server: baseflower
-  - strategy: base
+  # - strategy: base
   # - strategy: fedavgmanual
-
   # - strategy: fedstdev
   # - strategy: fedgradstd
+  - strategy: fedopt
 
   # - client: fedstdev
   # - client: fedgradstd
