@@ -111,7 +111,7 @@ class BaseClient(ABCClient):
         specific_ins = BaseStrategy.client_receive_strategy(client_ins)
         return specific_ins
     
-    def pack_train_result(self, result: fed_t.Result) -> fed_t.ClientResult1:
+    def pack_train_result(self, result: fed_t.Result) -> fed_t.ClientResult:
         self._model.to('cpu')
         client_outs = ClientOuts(client_params=self.model.state_dict(keep_vars=False), data_size=result.size)
         general_res = BaseStrategy.client_send_strategy(client_outs, result)
@@ -148,7 +148,7 @@ class BaseClient(ABCClient):
                 return fed_t.RequestOutcome.FAILED
         
 
-    def upload(self, request_type=fed_t.RequestType.NULL) -> fed_t.ClientResult1:
+    def upload(self, request_type=fed_t.RequestType.NULL) -> fed_t.ClientResult:
         # Upload the model back to the server
         match request_type:
             case fed_t.RequestType.TRAIN:
@@ -156,7 +156,7 @@ class BaseClient(ABCClient):
                 return self.pack_train_result(_result)
             case fed_t.RequestType.EVAL:
                 _result = self._eval_result
-                return fed_t.ClientResult1(
+                return fed_t.ClientResult(
                     params={},
                     result=_result)
             case _:
@@ -164,7 +164,7 @@ class BaseClient(ABCClient):
                                 _round=self._round,
                                 size=self.__len__())
                 self._model.to('cpu')
-                client_result = fed_t.ClientResult1(
+                client_result = fed_t.ClientResult(
                     params=self.model.state_dict(keep_vars=False),
                     result=_result)
                 return client_result

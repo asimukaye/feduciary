@@ -71,10 +71,10 @@ class FedavgManual(ABCStrategy):
         return base_outs
     
     @classmethod
-    def client_send_strategy(cls, ins: BaseInsProtocol, res: fed_t.Result) -> fed_t.ClientResult1:
+    def client_send_strategy(cls, ins: BaseInsProtocol, res: fed_t.Result) -> fed_t.ClientResult:
         result =res
         result.size = ins.data_size
-        return fed_t.ClientResult1(ins.client_params, res) 
+        return fed_t.ClientResult(ins.client_params, res) 
 
     def receive_strategy(self, results: fed_t.ClientResults_t) -> AllIns_t:
         client_params = {}

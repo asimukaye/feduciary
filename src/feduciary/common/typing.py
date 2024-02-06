@@ -38,7 +38,7 @@ class Result:
     metadata: dict[str, t.Any] = field(default_factory=dict) # values that are needed for processing/consumption
 
 @dataclass
-class ClientResult1:
+class ClientResult:
     params: dict[str, Parameter] = field(default_factory=dict)
     result: Result = field(default_factory=Result)
 
@@ -54,7 +54,7 @@ class ClientIns:
     request: RequestType = RequestType.NULL
 
 RequestOutcomes_t = dict[str, RequestOutcome]
-ClientResults_t = dict[str, ClientResult1]
+ClientResults_t = dict[str, ClientResult]
 Results_t = dict[str, Result]
 
 ClientIns_t = dict[str, ClientIns]

@@ -87,7 +87,7 @@ def flower_train_results_adapter(results: List[Tuple[ClientProxy, FitRes]]) -> f
         param_keys = unroll_param_keys(result.metrics) # type: ignore
         client_params = convert_ndarrays_to_param_dict(param_keys, nd_params)
         client_result = flower_metrics_to_results(result)
-        client_results[client.cid] = fed_t.ClientResult1(params=client_params, result=client_result)
+        client_results[client.cid] = fed_t.ClientResult(params=client_params, result=client_result)
 
     return client_results
 
@@ -185,7 +185,7 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
 
         # Uncomment this when adding GPU support to server
         # self.model.to('cpu')
-        results: dict[str, fed_t.ClientResult1] = {}
+        results: dict[str, fed_t.ClientResult] = {}
         for idx in log_tqdm(ids, desc=f'collecting results: ', logger=logger):
             results[idx] = self.clients[idx].upload(request_type)
             # self.result_manager.json_dump(results[idx].result, f'client_{idx}_res', 'post_agg', 'flowerserver', request_type.name)
@@ -331,8 +331,8 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
                       results: List[Tuple[ClientProxy, FitRes]], failures: List[Tuple[ClientProxy, FitRes] | BaseException]) -> Tuple[Parameters | None, Dict[str, Scalar]]:
         
 
-        with get_time():
-            train_results = flower_train_results_adapter(results)
+        # with get_time():
+        train_results = flower_train_results_adapter(results)
 
         strategy_ins = self.strategy.receive_strategy(train_results)
         strategy_outs = self.strategy.aggregate(strategy_ins)
@@ -341,8 +341,8 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         to_log = {cid: res.result for cid, res in train_results.items()}
         self.result_manager.log_clients_result(to_log, phase='pre_agg', event='local_train')
         # Validate the need for this.
-        with get_time():
-            self.model.load_state_dict(strategy_outs.server_params)
+        # with get_time():
+        self.model.load_state_dict(strategy_outs.server_params)
         param_ndarrays = convert_param_dict_to_ndarray(strategy_outs.server_params)
 
         parameters_aggregated = fl.common.ndarrays_to_parameters(param_ndarrays)

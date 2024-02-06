@@ -62,7 +62,7 @@ class ABCStrategy(ABC):
 
     @classmethod
     @abstractmethod
-    def client_send_strategy(cls, ins: StrategyIns) -> fed_t.ClientResult1:
+    def client_send_strategy(cls, ins: StrategyIns) -> fed_t.ClientResult:
         '''Describe how the client should pack its data for the server'''
         pass
 

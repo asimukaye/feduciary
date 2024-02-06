@@ -17,7 +17,6 @@ from torch.utils.data import DataLoader, Subset, ConcatDataset
 from hydra.utils import instantiate
 import flwr as fl
 
-#FIXME: Eventually everything should also work with the base server and base server. Merge once the first logical tests pass for flower
 # from feduciary.server.baseserver import BaseServer
 from feduciary.server.baseflowerserver import BaseFlowerServer
 # from feduciary.server.fedstdevserver import FedstdevClient, FedstdevOptimizer
@@ -98,6 +97,15 @@ def find_checkpoint()-> tuple[str, dict]:
         return '', {}
     
 
+def naive_aggregator(client_params: fed_t.ClientParams_t) -> fed_t.ActorParams_t:
+    '''Naive averaging of client parameters'''
+    server_params = {}
+    client_ids = list(client_params.keys())
+    param_keys = client_params[client_ids[0]].keys()
+    for key in param_keys:
+        server_params[key] = torch.stack([client[key].data for client in client_params.values()]).mean(dim=0)
+    return server_params
+
 def save_checkpoints(server: BaseFlowerServer, clients: dict[str, BaseFlowerClient]):
     if server:
         server.save_checkpoint()
@@ -152,11 +160,6 @@ def run_flower_simulation(cfg: Config,
     all_client_ids = generate_client_ids(cfg.simulator.num_clients)
     make_checkpoint_dirs(has_server=True, client_ids=all_client_ids)
     clients: dict[str, BaseFlowerClient] = dict()
-
-    # server_dataset, train_set, model = init_dataset_and_model(cfg)
-    # server_dataset = test_set
-    # client_datasets =  get_client_datasets(cfg.dataset.split_conf, train_set, test_set, match_train_distribution=False)
-
 
     client_datasets_map = {}
     for cid, dataset in zip(all_client_ids, client_datasets):
@@ -319,8 +322,7 @@ def run_centralized_simulation(cfg: Config,
     final_result = result_manager.finalize()
     return final_result
 
-
-
+#FIXME: This is a temporary function to test the single client simulation
 def run_single_client(cfg: Config,
                       client_datasets: fed_t.ClientDatasets_t,
                       server_dataset: Subset,
@@ -407,33 +409,76 @@ def run_single_client(cfg: Config,
     final_result = result_manager.finalize()
     return final_result
 
+
+
+def run_flower_standalone_simulation(cfg: Config,
+                                     client_datasets: fed_t.ClientDatasets_t,
+                                     server_dataset: Subset,
+                                     model: Module):
+    pass
+    
 def run_standalone_simulation(cfg: Config,
                               client_datasets: fed_t.ClientDatasets_t,
-                             server_dataset: Subset,
+                              server_dataset: Subset,
                               model: Module):
     
+    central_model = deepcopy(model)
     clients: dict[str, BaseFlowerClient] = defaultdict()
     # Clients get the splits of the train set with an inbuilt test set
     all_client_ids = generate_client_ids(cfg.simulator.num_clients)
 
     make_checkpoint_dirs(has_server=False, client_ids=all_client_ids)
-
+    test_loader = DataLoader(dataset=server_dataset,
+                            batch_size=cfg.train_cfg.eval_batch_size, shuffle=False)
     # client_datasets = get_client_datasets(cfg.dataset.split_conf, train_set, test_set, match_train_distribution=False)
 
     result_manager = ResultManager(cfg.simulator, logger=logger)
+    metric_manager  = MetricManager(cfg.train_cfg.metric_cfg, 0, actor='simulator')
+    base_client_cfg = ClientSchema(
+        _target_="feduciary.client.baseflowerclient.BaseFlowerClient",
+        _partial_=True,
+        cfg=cfg.client.cfg,
+        train_cfg=cfg.train_cfg
+                        )
+    clients = create_clients(all_client_ids, client_datasets, model, base_client_cfg)
 
-    clients = create_clients(all_client_ids, client_datasets, model, cfg.client)
+    central_train_cfg = instantiate(cfg.train_cfg)
+
+    # exit(0)
     
+    client_params = {cid: client.model.state_dict() for cid, client in clients.items()}
+
     _round = 0
     for curr_round in range(_round, cfg.simulator.num_rounds):
+        logger.info(f'-------- Round: {curr_round} --------\n')
         train_result = {}
         eval_result = {}
 
         for cid, client in clients.items():
             logger.info(f'-------- Client: {cid} --------\n')
             client._round = curr_round
-            train_result[cid] = client.train()
-            eval_result[cid] = client.eval()
+            client_train_ins = fed_t.ClientIns(params=client_params[cid],
+                                         metadata={},
+                                         request=fed_t.RequestType.TRAIN,
+                                         _round=curr_round)
+            outcome = client.download(client_train_ins)
+            client_train_res = client.upload(fed_t.RequestType.TRAIN)
+            client_params[cid] = client_train_res.params
+            train_result[cid] = client_train_res.result
+
+            eval_ins = fed_t.ClientIns(params=client_params[cid],
+                                         metadata={},
+                                         request=fed_t.RequestType.EVAL,
+                                         _round=curr_round)
+            
+            outcome = client.download(eval_ins)
+            eval_result[cid] = client.upload(fed_t.RequestType.EVAL).result
+
+        aggregate_params = naive_aggregator(client_params)
+        central_model.load_state_dict(aggregate_params)
+        central_eval = simple_evaluator(central_model, test_loader, central_train_cfg, metric_manager, curr_round)
+
+        result_manager.log_general_result(central_eval, phase='post_train', actor='sim', event='central_eval')
         # if curr_round % sim_cfg.checkpoint_every == 0:
         #     save_checkpoints()
 
@@ -528,6 +573,9 @@ class Simulator:
         #     self.server.finalize()
         total_time= time.time() - self.start_time
         logger.info(f'Total runtime: {total_time} seconds')
+        logger.info(f'Per loop runtime: {total_time/self.sim_cfg.num_rounds} seconds')
+
+        logger.info('------------ Simulation completed ------------')
 
         # FIXME: Post process is broken
         # post_process(self.cfg, final_result, total_time=total_time)

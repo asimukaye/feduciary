@@ -84,13 +84,13 @@ class FedgradstdClient(BaseFlowerClient):
         loader_dict = {}
         self._generator = {}
 
-        with get_time():
-            for seed in seeds:
-                gen = Generator()
-                gen.manual_seed(seed)
-                sampler = RandomSampler(data_source=dataset, generator=gen)
-                self._generator[seed] = gen
-                loader_dict[seed] = DataLoader(dataset=dataset, sampler=sampler, batch_size=self.train_cfg.batch_size)
+        # with get_time():
+        for seed in seeds:
+            gen = Generator()
+            gen.manual_seed(seed)
+            sampler = RandomSampler(data_source=dataset, generator=gen)
+            self._generator[seed] = gen
+            loader_dict[seed] = DataLoader(dataset=dataset, sampler=sampler, batch_size=self.train_cfg.batch_size)
 
         return loader_dict
     
@@ -98,7 +98,7 @@ class FedgradstdClient(BaseFlowerClient):
         specific_ins = FedgradstdStrategy.client_receive_strategy(client_ins)
         return specific_ins
     
-    def pack_train_result(self, result: fed_t.Result) -> fed_t.ClientResult1:
+    def pack_train_result(self, result: fed_t.Result) -> fed_t.ClientResult:
         self._model.to('cpu')
         client_outs = FedgradIns(
                     client_params=self._model.state_dict(),

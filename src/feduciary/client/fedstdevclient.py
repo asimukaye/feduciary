@@ -110,13 +110,13 @@ class FedstdevClient(BaseFlowerClient):
         loader_dict = {}
         self._generator = {}
 
-        with get_time():
-            for seed in seeds:
-                gen = Generator()
-                gen.manual_seed(seed)
-                sampler = RandomSampler(data_source=dataset, generator=gen)
-                self._generator[seed] = gen
-                loader_dict[seed] = DataLoader(dataset=dataset, sampler=sampler, batch_size=self.train_cfg.batch_size)
+        # with get_time():
+        for seed in seeds:
+            gen = Generator()
+            gen.manual_seed(seed)
+            sampler = RandomSampler(data_source=dataset, generator=gen)
+            self._generator[seed] = gen
+            loader_dict[seed] = DataLoader(dataset=dataset, sampler=sampler, batch_size=self.train_cfg.batch_size)
             # for i, (inputs, targets) in enumerate(loader_dict[seed]):
             #     with open(f'{self._root_dir}/{self.cfg.metric_cfg.file_prefix}_targets_pre_{self._round}_{seed}_{i}.json', 'w') as f:
             #                 json.dump(targets.tolist(), f)
@@ -128,7 +128,7 @@ class FedstdevClient(BaseFlowerClient):
         specific_ins = FedstdevStrategy.client_receive_strategy(client_ins)
         return specific_ins
     
-    def pack_train_result(self, result: fed_t.Result) -> fed_t.ClientResult1:
+    def pack_train_result(self, result: fed_t.Result) -> fed_t.ClientResult:
         self._model.to('cpu')
         client_outs = ClientOuts(
                     client_params=self._model.state_dict(),

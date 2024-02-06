@@ -8,7 +8,7 @@ from torch.nn import Module, Parameter
 from torch import Tensor
 
 import torch.optim
-# from feduciary.common.typing import ClientIns, ClientResult1, Result
+# from feduciary.common.typing import ClientIns, ClientResult, Result
 from feduciary.results.resultmanager import ResultManager
 import feduciary.common.typing as fed_t
 from feduciary.strategy.abcstrategy import *
@@ -145,7 +145,7 @@ class FedgradstdStrategy(ABCStrategy):
         return base_outs
     
     @classmethod
-    def client_send_strategy(cls, ins: FedgradIns, result: fed_t.Result) -> fed_t.ClientResult1:
+    def client_send_strategy(cls, ins: FedgradIns, result: fed_t.Result) -> fed_t.ClientResult:
         out_params = ins.client_params
         for key, val in ins.client_grad_mus.items():
             out_params[f'{key}_grad_mu'] = val
@@ -153,7 +153,7 @@ class FedgradstdStrategy(ABCStrategy):
         for key, val in ins.client_grad_stds.items():
             out_params[f'{key}_grad_std'] = val
 
-        return fed_t.ClientResult1(params=out_params, result=result) 
+        return fed_t.ClientResult(params=out_params, result=result) 
 
     def receive_strategy(self, results: fed_t.ClientResults_t) -> AllIns_t:
         strat_ins = {}

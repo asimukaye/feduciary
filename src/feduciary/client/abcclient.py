@@ -149,7 +149,7 @@ class ABCClient(ABC):
         pass
     
     @abstractmethod
-    def pack_train_result(self, result: fed_t.Result) -> fed_t.ClientResult1:
+    def pack_train_result(self, result: fed_t.Result) -> fed_t.ClientResult:
         pass
     @abstractmethod
     def train(self, return_model=False):

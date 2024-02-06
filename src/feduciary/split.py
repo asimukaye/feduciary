@@ -339,7 +339,7 @@ def get_split_map(cfg: SplitConfig, dataset: Subset) -> dict[int, np.ndarray]:
         split_map (dict): dictionary with key is a client index and a corresponding value is a list of indices
     """
     match cfg.split_type:
-        case 'iid' | 'one_noisy_client' | 'one_label_flipped_client':
+        case 'iid' | 'one_noisy_client' | 'one_label_flipped_client'|'n_label_flipped_clients':
             split_map = get_iid_split(dataset, cfg.num_splits)
             return split_map
 
@@ -370,11 +370,6 @@ def get_split_map(cfg: SplitConfig, dataset: Subset) -> dict[int, np.ndarray]:
 def _construct_client_dataset(raw_train: Dataset, raw_test: Dataset, train_indices, test_indices) ->tuple[Subset, Subset]:
     train_set = Subset(raw_train, train_indices)
     test_set = Subset(raw_test, test_indices)
-
-    # test_size = int(len(subset) * client_test_fraction)
-    # training_set, test_set = data.random_split(subset, [len(subset) - test_size, test_size])
-    # traininig_set = Subset(training_set, f'< {str(client_idx).zfill(8)} > (train)')
-    # test_set = Subset(test_set, f'< {str(client_idx).zfill(8)} > (test)')
     return (train_set, test_set)
 
 
@@ -390,26 +385,33 @@ def get_client_datasets(cfg: SplitConfig, train_dataset: Subset, test_dataset, m
     logger.info(f'[DATA_SPLIT] Simulated dataset split : `{cfg.split_type.upper()}`')
     
     # construct client datasets if None
-    # logger.info(f'[DATA_SPLIT] Create client datasets!')
     cfg.test_fractions = []
     client_datasets = []
     for idx, train_indices in enumerate(split_map.values()):
         train_set, test_set = _construct_client_dataset(train_dataset, test_dataset, train_indices, test_indices=test_split_map[idx])
         cfg.test_fractions.append(len(test_set)/len(train_set))
         client_datasets.append((train_set, test_set))
-        
-    if cfg.split_type == 'one_noisy_client':
-        train, test = client_datasets[0]
-        patho_train = NoisySubset(train, cfg.noise.mu, cfg.noise.sigma)
-        if match_train_distribution:
-            test = NoisySubset(test, cfg.noise.mu, cfg.noise.sigma)
-        client_datasets[0] = patho_train, test
-    elif cfg.split_type == 'one_label_flipped_client':
-        train, test = client_datasets[0]
-        patho_train = LabelFlippedSubset(train, cfg.noise.flip_percent)
-        if match_train_distribution:
-            test = NoisySubset(test, cfg.noise.mu, cfg.noise.sigma)
-        client_datasets[0] = patho_train, test
+    
+    match cfg.split_type:
+        case 'one_noisy_client':
+            train, test = client_datasets[0]
+            patho_train = NoisySubset(train, cfg.noise.mu, cfg.noise.sigma)
+            if match_train_distribution:
+                test = NoisySubset(test, cfg.noise.mu, cfg.noise.sigma)
+            client_datasets[0] = patho_train, test
+        case 'one_label_flipped_client':
+            train, test = client_datasets[0]
+            patho_train = LabelFlippedSubset(train, cfg.noise.flip_percent)
+            if match_train_distribution:
+                test = NoisySubset(test, cfg.noise.mu, cfg.noise.sigma)
+            client_datasets[0] = patho_train, test
+        case 'n_label_flipped_clients':
+            for idx in range(cfg.num_patho_splits):
+                train, test = client_datasets[idx]
+                patho_train = LabelFlippedSubset(train, cfg.noise.flip_percent)
+                if match_train_distribution:
+                    test = NoisySubset(test, cfg.noise.mu, cfg.noise.sigma)
+                client_datasets[idx] = patho_train, test
 
     logger.debug(f'[DATA_SPLIT] Created client datasets!')
     logger.debug(f'[DATA_SPLIT] Split fractions: {cfg.test_fractions}')
