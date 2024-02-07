@@ -7,5 +7,5 @@ _target_: feduciary.strategy.fedoptstrategy.FedOptStrategy
 cfg:
   train_fraction: 1.0
   eval_fraction: 1.0
-  delta_normalize: false
+  delta_normalize: true
   gamma: 0.1

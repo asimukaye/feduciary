@@ -339,7 +339,7 @@ def get_split_map(cfg: SplitConfig, dataset: Subset) -> dict[int, np.ndarray]:
         split_map (dict): dictionary with key is a client index and a corresponding value is a list of indices
     """
     match cfg.split_type:
-        case 'iid' | 'one_noisy_client' | 'one_label_flipped_client'|'n_label_flipped_clients':
+        case 'iid' | 'one_noisy_client' | 'one_label_flipped_client'|'n_label_flipped_clients'| 'n_noisy_clients':
             split_map = get_iid_split(dataset, cfg.num_splits)
             return split_map
 
@@ -412,11 +412,19 @@ def get_client_datasets(cfg: SplitConfig, train_dataset: Subset, test_dataset, m
                 if match_train_distribution:
                     test = NoisySubset(test, cfg.noise.mu, cfg.noise.sigma)
                 client_datasets[idx] = patho_train, test
-
+        case 'n_noisy_clients':
+            for idx in range(cfg.num_patho_splits):
+                train, test = client_datasets[idx]
+                patho_train = NoisySubset(train, cfg.noise.mu, cfg.noise.sigma)
+                if match_train_distribution:
+                    test = NoisySubset(test, cfg.noise.mu, cfg.noise.sigma)
+                client_datasets[idx] = patho_train, test
+        case _:
+            pass
     logger.debug(f'[DATA_SPLIT] Created client datasets!')
     logger.debug(f'[DATA_SPLIT] Split fractions: {cfg.test_fractions}')
 
-    # exit(0)
+
 
     return client_datasets
 

@@ -70,6 +70,9 @@ AllIns_t = dict[str, BaseIns]
 class BaseOuts(StrategyOuts):
     server_params: fed_t.ActorParams_t
 
+@dataclass
+class ClientInProto:
+    in_params: fed_t.ActorParams_t
 
 class BaseStrategy(ABCStrategy):
     def __init__(self,
@@ -88,11 +91,8 @@ class BaseStrategy(ABCStrategy):
 
     
     @classmethod
-    def client_receive_strategy(cls, ins: fed_t.ClientIns) -> BaseOuts:
-        base_outs = BaseOuts(
-            server_params=ins.params,
-        )
-        return base_outs
+    def client_receive_strategy(cls, ins: fed_t.ClientIns) -> ClientInProto:
+        return  ClientInProto(in_params=ins.params)
     
     @classmethod
     def client_send_strategy(cls, ins: BaseInsProtocol, res: fed_t.Result) -> fed_t.ClientResult:

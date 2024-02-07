@@ -127,7 +127,7 @@ class ABCClient(ABC):
     
     @dataclass
     class ClientInProtocol:
-        server_params: fed_t.ActorParams_t
+        in_params: fed_t.ActorParams_t
 
     @abstractmethod
     def reset_model(self) -> None:

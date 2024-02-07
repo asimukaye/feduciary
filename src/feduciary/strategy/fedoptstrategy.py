@@ -2,6 +2,7 @@ from collections import defaultdict
 import typing as t
 from typing import Any
 # from dataclasses import dataclass, field
+from functools import partial
 import torch
 
 from torch.nn import Module, Parameter
@@ -9,63 +10,81 @@ from torch import Tensor
 
 import torch.optim 
 from feduciary.strategy.abcstrategy import *
-from feduciary.strategy.basestrategy import passthrough_communication, random_client_selection
+from feduciary.strategy.basestrategy import passthrough_communication, random_client_selection, ClientInProto
 import feduciary.common.typing as fed_t
-
 
 # Type declarations
 
 ScalarWeights_t = dict[str, float]
 TensorWeights_t = dict[str, Tensor]
 
+def add_server_deltas(server_params: fed_t.ActorParams_t,
+                      server_deltas: fed_t.ActorDeltas_t) -> fed_t.ActorParams_t:
+    '''Add deltas to the server parameters'''
+    for key, delta in server_deltas.items():
+        server_params[key].data.add_(delta)
+    return server_params
 
-def gradient_average_update(server_params: fed_t.ActorParams_t,
+
+def compute_server_delta(server_params: fed_t.ActorParams_t,
                             client_params: fed_t.ClientParams_t,
-                            weights: ScalarWeights_t, gamma=None) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
-    
+                            weights: ScalarWeights_t) -> tuple[fed_t.ActorDeltas_t, fed_t.ClientDeltas_t]:
     server_deltas: fed_t.ActorDeltas_t = {}
+    client_deltas: fed_t.ClientDeltas_t = defaultdict(dict)
     
     for key, server_param in server_params.items():
         for cid, client_param in client_params.items():
             # Using FedNova Notation of delta (Δ) as (-grad ∇)
             client_delta = client_param[key].data - server_param.data
             server_deltas[key] = server_deltas.get(key, 0) + weights[cid] * client_delta
+            client_deltas[cid][key] = client_delta
 
-    for key, delta in server_deltas.items():
-        server_params[key].data.add_(delta)
+    return server_deltas, client_deltas
+
+def gradient_average_update(server_params: fed_t.ActorParams_t,
+                            client_params: fed_t.ClientParams_t,
+                            weights: ScalarWeights_t) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
+    
+    server_deltas, _ = compute_server_delta(server_params, client_params, weights)
+    server_params = add_server_deltas(server_params, server_deltas)
     
     return server_params, server_deltas
+
+def _delta_normalize(delta: Tensor, gamma: float) -> Tensor:
+    '''Normalize the parameter delta update and scale to prevent potential gradient explosion'''
+    norm = delta.norm() 
+    if norm == 0:
+        logger.warning(f"Normalize update: Got a zero norm update")
+        delta_norm = delta.mul(gamma)
+    else:
+        delta_norm = delta.div(norm).mul(gamma)
+    return delta_norm
+  
+
+def compute_server_delta_w_normalize(server_params: fed_t.ActorParams_t,
+                            client_params: fed_t.ClientParams_t,
+                            weights: ScalarWeights_t,
+                            gamma: float) -> tuple[fed_t.ActorDeltas_t, fed_t.ClientDeltas_t]:
+    server_deltas: fed_t.ActorDeltas_t = {}
+    client_deltas: fed_t.ClientDeltas_t = defaultdict(dict)
+    for key, server_param in server_params.items():
+        for cid, client_param in client_params.items():
+            # Using FedNova Notation of delta (Δ) as (-grad ∇)
+            # client delta =  client param(w_k+1,i) - server param (w_k)
+            client_delta = client_param[key].data - server_param.data
+            client_delta = _delta_normalize(client_delta, gamma)
+            server_deltas[key] = server_deltas.get(key, 0) + weights[cid] * client_delta
+            client_deltas[cid][key] = client_delta
+
+    return server_deltas, client_deltas
 
 
 def gradient_average_with_delta_normalize(server_params: fed_t.ActorParams_t,
                             client_params: fed_t.ClientParams_t,
                             weights: ScalarWeights_t,
                             gamma: float) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
-    
-    def _delta_normalize(delta: Tensor, gamma: float) -> Tensor:
-        '''Normalize the parameter delta update and scale to prevent potential gradient explosion'''
-        norm = delta.norm() 
-        if norm == 0:
-            logger.warning(f"Normalize update: Got a zero norm update")
-            delta_norm = delta.mul(gamma)
-        else:
-            delta_norm = delta.div(norm).mul(gamma)
-        return delta_norm
-    
-    server_deltas: fed_t.ActorDeltas_t = {}
-
-    for key, server_param in server_params.items():
-        for cid, client_param in client_params.items():
-            # Using FedNova Notation of delta (Δ) as (-grad ∇)
-            # client delta =  client param(w_k+1,i) - server param (w_k)
-            client_delta = client_param[key].data - server_param.data
-            
-            client_delta = _delta_normalize(client_delta, gamma)
-            server_deltas[key] = server_deltas.get(key, 0) + weights[cid] * client_delta
-
-    for key, delta in server_deltas.items():
-        server_params[key].data.add_(delta)
-
+    server_deltas, _ = compute_server_delta_w_normalize(server_params, client_params, weights, gamma)
+    server_params = add_server_deltas(server_params, server_deltas)
     return server_params, server_deltas
 
 @dataclass
@@ -106,7 +125,7 @@ class FedOptStrategy(ABCStrategy):
         self._server_deltas: dict[str, Tensor] = {param:torch.tensor(0.0) for param in self._server_params.keys()}
 
         if self.cfg.delta_normalize:
-            self._update_fn = gradient_average_with_delta_normalize
+            self._update_fn = partial(gradient_average_with_delta_normalize, gamma=self.cfg.gamma)
         else:
             self._update_fn = gradient_average_update
 
@@ -121,9 +140,9 @@ class FedOptStrategy(ABCStrategy):
         return {cid: FedOptIns(cl_res.params, cl_res.result.size) for cid, cl_res in ins.items()}
     
     @classmethod
-    def client_receive_strategy(cls, ins: fed_t.ClientIns) -> FedOptOuts:
-        return FedOptOuts(server_params=ins.params)
-
+    def client_receive_strategy(cls, ins: fed_t.ClientIns) -> ClientInProto:
+        return  ClientInProto(in_params=ins.params)
+    
     @classmethod
     def client_send_strategy(cls, ins: FedOptIns, result: fed_t.Result) -> fed_t.ClientResult:
         return fed_t.ClientResult(ins.client_params, result)
@@ -145,7 +164,7 @@ class FedOptStrategy(ABCStrategy):
 
         _client_params = {cid: inp.client_params for cid, inp in strategy_ins.items()}
 
-        self._server_params,self._server_deltas = self._update_fn(self._server_params, _client_params, self._client_wts, gamma=self.cfg.gamma)
+        self._server_params,self._server_deltas = self._update_fn(self._server_params, _client_params, self._client_wts)
 
                 # for cid in client_ids:
         self.res_man.log_general_metric(self._client_wts, phase='post_agg', actor='server', metric_name='client_weights')

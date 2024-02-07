@@ -191,7 +191,7 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
             self.train_cfg.batch_size = len(self.training_set)
         return DataLoader(dataset=dataset, batch_size=self.train_cfg.batch_size, shuffle=shuffle)
     
-    def unpack_train_input(self, client_ins: fed_t.ClientIns) -> ClientInProtocol:
+    def  unpack_train_input(self, client_ins: fed_t.ClientIns) -> ClientInProtocol:
         specific_ins = BaseStrategy.client_receive_strategy(client_ins)
         return specific_ins
     

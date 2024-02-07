@@ -12,7 +12,7 @@ import torch.optim
 from feduciary.results.resultmanager import ResultManager
 import feduciary.common.typing as fed_t
 from feduciary.strategy.abcstrategy import *
-from feduciary.strategy.basestrategy import random_client_selection
+from feduciary.strategy.basestrategy import random_client_selection, ClientInProto
 from feduciary.strategy.fedoptstrategy import gradient_average_update
 ### Define the configurations required for this strategy
 from feduciary.common.utils import generate_client_ids
@@ -141,12 +141,9 @@ class FedstdevStrategy(ABCStrategy):
 
 
     @classmethod
-    def client_receive_strategy(cls, ins: fed_t.ClientIns) -> FedstdevOuts:
-        base_outs = FedstdevOuts(
-            server_params=ins.params,
-        )
-        return base_outs
-    
+    def client_receive_strategy(cls, ins: fed_t.ClientIns) -> ClientInProto:
+        return  ClientInProto(in_params=ins.params)
+
     @classmethod
     def client_send_strategy(cls, ins: FedstdevInsProtocol, result: fed_t.Result) -> fed_t.ClientResult:
         out_params = ins.client_params

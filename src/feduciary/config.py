@@ -212,9 +212,10 @@ class FedstdevConfig(StrategyConfig):
 
 @dataclass
 class CGSVConfig(StrategyConfig):
+    num_clients: int
     beta: float = 1.5
     alpha: float = 0.95
-    gamma: float = 0.5
+    gamma: float = 0.15
     delta_normalize: bool = False
 
     def __post_init__(self):
@@ -299,15 +300,18 @@ class SplitConfig:
     test_fractions: list[float] = field(init=False, default_factory=list) 
     def __post_init__(self):
         # assert self.test_fraction == Range(0.0, 1.0), f'Invalid value {self.test_fraction} for test fraction'
-        known_splits =  ['one_noisy_client',
+        known_splits =  {'one_noisy_client',
+                         'n_noisy_clients',
                          'one_label_flipped_client',
                          'n_label_flipped_clients',
                          'iid', 'unbalanced',
-                         'one_imbalanced_client' ]
-        if self.split_type == 'one_noisy_client':
-            assert self.noise, 'Noise config should be provided for noisy client'
-        if self.split_type == 'one_label_flipped_client':
-            assert self.noise, 'Noise config should be provided for label flipped client'
+                         'one_imbalanced_client' }
+        if self.split_type in {'one_noisy_client',
+                               'n_noisy_clients',
+                               'one_label_flipped_client',
+                               'n_label_flipped_clients'}:
+            assert self.noise, 'Noise config should be provided for noisy client or label flipped client'
+
         assert self.split_type in known_splits, f'Invalid split type: {self.split_type}'
         assert self.num_patho_splits <= self.num_splits, 'Number of pathological splits should be less than or equal to number of splits'
 
