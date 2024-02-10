@@ -70,6 +70,7 @@ def default_resources():
 
 
 # TODO: Isolate result manager configs from this
+# TODO: Develop a client and strategy compatibility checker
 @dataclass
 class SimConfig:
     seed: int
@@ -207,6 +208,7 @@ class FedstdevConfig(StrategyConfig):
     '''Config schema for Fedstdev strategy config'''
     weighting_strategy: str
     betas: list[float]
+    beta_0: float
     alpha: float
     num_clients: int
 
@@ -217,6 +219,7 @@ class CGSVConfig(StrategyConfig):
     alpha: float = 0.95
     gamma: float = 0.15
     delta_normalize: bool = False
+    sparsify_gradients: bool = False
 
     def __post_init__(self):
         super().__post_init__()

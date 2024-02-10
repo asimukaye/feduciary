@@ -13,7 +13,7 @@ from feduciary.results.resultmanager import ResultManager
 import feduciary.common.typing as fed_t
 from feduciary.strategy.abcstrategy import *
 from feduciary.strategy.basestrategy import random_client_selection, ClientInProto
-from feduciary.strategy.fedoptstrategy import gradient_average_update
+from feduciary.strategy.fedoptstrategy import gradient_average_update, add_param_deltas
 ### Define the configurations required for this strategy
 from feduciary.common.utils import generate_client_ids
 from enum import Enum
@@ -24,6 +24,7 @@ class FedstdevCfgProtocol(t.Protocol):
     eval_fraction: float
     weighting_strategy: str
     betas: list[float]
+    beta_0: float
     alpha: float
     num_clients: int
 

@@ -1,20 +1,21 @@
 import logging
 from collections import OrderedDict
 import typing as t
+from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
 # from torch.optim.lr_scheduler import ExponentialLR
 from torch.nn import CosineSimilarity, Parameter
-from torch.nn.utils.convert_parameters import parameters_to_vector
+from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
 from torch.nn.functional import cosine_similarity, tanh
 from feduciary.config import ClientConfig, CGSVConfig
 from feduciary.results.resultmanager import ResultManager
 from feduciary.strategy import *
 import feduciary.common.typing as fed_t
 from feduciary.common.utils import generate_client_ids
-from feduciary.strategy.fedoptstrategy import compute_server_delta_w_normalize, compute_server_delta, add_server_deltas
+from feduciary.strategy.fedoptstrategy import compute_server_delta_w_normalize, compute_server_delta, add_param_deltas
 # from feduciary.strategy.fedstdevstrategy import normalize_coefficients
-
+import numpy as np
 logger = logging.getLogger(__name__)
 
 
@@ -25,8 +26,10 @@ class CgsvCfgProtocol(t.Protocol):
     num_clients: int
     lr: float
     gamma: float
-    alpha: float 
+    alpha: float
+    beta: float
     delta_normalize: bool
+    sparsify_gradients: bool  
 
 @dataclass
 class CgsvIns(StrategyIns):
@@ -62,8 +65,10 @@ class CgsvStrategy(ABCStrategy):
 
         if self.cfg.delta_normalize:
             self._update_fn = partial(compute_server_delta_w_normalize, gamma=self.cfg.gamma)
+            logger.info('Using normalized delta')
         else:
             self._update_fn = compute_server_delta
+            logger.info('Using non-normalized delta')
 
         self._server_params: dict[str, Parameter] = model.state_dict()
 
@@ -108,18 +113,56 @@ class CgsvStrategy(ABCStrategy):
         return random_client_selection(self.cfg.eval_fraction, in_ids)
     
 
+    # def zero_mask(self, delta, q):
+    #     mask = torch.zeros_like(delta, dtype=torch.bool)
+    #     mask[:int(q)] = 1
+    #     return mask
+    
+    def _sparsify_gradients(self, wts: ScalarWeights_t,
+                            server_deltas: fed_t.ActorDeltas_t,
+                            beta: float) -> tuple[dict[str, fed_t.ActorDeltas_t], dict[str, int]]:
+        """
+        Sparsify the gradients based on the given weights, server deltas, and beta value.
 
-    
-    def _mask(self, params, q):
-        return {k: v for k, v in params.items() if k in q}
-    
-    def _sparsify_gradients(self, client_ids, wts):
-        q = {}
-        v = {}
-        for cid in client_ids:
-            q[cid] = self._client_wts[cid] * self._omegas[cid] 
-            v[cid] = self._client_wts[cid] * self._omegas[cid]
-        return v, q
+        Args:
+            wts (ScalarWeights_t): Dictionary of weights.
+            server_deltas (fed_t.ActorDeltas_t): Dictionary of server deltas.
+            beta (float): Beta value.
+
+        Returns:
+            Tuple: A tuple containing the sparsified deltas and the q values.
+        """
+        delta_vec = parameters_to_vector(list(server_deltas.values()))
+        keys = list(server_deltas.keys())
+        D = delta_vec.shape[0]
+        ic(D)
+        ic(delta_vec.shape)
+
+        cids = list(wts.keys())
+
+        ic(wts)
+        tanh_br = {cid: np.tanh(wt * beta) for cid, wt in wts.items()}
+        ic(tanh_br)
+        if tanh_br.values() == float('nan'):
+            return None, None
+        # tah_br = np.tanh(beta*list(wts.values())) 
+        max_tanh_br = max(list(tanh_br.values()))
+        q = {cid : int(D*tbr/max_tanh_br) for cid, tbr in tanh_br.items()}
+
+        zeroed_deltas = {cid: delta_vec.clone() for cid in cids}
+
+        sparsified_deltas = {}
+
+        for cid, zero_del in zeroed_deltas.items():
+            if q[cid] != D:
+                mask_indices = torch.topk(delta_vec, D-q[cid], largest=False, sorted=False).indices
+                zero_del[mask_indices] = 0
+
+            temp_delta = deepcopy(list(server_deltas.values()))
+            vector_to_parameters(zero_del, temp_delta)
+            sparsified_deltas[cid] = {k: v for k, v in zip(keys, temp_delta)}
+
+        return sparsified_deltas, q
 
     @classmethod
     def normalize_weights(cls, in_weights: dict[str, float]):
@@ -141,28 +184,44 @@ class CgsvStrategy(ABCStrategy):
         server_delta, client_deltas = self._update_fn(self._server_params, _client_params, self._client_wts)
         # k1 = list(server_delta.keys())[0]
         # ic(server_delta[k1].device)
-
+        cgsv_vals = {}
         for cid in client_ids:
-            # ic(client_deltas[cid][k1].device)
-
             cgsv =  compute_cgsv(server_delta, client_deltas[cid])
             self._client_wts[cid] = add_momentum(self._client_wts[cid], cgsv, self.cfg.alpha)
-
-
+            cgsv_vals[cid] = cgsv
+            
+        ic(cgsv_vals)
+        
         # Normalize the coefficients
         self._client_wts = self.normalize_weights(self._client_wts)
 
+        ic(self._client_wts)
+        self._server_params = add_param_deltas(self._server_params, server_delta)
+
+        if self.cfg.sparsify_gradients:
+            client_deltas, q = self._sparsify_gradients(self._client_wts, server_delta, self.cfg.beta)
+            self.res_man.log_general_metric(q, phase='post_agg', actor='server', metric_name='q')
+            for cid in client_ids:
+                self._client_params[cid] = add_param_deltas(self._client_params[cid], client_deltas[cid])
+                self.res_man.log_parameters(self._client_params[cid], phase='post_agg', actor=cid)
+
+        else:
+            for cid in client_ids:
+                self._client_params[cid] = add_param_deltas(self._client_params[cid], server_delta)
+
+        # Debug sparsify gradients
+        try:
+            self._sparsify_gradients(self._client_wts, server_delta, self.cfg.beta)
+        except:
+            logger.error('Error in sparsify gradients')
         # Logging code
         self.res_man.log_general_metric(self._client_wts, phase='post_agg', actor='server', metric_name='client_weights')
 
+        self.res_man.log_general_metric(cgsv_vals, phase='post_agg', actor='server', metric_name='cgsv')
+
         self.res_man.log_parameters(self._server_params, phase='post_agg', actor='server')
         
-        
-        for cid in client_ids:
-            pass
-        # print(self._client_wts)
-        # print(self._client_wts.values())
-        # print(self._client_wts.keys
+
         return CgsvOuts(server_params=self._server_params,
                         client_params=self._client_params)
 

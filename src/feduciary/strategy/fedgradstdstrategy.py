@@ -13,7 +13,8 @@ from feduciary.results.resultmanager import ResultManager
 import feduciary.common.typing as fed_t
 from feduciary.strategy.abcstrategy import *
 from feduciary.strategy.basestrategy import random_client_selection, ClientInProto
-from feduciary.strategy.fedstdevstrategy import gradient_average_update
+from feduciary.strategy.fedoptstrategy import gradient_average_update, add_param_deltas
+# from feduciary.strategy.fedstdevstrategy import gradient_average_update
 ### Define the configurations required for this strategy
 from feduciary.common.utils import generate_client_ids
 from enum import Enum
@@ -24,6 +25,7 @@ class FedstdevCfgProtocol(t.Protocol):
     eval_fraction: float
     weighting_strategy: str
     betas: list[float]
+    beta_0: float
     alpha: float
     num_clients: int
 
@@ -56,21 +58,37 @@ def get_dict_avg(param_dict: dict, wts: dict) -> dict:
 
     return {'avg':avg, 'wtd_avg':wtd_avg}
 
-def gradient_update_per_param(server_params: fed_t.ActorParams_t,client_params: fed_t.ClientParams_t, weights: ClientScalarWeights_t) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
+def get_param_dict_wtd_avg(param_dict: fed_t.ActorDeltas_t, wts: dict[str, int]) -> float:
+    param_list = [val.abs().mean().item() for val in param_dict.values()]
+    wts_list = list(wts.values())
+    wtd_avg = np.average(param_list, weights=wts_list)
+    return wtd_avg
+
+# def gradient_update_full_dim_weight(server_params: fed_t.ActorParams_t,client_params: fed_t.ClientParams_t, weights: ClientTensorWeights_t) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
+#     server_deltas: fed_t.ActorDeltas_t = {}
+#     for key, server_param in server_params.items():
+#         for cid, client_param in client_params.items():
+#             # Using FedNova Notation of delta (Δ) as (-grad ∇)
+#             client_delta = client_param[key].data - server_param.data
+#             server_deltas[key] = server_deltas.get(key, 0) + weights[cid] * client_delta
+
+#     server_params = add_param_deltas(server_params, server_deltas)    
+#     return server_params, server_deltas
+
+def gradient_update_per_param(server_params: fed_t.ActorParams_t,client_params: fed_t.ClientParams_t, weights: ClientScalarWeights_t | ClientTensorWeights_t) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
 
     server_deltas: fed_t.ActorDeltas_t = {}
-    
     for key, server_param in server_params.items():
         for cid, client_param in client_params.items():
             # Using FedNova Notation of delta (Δ) as (-grad ∇)
             client_delta = client_param[key].data - server_param.data
-
             server_deltas[key] = server_deltas.get(key, 0) + weights[cid][key] * client_delta
+    server_params = add_param_deltas(server_params, server_deltas)    
 
-    for key, delta in server_deltas.items():
-        server_params[key].data.add_(delta)
-    
     return server_params, server_deltas
+
+def compute_scalar_tanh_weights(beta: float, in_weight: float) -> float:
+    return 1 - np.tanh(beta*in_weight)
 
 def add_weight_momentum(old_weights: Weights_T, omegas: Weights_T, alpha: float) -> Weights_T:
  
@@ -81,8 +99,41 @@ def add_weight_momentum(old_weights: Weights_T, omegas: Weights_T, alpha: float)
         new_weights[name] = alpha * old_weights[name] + (1 - alpha)* omega
     return new_weights # type: ignore
 
+def add_scalar_momentum(weight: float, omega: float, alpha: float) -> float:
+    return alpha * weight + (1 - alpha)* omega
+
+def normalize_scalar_weights(in_weights: dict[str, float]) -> dict[str, float]:
+    total = 1e-9
+    out_weights ={}
+    for val in in_weights.values():
+        total += val
+
+    for key, val in in_weights.items():
+        out_weights[key] = val/total
+    return out_weights
+
+
+def normalize_full_dim_weights(in_weights: ClientTensorWeights_t) -> ClientTensorWeights_t:
+    cid_0 = list(in_weights.keys())[0]
+    param_keys = in_weights[cid_0].keys()
+    client_ids = in_weights.keys()
+
+
+    out_weights = {cid: {param: torch.Tensor() for param in param_keys} for cid in client_ids}
+
+    total_coeff = {param: torch.full_like(in_weights[cid_0][param], 1e-9) for param in param_keys}
+
+    for cid, coeff in in_weights.items():
+        for layer, weight in coeff.items():
+            total_coeff[layer] += weight
+
+    for cid, coeff in in_weights.items():
+        for layer, weight in coeff.items():
+            out_weights[cid][layer] = weight/total_coeff[layer]
+    return out_weights
+
 def lump_tensors(in_dict: dict[str, Tensor]) -> dict[str, float]:
-    '''Lumps all the tensors in the dictionary into a single tensor'''
+    '''Lumps all the tensors in the dictionary into a single value per key'''
     return {key: val.abs().mean().item() for key, val in in_dict.items()}
 
 # Define the inputs and outputs for the strategy
@@ -114,7 +165,7 @@ class FedgradstdStrategy(ABCStrategy):
         self._client_ids = client_ids
         param_keys = self._server_params.keys()
         self.param_keys = list(param_keys)
-        self.param_dims = {p_key: np.prod(list(param.size())) for p_key, param in self._server_params.items()}
+        self.param_dims = {p_key: int(np.prod(list(param.size()))) for p_key, param in self._server_params.items()}
 
         # self._client_params: ClientParams_t = defaultdict(dict)
         self._client_ins: dict[str, float] = defaultdict()
@@ -122,11 +173,25 @@ class FedgradstdStrategy(ABCStrategy):
         self.beta_dict = {param: beta for param, beta in zip(param_keys, cfg.betas)}
 
         # TODO: Think of ways to support dynamic client allocation
-        per_client_per_param_imp =  1.0/len(client_ids)
-        self._client_wts: ClientScalarWeights_t = {cid: {param: per_client_per_param_imp for param in param_keys} for cid in client_ids}
+        w_0 =  1.0/len(client_ids)
 
 
-        self._client_omegas: ClientScalarWeights_t = {cid: {param: per_client_per_param_imp for param in param_keys} for cid in client_ids}
+        match self.cfg.weighting_strategy:
+            case WeightingStrategy.GRAD_SIGMA_BY_MU_FULL_DIM:
+                # tensor_0 = torch.full_like(next(iter(self._server_params.values())), w_0)
+                self._client_wts = {cid: {param: torch.full_like(self._server_params[param], w_0) for param in param_keys}
+                                     for cid in client_ids}
+                self._client_omegas = {cid: 
+                                       {param: torch.full_like(self._server_params[param], w_0) for param in param_keys}
+                                       for cid in client_ids}
+            case WeightingStrategy.GRAD_SIGMA_BY_MU_SCALAR_WTD_AVG:
+                self._client_wts = {cid: w_0 for cid in client_ids}
+                self._client_omegas = {cid: w_0 for cid in client_ids}
+            case WeightingStrategy.GRAD_SIGMA_BY_MU_LAYER_WISE:
+                self._client_wts = {cid: {param: w_0 for param in param_keys} for cid in client_ids}
+                self._client_omegas = {cid: {param: w_0 for param in param_keys} for cid in client_ids}
+            case _:
+                logger.error(f'Unknown weight scaling type: {self.cfg.weighting_strategy}')
 
 
         # Additional dictionaries required for this approach
@@ -201,11 +266,29 @@ class FedgradstdStrategy(ABCStrategy):
         client_wts = cls.normalize_layer_wise_weights(client_wts)
 
         return client_wts, client_omegas, clnt_sigma_by_mu
-        
+
+    @classmethod
+    def full_dim_sbm_aggregate(cls,
+                                 client_wts,
+                                 client_grad_mus, client_grad_stds, client_ids, alpha, beta_0) -> tuple[dict, dict, dict]:
+        client_omegas = {}
+        clnt_sigma_by_mu = {}
+        for cid in client_ids:
+            clnt_sigma_by_mu[cid] = cls._compute_sigma_by_mu_full(client_grad_stds[cid], client_grad_mus[cid])
+
+            omega = cls._compute_full_dim_weights(beta_0, clnt_sigma_by_mu[cid])
+
+            client_wts[cid] = add_weight_momentum(
+                client_wts[cid], omega, alpha)
+            client_omegas[cid] = omega
+        client_wts = normalize_full_dim_weights(client_wts)
+
+        return client_wts, client_omegas, clnt_sigma_by_mu  
+     
     def layer_wise_sbm_log(self, client_ids,
-                           client_wts,
-                           client_omegas,
-                           clnt_sigma_by_mu):
+                           client_wts: ClientScalarWeights_t,
+                           client_omegas: ClientScalarWeights_t,
+                           clnt_sigma_by_mu: dict[str, fed_t.ActorDeltas_t]):
 
         extended_omegas = {}
         extended_wts = {}
@@ -217,10 +300,10 @@ class FedgradstdStrategy(ABCStrategy):
             lumped_sbm = lump_tensors(clnt_sigma_by_mu[cid])
             ext_grad_sbm[cid] = lumped_sbm | get_dict_avg(lumped_sbm, self.param_dims)
 
-            copied_omegas = self._client_omegas[cid].copy()
+            copied_omegas = client_omegas[cid].copy()
             extended_omegas[cid] = copied_omegas | avg_omegas
 
-            copied_wts = self._client_wts[cid].copy()
+            copied_wts = client_wts[cid].copy()
             extended_wts[cid] = copied_wts | avg_wts
 
         self.res_man.log_general_metric(extended_omegas, f'omegas', 'server', 'post_agg')
@@ -228,22 +311,30 @@ class FedgradstdStrategy(ABCStrategy):
         self.res_man.log_general_metric(ext_grad_sbm, f'grad_sigma_by_mu', 'server', 'post_agg')
 
 
-    @classmethod
-    def scalar_sbm_aggregate(cls,client_wts,
-                                 client_grad_mus, client_grad_stds, client_ids, alpha, beta_dict) -> tuple[dict, dict, dict]:
+    def scalar_sbm_aggregate(self, client_wts: dict[str, float],
+                                 client_grad_mus,
+                                 client_grad_stds,
+                                 client_ids,
+                                 alpha, beta_0) -> tuple[dict, dict, dict]:
         client_omegas = {}
         clnt_sigma_by_mu = {}
+        lumped_sbm = {}
         for cid in client_ids:
-            clnt_sigma_by_mu[cid] = cls._compute_sigma_lumped_by_mu_lumped(client_grad_stds[cid], client_grad_mus[cid])
-            omega = cls._compute_lumped_weight(beta_dict, cls.param_dims, clnt_sigma_by_mu[cid])
-            client_wts[cid] = add_weight_momentum(
-                client_wts[cid], omega, alpha)
-            client_omegas[cid] = omega
-        cls.normalize_scalar_weights(client_wts)
-        return client_wts, client_omegas, clnt_sigma_by_mu
+            clnt_sigma_by_mu[cid] = self._compute_sigma_by_mu_full(client_grad_stds[cid], client_grad_mus[cid])
+            lumped_sigma_by_mu = get_param_dict_wtd_avg(clnt_sigma_by_mu[cid], self.param_dims)
+            lumped_omega = compute_scalar_tanh_weights(beta_0, lumped_sigma_by_mu)
+
+            client_wts[cid] = add_scalar_momentum(
+                client_wts[cid], lumped_omega, alpha)
+            lumped_sbm[cid] = lumped_sigma_by_mu  
+            client_omegas[cid] = lumped_omega
+        client_wts = normalize_scalar_weights(client_wts)
+        return client_wts, client_omegas, lumped_sbm
     
-    def scalar_sbm_log(self, client_ids, client_wts, client_omegas, clnt_sigma_by_mu):
-        pass
+    def scalar_sbm_log(self, client_wts, client_omegas, clnt_sigma_by_mu):
+        self.res_man.log_general_metric(client_omegas, f'omegas', 'server', 'post_agg')
+        self.res_man.log_general_metric(client_wts, metric_name=f'client_weights', phase='post_agg', actor='server')
+        self.res_man.log_general_metric(clnt_sigma_by_mu, f'grad_sigma_by_mu', 'server', 'post_agg')
 
 
    
@@ -268,82 +359,33 @@ class FedgradstdStrategy(ABCStrategy):
             case WeightingStrategy.GRAD_SIGMA_LAYER_WISE:
                 pass
             case WeightingStrategy.GRAD_SIGMA_BY_MU_FULL_DIM:
-                pass
+                self._client_wts, self._client_omegas, self._client_sigma_by_mu = self.full_dim_sbm_aggregate(self._client_wts, client_grad_mus, client_grad_stds, client_ids, self.cfg.alpha, self.beta_dict)
+                
+                lump_wts = {cid: lump_tensors(wts) for cid, wts in self._client_wts.items()}
+                lump_omegas = {cid: lump_tensors(omg) for cid, omg in self._client_omegas.items()}
+                self.layer_wise_sbm_log(self._client_ids,
+                                        lump_wts,
+                                        lump_omegas, self._client_sigma_by_mu)
+                self._server_params, server_deltas = gradient_update_per_param(self._server_params, clients_params, self._client_wts)
             case WeightingStrategy.GRAD_SIGMA_BY_MU_SCALAR_AVG:
                 pass
             case WeightingStrategy.GRAD_SIGMA_BY_MU_SCALAR_WTD_AVG:
-                self._client_wts, self._client_omegas, self._client_sigma_by_mu = self.layer_wise_sbm_aggregate(self._client_wts, client_grad_mus, client_grad_stds, client_ids, self.cfg.alpha, self.beta_dict)
-                self.scalar_sbm_log(self._client_ids,
-                                     self._client_wts, self._client_omegas, self._client_sigma_by_mu)
+                self._client_wts, self._client_omegas, self._client_sigma_by_mu = self.scalar_sbm_aggregate(self._client_wts, client_grad_mus, client_grad_stds, client_ids, self.cfg.alpha, self.cfg.beta_0)
+                self.scalar_sbm_log(                                 self._client_wts, self._client_omegas, self._client_sigma_by_mu)
+                self._server_params, server_deltas = gradient_average_update(self._server_params, clients_params, self._client_wts)
 
             case WeightingStrategy.GRAD_SIGMA_BY_MU_LAYER_WISE:
                 self._client_wts, self._client_omegas, self._client_sigma_by_mu = self.layer_wise_sbm_aggregate(self._client_wts, client_grad_mus, client_grad_stds, client_ids, self.cfg.alpha, self.beta_dict)
                 self.layer_wise_sbm_log(self._client_ids,
                                         self._client_wts, self._client_omegas, self._client_sigma_by_mu)
+                self._server_params, server_deltas = gradient_update_per_param(self._server_params, clients_params, self._client_wts)
             case _:
                 logger.error(f'Unknown weight scaling type: {self.cfg.weighting_strategy}')
+                raise ValueError(f'Unknown weight scaling type: {self.cfg.weighting_strategy}')
 
 
         self._log_grads(client_grad_mus, client_grad_stds, client_ids)
 
-        # if self.cfg.weighting_strategy == WeightingStrategy.GRAD_SIGMA_LAYER_WISE:
-        #     for cid in client_ids:
-        #         self._clnt_sigma_by_mu[cid] = self._compute_sigma_by_mu_full(client_grad_stds[cid], client_grad_mus[cid])
-
-        #         omega = self._compute_layer_wise_scaled_weights(self.beta_dict, self._clnt_sigma_by_mu[cid])
-
-        #         self._client_wts[cid] = add_weight_momentum(self._client_wts[cid], omega, self.cfg.alpha)
-
-        #         self._client_omegas[cid] = omega
-        # else:
-        #     logger.error(f'Unknown weight scaling type: {self.cfg.weighting_strategy}')
-
-        # self._client_wts = self.normalize_layer_wise_weights(self._client_wts)
-
-
-        # LOGGING CODE
-
-        # extended_omegas = {}
-        # extended_wts = {}
-        # ext_mus = {}
-        # ext_grad_sigmas = {}
-        # ext_grad_mus = {}
-
-        # for cid in strategy_ins.keys():
-        #     # logging omega and weight average
-        #     avg_omegas = get_dict_avg(self._client_omegas[cid], self.param_dims)
-        #     avg_wts = get_dict_avg(self._client_wts[cid], self.param_dims)
-        #     lumped_mus = lump_tensors(clients_params[cid])
-        #     lumped_grad_mus = lump_tensors(client_grad_mus[cid])
-        #     lumped_grad_sigmas = lump_tensors(client_grad_mus[cid])
-
-        #     lumped_mus.update(get_dict_avg(lumped_mus, self.param_dims))
-        #     lumped_grad_mus.update(get_dict_avg(lumped_grad_mus, self.param_dims))
-
-        #     lumped_grad_sigmas.update(get_dict_avg(lumped_grad_sigmas, self.param_dims))
-
-        #     ext_mus[cid] = lumped_mus
-        #     ext_grad_mus[cid] = lumped_grad_mus
-        #     ext_grad_sigmas[cid] = lumped_grad_sigmas
-
-        #     copied_omegas = self._client_omegas[cid].copy()
-        #     extended_omegas[cid] = copied_omegas | avg_omegas
-
-        #     copied_wts = self._client_wts[cid].copy()
-        #     extended_wts[cid] = copied_wts | avg_wts
-
-        #     self.res_man.log_general_metric(extended_omegas, f'omegas/{cid}', 'server', 'post_agg')
-
-        #     self.res_man.log_general_metric(ext_grad_mus, f'grad_mus/{cid}', 'server', 'post_agg')
-
-        #     self.res_man.log_general_metric(ext_grad_sigmas, f'grad_sigmas/{cid}', 'server', 'post_agg')
-
-        #     self.res_man.log_general_metric(extended_wts, metric_name=f'client_weights/{cid}', phase='post_agg', actor='server')
-
-
-        ############ LOGGING CODE ENDS ##############
-
-        self._server_params, server_deltas = gradient_update_per_param(self._server_params, clients_params, self._client_wts)
 
         outs = FedstdevOuts(server_params=self._server_params)
 
@@ -351,6 +393,8 @@ class FedgradstdStrategy(ABCStrategy):
     
 
     def _common_log_call(self, extended_omegas, ext_grad_mus, ext_grad_sigmas, extended_wts, cid):
+        # LOGGING CODE
+        # Not in use currently
         self.res_man.log_general_metric(extended_omegas, f'omegas/{cid}', 'server', 'post_agg')
 
         self.res_man.log_general_metric(ext_grad_mus, f'grad_mus/{cid}', 'server', 'post_agg')
@@ -409,14 +453,7 @@ class FedgradstdStrategy(ABCStrategy):
 
         return out_weights
     
-    @classmethod
-    def normalize_scalar_weights(cls, in_weights: ClientScalarWeights_t) -> ClientScalarWeights_t:
-        param_keys = in_weights[list(in_weights.keys())[0]].keys()
-        out_weights = {cid: {param: 0.0 for param in param_keys} for cid in in_weights.keys()}
-        total_coeff = {param: 1e-9 for param in param_keys}
-
-        return out_weights
-        
+    
     @classmethod
     def _compute_layer_wise_scaled_weights(cls, betas: dict[str, float], std_dict: dict[str, Parameter]) -> dict[str, float]:
         weights = {}
@@ -425,12 +462,7 @@ class FedgradstdStrategy(ABCStrategy):
             tanh_std = 1 - torch.tanh(sigma_scaled)
             weights[key] = tanh_std.mean().item()
         return weights
-    
-    @classmethod
-    def _compute_lumped_weight(cls, betas: dict[str, float], param_dims: dict[str, float], std_dict: dict[str, Parameter]) -> float:
-        weights = cls._compute_layer_wise_scaled_weights(betas, std_dict)
-        lumped_weight = get_dict_avg(weights, param_dims)
-        return lumped_weight['wtd_avg']
+        
     
     @classmethod
     def _compute_full_dim_weights(cls, betas: dict[str, float], std_dict: dict[str, Parameter]) -> dict[str, Tensor]:
@@ -440,3 +472,10 @@ class FedgradstdStrategy(ABCStrategy):
             tanh_std = 1 - torch.tanh(sigma_scaled)
             weights[key] = tanh_std
         return weights
+
+
+    # @classmethod
+    # def _compute_lumped_weight(cls, betas: dict[str, float], param_dims: dict[str, int], std_dict: dict[str, Parameter]) -> float:
+    #     weights = cls._compute_layer_wise_scaled_weights(betas, std_dict)
+    #     lumped_weight = get_dict_avg(weights, param_dims)
+    #     return lumped_weight['wtd_avg']

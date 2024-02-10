@@ -18,7 +18,7 @@ import feduciary.common.typing as fed_t
 ScalarWeights_t = dict[str, float]
 TensorWeights_t = dict[str, Tensor]
 
-def add_server_deltas(server_params: fed_t.ActorParams_t,
+def add_param_deltas(server_params: fed_t.ActorParams_t,
                       server_deltas: fed_t.ActorDeltas_t) -> fed_t.ActorParams_t:
     '''Add deltas to the server parameters'''
     for key, delta in server_deltas.items():
@@ -46,7 +46,7 @@ def gradient_average_update(server_params: fed_t.ActorParams_t,
                             weights: ScalarWeights_t) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
     
     server_deltas, _ = compute_server_delta(server_params, client_params, weights)
-    server_params = add_server_deltas(server_params, server_deltas)
+    server_params = add_param_deltas(server_params, server_deltas)
     
     return server_params, server_deltas
 
@@ -84,7 +84,7 @@ def gradient_average_with_delta_normalize(server_params: fed_t.ActorParams_t,
                             weights: ScalarWeights_t,
                             gamma: float) -> tuple[fed_t.ActorParams_t, fed_t.ActorDeltas_t]:
     server_deltas, _ = compute_server_delta_w_normalize(server_params, client_params, weights, gamma)
-    server_params = add_server_deltas(server_params, server_deltas)
+    server_params = add_param_deltas(server_params, server_deltas)
     return server_params, server_deltas
 
 @dataclass

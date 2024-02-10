@@ -4,40 +4,39 @@
 # mode: fedstdev_centralized
 # mode: centralized
 # mode: fedavg
-mode: fedavgmanual
+# mode: fedavgmanual
 # mode: standalone
 # mode: fedstdev
-# mode: fedgradstd
+mode: fedgradstd
 # mode: fedopt
 # mode: debug
+# mode: cgsv
 # desc: 'Centralized run with three label flipped client'
 # desc: 'Centralized run with three noisy client'
 
-desc: 'Fedgradstd run with three noisy clients'
+desc: 'Fedgradstd run with three label flipped clients full dim'
 # desc: Fedopt run with three label flipped clients
-# desc: CGSV run with three label flipped clients
+# desc: CGSV run with three label fliped clients
 # desc: 'Fedavg run with three noisy clients'
 # desc: 'Fedavg manual run with three noisy clients'
 
 # desc: 'Fedavg manual run with three label flipped client'
 
-
 defaults:
   - base_config
   - hydra: custom
   - server: baseflower
+
   # - strategy: base
   # - strategy: fedavgmanual
   # - strategy: fedstdev
   - strategy: fedgradstd
   # - strategy: fedopt
   # - strategy: cgsv
-  
 
   # - client: fedstdev
   - client: fedgradstd
   # - client: baseflower
-  # - train: base_trainer
   - _self_
 
 simulator:
@@ -100,8 +99,8 @@ dataset:
 
   split_conf:
     # split_type: one_label_flipped_client
-    # split_type: n_label_flipped_clients
-    split_type: n_noisy_clients
+    split_type: n_label_flipped_clients
+    # split_type: n_noisy_clients
 
     # split_type: one_imbalanced_client
     # split_type: iid
@@ -137,14 +136,7 @@ model:
 # #     epochs: 1
 #     device: auto
 
-# server:
-  # _target_: feduciary.server.baseflowerserver.BaseFlowerServer
-  # _partial_: true
-  # cfg:
-  #   eval_every: 1
-  #   eval_type: 1
-  #   # server_lr: 1.0
-  # train_cfg: ${train_cfg}
+
 # ########## OVERRIDES END HERE ##########
 # Log Configuration: Additional configurations to be copied in the results summary section. Must be a valid configuration from the config tree.
 log_conf: []
