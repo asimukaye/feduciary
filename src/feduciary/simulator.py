@@ -449,7 +449,6 @@ def run_standalone_simulation(cfg: Config,
 
     _round = 0
     for curr_round in range(_round, cfg.simulator.num_rounds):
-        logger.info(f'-------- Round: {curr_round} --------\n')
         train_result = {}
         eval_result = {}
 

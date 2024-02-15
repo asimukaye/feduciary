@@ -1,21 +1,20 @@
 %YAML 1.2
 ---
-# Experiment mode: Switch between debug and experiment methods
-# mode: fedstdev_centralized
-# mode: centralized
-# mode: fedavg
-# mode: fedavgmanual
-# mode: standalone
-# mode: fedstdev
-# mode: fedgradstd
-mode: fedgradstd_trials
-# mode: fedopt
+
+# mode: fedgradstd_trials
 # mode: debug
+mode: sgd_variance_trials
 # mode: cgsv
 # desc: 'Centralized run with three label flipped client'
 # desc: 'Centralized run with three noisy client'
 
-desc: 'Fedgradstd dry runs for analyzing different metrics with three label flipped clients and 25 % data'
+# desc: 'Fedgradstd dry runs for analyzing different metrics with noisy data and 25 % data'
+# desc: 'Fedgradstd dry runs for analyzing different metrics with label flipped data and 25 % data'
+desc: 'sgd_variance dry runs for analyzing different metrics with iid data and 25 % data'
+
+# desc: 'sgd_variance dry runs for analyzing different metrics with noisy data and 25 % data'
+
+# desc: 'sgd_variance dry runs for analyzing different metrics with label flip data and 25 % data'
 # desc: Fedopt run with three label flipped clients
 # desc: CGSV run with three label fliped clients
 # desc: 'Fedavg run with three noisy clients'
@@ -52,7 +51,7 @@ simulator:
   save_csv: true
   out_prefix: ''
   num_clients: 6
-  num_rounds: 100
+  num_rounds: 150
   checkpoint_every: 10
   eval_type: both
   eval_every: 1
@@ -100,11 +99,11 @@ dataset:
 
   split_conf:
     # split_type: one_label_flipped_client
-    split_type: n_label_flipped_clients
+    # split_type: n_label_flipped_clients
     # split_type: n_noisy_clients
 
     # split_type: one_imbalanced_client
-    # split_type: iid
+    split_type: iid
     # split_type: one_noisy_client
     num_splits: ${simulator.num_clients}
     # Noise parameter is specific to one patho client

@@ -127,11 +127,12 @@ class FedgradstdClient(BaseFlowerClient):
                 # tmp_grad_list.append(individual_param.grad)
                 tmp_grad_list.append(self._cum_gradients_map[seed][name])
 
-
+            # parameter average
             stacked = torch.stack(tmp_param_list)
+            mean_ = torch.mean(stacked, dim=0)
+            # std_, mean_ = torch.std_mean(stacked, dim=0)
 
-            std_, mean_ = torch.std_mean(stacked, dim=0)
-
+            # gradient average and std dev
             stacked_grad = torch.stack(tmp_grad_list)
             if self.cfg.abs_before_mean:
                 std_grad_, mean_grad_ = torch.std_mean(stacked_grad.abs(), dim=0)
@@ -139,7 +140,7 @@ class FedgradstdClient(BaseFlowerClient):
                 std_grad_, mean_grad_ = torch.std_mean(stacked_grad, dim=0)
 
             param.data.copy_(mean_.data)
-            # with get_time():
+
             param.grad = mean_grad_.data
 
             # STATEFUL FUNCTIONS MAY NOT WORK WITH MULTITHREADING

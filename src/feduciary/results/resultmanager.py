@@ -209,7 +209,7 @@ class ResultManager:
                     self._add_metric(metric, event, phase, cid, reference_value)
 
 
-    def log_parameters(self, model_params: dict[str, Parameter], phase: str, actor: str, event: str = '' , metric= 'param', verbose=False) -> dict:
+    def log_parameters(self, model_params: dict[str, Parameter] | dict[str, Tensor], phase: str, actor: str, event: str = '' , metric= 'param', verbose=False) -> dict:
         # LUMP The parameters layer wise and add to the result dictionary
         out_dict = {}
         avg = 0.0

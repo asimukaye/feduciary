@@ -21,5 +21,6 @@ cfg:
   num_clients: ${simulator.num_clients}
   # weighting_strategy: grad_sigma_by_mu_layer_wise
   # weighting_strategy: grad_sigma_by_mu_scalar_wtd_avg
-  weighting_strategy: grad_sigma_by_mu_full_dim
+  # weighting_strategy: grad_sigma_by_mu_full_dim
+  weighting_strategy: grad_sigma_direction_trial
 
