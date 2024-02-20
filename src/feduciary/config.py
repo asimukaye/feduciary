@@ -295,9 +295,11 @@ class NoiseConfig:
 @dataclass
 class SplitConfig:
     split_type: str
-    noise: Optional[NoiseConfig]
+    noise: NoiseConfig
     num_splits: int  # should be equal to num_clients
-    num_patho_splits: int
+    num_patho_clients: int
+    num_class_per_client: int
+    dirichlet_alpha: float
     # Train test split ratio within the client,
     # Now this is auto determined by the test set size
     test_fractions: list[float] = field(init=False, default_factory=list) 
@@ -308,15 +310,20 @@ class SplitConfig:
                          'one_label_flipped_client',
                          'n_label_flipped_clients',
                          'iid', 'unbalanced',
-                         'one_imbalanced_client' }
+                         'one_imbalanced_client',
+                          'patho', 'dirichlet' }
         if self.split_type in {'one_noisy_client',
                                'n_noisy_clients',
                                'one_label_flipped_client',
                                'n_label_flipped_clients'}:
             assert self.noise, 'Noise config should be provided for noisy client or label flipped client'
+        if self.split_type == 'patho':
+            assert self.num_class_per_client, 'Number of pathological splits should be provided'
+        if self.split_type == 'dirichlet':
+            assert self.dirichlet_alpha, 'Dirichlet alpha should be provided for dirichlet split'
 
         assert self.split_type in known_splits, f'Invalid split type: {self.split_type}'
-        assert self.num_patho_splits <= self.num_splits, 'Number of pathological splits should be less than or equal to number of splits'
+        assert self.num_patho_clients <= self.num_splits, 'Number of pathological splits should be less than or equal to number of splits'
 
 
 @dataclass

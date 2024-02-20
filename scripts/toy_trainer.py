@@ -130,7 +130,7 @@ def aggregate_model(model_list: list[nn.Module], grad_list: list, resman: Result
         flattened_params = torch.stack(flattened_params_list)
         
         grad_norm_ = torch.norm(flattened_grads, dim=1)
-        grad_norm_mean_, grad_norm_std_ = torch.std_mean(grad_norm_, dim=0)
+        grad_norm_std_, grad_norm_mean_ = torch.std_mean(grad_norm_, dim=0)
         grad_norms[name] = grad_norm_mean_.item()
         grad_norm_std[name] = grad_norm_std_.item()
 
@@ -230,7 +230,30 @@ def aggregate_results(seed_results: list[fed_t.Result]) -> fed_t.Result:
     
     return fed_t.Result(metrics=avg_metrics, size=sample_res.size, metadata=sample_res.metadata,event=sample_res.event, phase=sample_res.phase, _round=_round, actor='sim')
 
+def compute_model_wide_norm_and_cosine_similarity_no_seed(param_list: list[fed_t.ActorDeltas_t]) -> tuple[dict[str, float], dict[str, float]]:
+    # Compute the model wide norm and cosine similarity
+    # Compute the model wide norm and cosine similarity
+    norms = {}
+    cosines = {}
+    cos_list = []
+    norms_list = []
 
+    vecs = []
+    for param in  param_list:
+        vec = parameters_to_vector(param.values())
+        norms_list[torch.norm(vec).item()]
+        vecs.append(vec)
+    
+    norms['mean'] = np.mean(norms_list)
+    norms['std'] = np.std(norms_list)
+
+    for (v1, v2) in combinations(vecs, 2):
+        cos_list.append(torch.cosine_similarity(v1, v2, dim=0).item())
+
+    cosines['mean'] = np.mean(cos_list)
+    cosines['std'] = np.std(cos_list)
+    
+    return norms, cosines
 
 def aggregate_gradients(grads_list: list[fed_t.ActorDeltas_t], param_dims:dict, resman: ResultManager) -> None:
     '''Aggregates the gradients from the different models'''
@@ -266,13 +289,13 @@ def aggregate_gradients(grads_list: list[fed_t.ActorDeltas_t], param_dims:dict, 
         flattened_grads = torch.stack(flattened_grads_list)
         
         grad_norm_ = torch.norm(flattened_grads, dim=1)
-        grad_norm_mean_, grad_norm_std_ = torch.std_mean(grad_norm_, dim=0)
+        grad_norm_std_, grad_norm_mean_ = torch.std_mean(grad_norm_, dim=0)
         grad_norms[name] = grad_norm_mean_.item()
         grad_norm_std[name] = grad_norm_std_.item()
 
         for g1, g2 in combinations(flattened_grads_list, 2):
             grad_cos.append(torch.cosine_similarity(g1, g2, dim=0).item())
-        
+        ic(len(grad_cos))
         grad_cos_sim[name] = grad_cos
         # grad_cos_stacked = torch.stack(grad_cos)
         mean_grad_cos, std_grad_cos = np.mean(grad_cos), np.std(grad_cos)
@@ -347,7 +370,7 @@ def trainer_mono(model: nn.Module, loader: DataLoader, train_cfg: TrainConfig, m
     # model.to('cpu')
 
     ic(len(grads))
-    grad_model_norm, grad_model_cos = compute_model_wide_norm_and_cosine_similarity(grads)
+    grad_model_norm, grad_model_cos = compute_model_wide_norm_and_cosine_similarity_no_seed(grads)
 
     resman.log_general_metric(grad_model_norm, phase='post_train', actor='sim', metric_name='grad_model_norm')
   

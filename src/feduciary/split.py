@@ -191,17 +191,20 @@ def get_one_imbalanced_client_split(dataset: Subset, num_splits: int) -> dict[in
     
 
 # TODO: Understand this function from FedAvg Paper
-def get_patho_split(dataset: Subset, num_splits: int, num_classes: int, mincls) -> dict[int, np.ndarray]:
+def get_patho_split(dataset: Subset, num_splits: int, num_classes: int, mincls: int) -> dict[int, np.ndarray]:
     try:
         assert mincls >= 2
     except AssertionError as e:
         logger.exception("[DATA_SPLIT] Each client should have samples from at least 2 distinct classes!")
         raise e
     
-    # get indices by class labels
-    _, unique_inverse, unique_count = np.unique(dataset.targets, return_inverse=True, return_counts=True)
+    # get unique class labels and their count
+    inferred_classes, unique_inverse, unique_count = np.unique(dataset.targets, return_inverse=True, return_counts=True)
+    # split the indices by class labels
     class_indices = np.split(np.argsort(unique_inverse), np.cumsum(unique_count[:-1]))
-        
+    
+    assert len(inferred_classes) == num_classes, 'Inferred classes do not match the expected number of classes'
+    
     # divide shards
     num_shards_per_class = num_splits* mincls // num_classes
     if num_shards_per_class < 1:
@@ -217,9 +220,7 @@ def get_patho_split(dataset: Subset, num_splits: int, num_classes: int, mincls) 
 
     # assign divided shards to clients
     assigned_shards = []
-    for _ in log_tqdm(range(num_classes), 
-        logger=logger,
-        desc='[DATA_SPLIT] ...assigning to clients... '):
+    for _ in range(num_classes):
         # update selection proability according to the count of reamining shards
         # i.e., do NOT sample from class having no remaining shards
         selection_prob = np.where(np.array(list(class_shards_counts.values())) > 0, 1., 0.)
@@ -266,7 +267,7 @@ def sample_with_mask(mask, ideal_samples_counts, concentration, num_classes, nee
 
 
 # TODO: understand this split from paper
-def get_dirichlet_split(dataset: Dataset, num_splits, num_classes, cncntrtn)-> dict[int, np.ndarray]:
+def get_dirichlet_split_2(dataset: Dataset, num_splits, num_classes, cncntrtn)-> dict[int, np.ndarray]:
            
     # get indices by class labels
     _, unique_inverse, unique_count = np.unique(dataset.targets, return_inverse=True, return_counts=True)
@@ -329,6 +330,99 @@ def get_dirichlet_split(dataset: Dataset, num_splits, num_classes, cncntrtn)-> d
     return split_map
 
 
+def dirichlet_noniid_split(dataset: Subset, n_clients: int, alpha: float,) -> dict[int, np.ndarray]:
+    """Splits a list of data indices with corresponding labels
+    into subsets according to a dirichlet distribution with parameter
+    alpha.
+    Args:
+        train_labels: ndarray of train_labels.
+        alpha: the parameter of Dirichlet distribution.
+        n_clients: number of clients.
+    Returns:
+        client_idcs: a list containing sample idcs of clients.
+    """
+    target_set = Subset(dataset.dataset.targets, dataset.indices)
+    train_labels = np.array(target_set)
+    # train_labels = np.array(train_labels)
+    n_classes = train_labels.max()+1
+    # (n_classes, n_clients), label distribution matrix, indicating the
+    # proportion of each label's data divided into each client
+    label_distribution = np.random.dirichlet([alpha]*n_clients, n_classes)
+
+    # (n_classes, ...), indicating the sample indices for each label
+    class_idcs = [np.argwhere(train_labels == y).flatten()
+                    for y in range(n_classes)]
+
+    # Indicates the sample indices of each client
+    client_idcs = [[] for _ in range(n_clients)]
+    for c_idcs, fracs in zip(class_idcs, label_distribution):
+        # `np.split` divides the sample indices of each class, i.e.`c_idcs`
+        # into `n_clients` subsets according to the proportion `fracs`.
+        # `i` indicates the i-th client, `idcs` indicates its sample indices
+        for i, idcs in enumerate(np.split(c_idcs, (
+                np.cumsum(fracs)[:-1] * len(c_idcs))
+                .astype(int))):
+            client_idcs[i] += [idcs]
+
+    client_idcs = {k: np.concatenate(idcs) for k, idcs in zip(range(n_clients),client_idcs)}
+
+    return client_idcs
+
+
+def pathological_non_iid_split(dataset: Subset, n_clients: int,  n_classes_per_client: int) -> dict[int, np.ndarray]:
+    target_set = Subset(dataset.dataset.targets, dataset.indices)
+    train_labels = np.array(target_set)
+    # ic(train_labels.shape)
+    # ic(train_labels[:10])
+    n_classes = train_labels.max()+1
+    data_idcs = list(range(len(train_labels)))
+    label2index = {k: [] for k in range(n_classes)}
+    for idx in data_idcs:
+        label = train_labels[idx]
+        label2index[label].append(idx)
+
+    # ic(label2index)
+    sorted_idcs = []
+    for label in label2index:
+        sorted_idcs += label2index[label]
+
+    def iid_divide(lst, g):
+        """Divides the list `l` into `g` i.i.d. groups, i.e.direct splitting.
+        Each group has `int(len(l)/g)` or `int(len(l)/g)+1` elements.
+        Returns a list of different groups.
+        """
+        num_elems = len(lst)
+        group_size = int(len(lst) / g)
+        num_big_groups = num_elems - g * group_size
+        num_small_groups = g - num_big_groups
+        glist = []
+        for i in range(num_small_groups):
+            glist.append(lst[group_size * i: group_size * (i + 1)])
+        bi = group_size * num_small_groups
+        group_size += 1
+        for i in range(num_big_groups):
+            glist.append(lst[bi + group_size * i:bi + group_size * (i + 1)])
+        return glist
+
+    n_shards = n_clients * n_classes_per_client
+    # Divide the sample indices into `n_shards` i.i.d. shards
+    shards = iid_divide(sorted_idcs, n_shards)
+
+    np.random.shuffle(shards)
+    # Then split the shards into `n_client` parts
+    tasks_shards = iid_divide(shards, n_clients)
+
+    clients_idcs = [[] for _ in range(n_clients)]
+    for client_id in range(n_clients):
+        for shard in tasks_shards[client_id]:
+            # Here `shard` is the sample indices of a shard (a list)
+            # `+= shard` is to merge the list `shard` into the list
+            # `clients_idcs[client_id]`
+            clients_idcs[client_id] += shard
+
+    clients_idcs = {k: np.array(idcs) for k, idcs in zip(range(n_clients),clients_idcs)}
+    return clients_idcs
+
 def get_split_map(cfg: SplitConfig, dataset: Subset) -> dict[int, np.ndarray]:
     """Split data indices using labels.
     Args:
@@ -351,16 +445,16 @@ def get_split_map(cfg: SplitConfig, dataset: Subset) -> dict[int, np.ndarray]:
             split_map = get_one_imbalanced_client_split(dataset, cfg.num_splits)
             return split_map
 
-        # case 'patho':
-        #     # FIXME: assign the right arguments here
-        #     # split_map = get_patho_split(dataset, cfg.num_splits,)
+        case 'patho':
+            split_map = pathological_non_iid_split(dataset, cfg.num_splits, cfg.num_class_per_client)  
+            return split_map
         #     raise NotImplementedError
-        # case 'dirichlet':
-        #     # split_map = get_dirichlet_split(dataset, cfg.num_splits,)
-        #     raise NotImplementedError
+        case 'dirichlet':
+            split_map = dirichlet_noniid_split(dataset, cfg.num_splits, cfg.dirichlet_alpha)
+            return split_map
         case 'leaf' |'fedvis'|'flamby':
             logger.info('[DATA_SPLIT] Using pre-defined split.')
-            return {}
+            raise NotImplementedError
         case _ :
             logger.error('[DATA_SPLIT] Unknown datasplit type')
             raise NotImplementedError
@@ -406,14 +500,14 @@ def get_client_datasets(cfg: SplitConfig, train_dataset: Subset, test_dataset, m
                 test = NoisySubset(test, cfg.noise.mu, cfg.noise.sigma)
             client_datasets[0] = patho_train, test
         case 'n_label_flipped_clients':
-            for idx in range(cfg.num_patho_splits):
+            for idx in range(cfg.num_patho_clients):
                 train, test = client_datasets[idx]
                 patho_train = LabelFlippedSubset(train, cfg.noise.flip_percent)
                 if match_train_distribution:
                     test = NoisySubset(test, cfg.noise.mu, cfg.noise.sigma)
                 client_datasets[idx] = patho_train, test
         case 'n_noisy_clients':
-            for idx in range(cfg.num_patho_splits):
+            for idx in range(cfg.num_patho_clients):
                 train, test = client_datasets[idx]
                 patho_train = NoisySubset(train, cfg.noise.mu, cfg.noise.sigma)
                 if match_train_distribution:

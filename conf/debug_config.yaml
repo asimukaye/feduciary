@@ -8,9 +8,9 @@
 # mode: standalone
 # mode: fedstdev
 # mode: fedgradstd
-mode: fedgradstd_patho
+# mode: fedgradstd_patho
 # mode: fedopt
-# mode: debug
+mode: debug
 # mode: cgsv
 # desc: 'Centralized run with three label flipped client'
 # desc: 'Centralized run with three noisy client'
@@ -46,8 +46,8 @@ simulator:
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized', 'flower'
   # mode: standalone
   # mode: centralized
-  # mode: federated
-  mode: flower
+  mode: federated
+  # mode: flower
   seed: 42
   use_tensorboard: false
   use_wandb: true
