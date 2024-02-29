@@ -12,7 +12,7 @@ import torch.optim
 from feduciary.results.resultmanager import ResultManager
 import feduciary.common.typing as fed_t
 from feduciary.strategy.abcstrategy import *
-from feduciary.strategy.basestrategy import random_client_selection, ClientInProto
+from feduciary.strategy.basestrategy import random_client_selection, ClientInProto, weighted_parameter_averaging
 from feduciary.strategy.fedoptstrategy import gradient_average_update, add_param_deltas
 # from feduciary.strategy.fedstdevstrategy import gradient_average_update
 ### Define the configurations required for this strategy
@@ -37,6 +37,7 @@ class WeightingStrategy(str, Enum):
     GRAD_SIGMA_BY_MU_SCALAR_WTD_AVG = 'grad_sigma_by_mu_scalar_wtd_avg'
     GRAD_SIGMA_BY_MU_LAYER_WISE = 'grad_sigma_by_mu_layer_wise'
     GRAD_SIGMA_DIRECTIONS_TRIAL = 'grad_sigma_direction_trial'
+    EQUAL = 'equal'
 
 
 
@@ -186,7 +187,7 @@ class FedgradstdStrategy(ABCStrategy):
                 self._client_omegas = {cid: 
                                        {param: torch.full_like(self._server_params[param], w_0) for param in param_keys}
                                        for cid in client_ids}
-            case WeightingStrategy.GRAD_SIGMA_BY_MU_SCALAR_WTD_AVG:
+            case WeightingStrategy.GRAD_SIGMA_BY_MU_SCALAR_WTD_AVG | WeightingStrategy.EQUAL:
                 self._client_wts = {cid: w_0 for cid in client_ids}
                 self._client_omegas = {cid: w_0 for cid in client_ids}
             case WeightingStrategy.GRAD_SIGMA_BY_MU_LAYER_WISE:
@@ -334,7 +335,7 @@ class FedgradstdStrategy(ABCStrategy):
             client_omegas[cid] = omega
         client_wts = self.normalize_layer_wise_weights(client_wts)
 
-        self.res_man.log_general_metric(_________, f'grad_sigma_by_mu', 'server', 'post_agg')
+        # self.res_man.log_general_metric(_________, f'grad_sigma_by_mu', 'server', 'post_agg')
 
         return client_wts, client_omegas, clnt_sigma_by_mu
 
@@ -398,7 +399,7 @@ class FedgradstdStrategy(ABCStrategy):
                 pass
             case WeightingStrategy.GRAD_SIGMA_BY_MU_SCALAR_WTD_AVG:
                 self._client_wts, self._client_omegas, self._client_sigma_by_mu = self.scalar_sbm_aggregate(self._client_wts, client_grad_mus, client_grad_stds, client_ids, self.cfg.alpha, self.cfg.beta_0)
-                self.scalar_sbm_log(                                 self._client_wts, self._client_omegas, self._client_sigma_by_mu)
+                self.scalar_sbm_log(self._client_wts, self._client_omegas, self._client_sigma_by_mu)
                 self._server_params, server_deltas = gradient_average_update(self._server_params, clients_params, self._client_wts)
 
             case WeightingStrategy.GRAD_SIGMA_BY_MU_LAYER_WISE:
@@ -412,6 +413,10 @@ class FedgradstdStrategy(ABCStrategy):
                                         self._client_wts,
                                         self._client_omegas, self._client_sigma_by_mu)
                 self._server_params, server_deltas = gradient_update_per_param(self._server_params, clients_params, self._client_wts)
+            case WeightingStrategy.EQUAL:
+
+                self._server_params = weighted_parameter_averaging(self._server_params, clients_params, self._client_wts)
+                self.res_man.log_general_metric(self._client_wts, metric_name=f'client_weights', phase='post_agg', actor='server')
             case _:
                 logger.error(f'Unknown weight scaling type: {self.cfg.weighting_strategy}')
                 raise ValueError(f'Unknown weight scaling type: {self.cfg.weighting_strategy}')

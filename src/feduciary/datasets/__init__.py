@@ -9,3 +9,4 @@ from .adult import fetch_adult
 from .cover import fetch_cover
 from .gleam import fetch_gleam
 from .flamby import fetch_flamby_federated, fetch_flamby_pooled, get_flamby_model_spec
+from .medmnist import fetch_medmnist_dataset

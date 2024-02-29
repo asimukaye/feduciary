@@ -6,8 +6,9 @@ from torch.utils import data
 import numpy as np
 logger = logging.getLogger(__name__)
 
+from torchvision.datasets import CIFAR10
 # dataset wrapper module
-class VisionClassificationDataset(data.Subset): 
+class VisionClassificationDataset(data.Dataset): 
     def __init__(self, dataset, dataset_name, suffix):
         self.dataset = dataset
         self.dataset_name = dataset_name

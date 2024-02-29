@@ -273,8 +273,9 @@ class BaseFlowerClient(ABCClient, fl.client.Client):
                 inputs, targets = inputs.to(self.train_cfg.device), targets.to(self.train_cfg.device)
 
                 self._model.zero_grad(set_to_none=True)
-
+                # ic(inputs.shape)
                 outputs: Tensor = self._model(inputs)
+                # ic(targets.shape, outputs.shape)
                 loss: Tensor = self.criterion(outputs, targets)
                 loss.backward()
 

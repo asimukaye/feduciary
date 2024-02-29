@@ -457,7 +457,6 @@ def lump_tensors_norms(in_dict: dict[str, Tensor]) -> dict[str, float]:
     return {key: val.norm().item() for key, val in in_dict.items()}
 
 
-
 def run_sandbox(cfg: Config):
     sim_cfg = cfg.simulator
     train_cfg = cfg.train_cfg
@@ -501,9 +500,9 @@ def run_sandbox(cfg: Config):
         loop_start = time.time()
 
 
-        # train_res, model = trainer(model_list, loader_list, train_cfg, mm, r, res)
+        train_res, model = trainer(model_list, loader_list, train_cfg, mm, r, res)
 
-        train_res, model = trainer_mono(model, train_loader, train_cfg, mm, r, res) 
+        # train_res, model = trainer_mono(model, train_loader, train_cfg, mm, r, res) 
 
         eval_res = simple_evaluator(model, test_loader, train_cfg, mm, r)
 

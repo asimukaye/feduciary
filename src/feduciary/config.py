@@ -269,6 +269,7 @@ class StrategySchema:
 
 ########## Dataset configurataions ##########
 
+#TODO: Add support for custom transforms 
 @dataclass
 class TransformsConfig:
     resize: Optional[dict] = field(default_factory=dict)
@@ -331,7 +332,7 @@ class DatasetConfig:
     name: str
     data_path: str
     dataset_family: str
-    transforms: TransformsConfig
+    transforms: Optional[TransformsConfig]
     federated: bool
     split_conf: SplitConfig
     subsample: bool = False

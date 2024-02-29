@@ -83,7 +83,7 @@ class FedgradstdClient(BaseFlowerClient):
     def _create_shuffled_loaders(self, dataset: Subset, seeds:list[int]) -> dict[int, DataLoader]:
         loader_dict = {}
         self._generator = {}
-
+        index_list = []
         # with get_time():
         for seed in seeds:
             gen = Generator()
@@ -92,6 +92,14 @@ class FedgradstdClient(BaseFlowerClient):
             self._generator[seed] = gen
             loader_dict[seed] = DataLoader(dataset=dataset, sampler=sampler, batch_size=self.train_cfg.batch_size)
 
+            index_list.append(np.array(loader_dict[seed].dataset.indices))
+        
+        # for i in range(1, len(index_list)):
+        #     i1 = np.sort(index_list[i-1])
+        #     i2 = np.sort(index_list[i])
+        #     # ic(i1[:10], i2[:10] )
+        #     if not np.array_equal(i1, i2):
+        #         raise ValueError('Indices are not equal')
         return loader_dict
     
     def unpack_train_input(self, client_ins: fed_t.ClientIns) -> ClientInProtocol:

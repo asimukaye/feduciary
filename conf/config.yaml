@@ -1,53 +1,31 @@
 %YAML 1.2
 ---
-# Experiment mode: Switch between debug and experiment methods
-# mode: fedstdev_centralized
-# mode: centralized
-# mode: fedavg_patho
-# mode: fedavgmanual
-# mode: standalone
-# mode: fedstdev
-# mode: fedgradstd
-mode: fedgradstd_patho
-# mode: fedopt
+mode: centralized_bloodmnist
 # mode: debug
-# mode: cgsv
-# desc: 'Centralized run with three label flipped client'
-# desc: 'Centralized run with three noisy client'
-
-# desc: 'Fedgradstd dry runs for analyzing different metrics with three label flipped clients and 25 % data'
-desc: 'Fedgradstd run with patho split'
-
-# desc: Fedopt run with three label flipped clients
-# desc: CGSV run with three label fliped clients
-# desc: 'Fedavg run with patho split'
-# desc: 'Fedavg manual run with three noisy clients'
-
-# desc: 'Fedavg manual run with three label flipped client'
 
 defaults:
   - base_config
   - hydra: custom
   - server: baseflower
 
-  # - strategy: base
+  - strategy: base
   # - strategy: fedavgmanual
   # - strategy: fedstdev
-  - strategy: fedgradstd
+  # - strategy: fedgradstd
   # - strategy: fedopt
   # - strategy: cgsv
 
   # - client: fedstdev
-  - client: fedgradstd
-  # - client: baseflower
+  # - client: fedgradstd
+  - client: baseflower
   - _self_
 
 simulator:
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized', 'flower'
   # mode: standalone
-  # mode: centralized
+  mode: centralized
   # mode: federated
-  mode: flower
+  # mode: flower
   seed: 42
   use_tensorboard: false
   use_wandb: true
@@ -84,33 +62,32 @@ train_cfg:
     file_prefix: ''
     log_to_file: false
 
-
 dataset:
-  dataset_family: torchvision
-  name: CIFAR10
+  # dataset_family: torchvision
+  dataset_family: medmnist
+  # name: CIFAR10
+  name: bloodmnist
   data_path: data/
   subsample: false
   subsample_fraction: 1.0 # Fraction of the dataset to use. Only works when subsample is true
   federated: true
 
-  transforms:
-    resize:
-      _target_: torchvision.transforms.Resize
-      size: 
-        - 28
-        - 28
+  transforms: null
+  #   resize:
+  #     _target_: torchvision.transforms.Resize
+  #     size: 
+  #       - 28
+  #       - 28
 
   split_conf:
     # split_type: n_label_flipped_clients
-    split_type: patho
+    # split_type: patho
+    # split_type: dirichlet
     # split_type: n_noisy_clients
-
     # split_type: one_imbalanced_client
-    # split_type: iid
+    split_type: iid
     # split_type: one_noisy_client
     num_splits: ${simulator.num_clients}
-    # Noise parameter is specific to one patho client
-    # Obsolete now
     num_class_per_client: 3 # classes per client for patho split type
     num_patho_clients: 3
     dirichlet_alpha: 1.0
@@ -118,7 +95,6 @@ dataset:
       mu: 0.0
       sigma: 0.5
       flip_percent: 0.75
-
 
 model:
   name: TwoCNN
@@ -133,16 +109,47 @@ model:
     in_channels: null
     num_classes: null 
 
-
 # CONFIG OVERRIDES
 # client:
-#   train_cfg:
-# #     epochs: 1
-#     device: auto
+#   cfg:
+#     data_shuffle: True
+
 
 
 # ########## OVERRIDES END HERE ##########
 # Log Configuration: Additional configurations to be copied in the results summary section. Must be a valid configuration from the config tree.
+# Experiment mode: Switch between debug and experiment methods
+# mode: fedstdev_centralized
+# mode: centralized
+# mode: fedavg_patho
+# mode: fedavg_dirichlet
+# mode: fedavgmanual
+# mode: standalone
+# mode: fedstdev
+# mode: fedgradstd
+# mode: fedgradstd_patho
+# mode: fedgradstd_dirichlet
+# mode: fedopt_patho
+# mode: fedopt
+# mode: debug
+# mode: cgsv
+# desc: 'Centralized run with three label flipped client'
+# desc: 'Centralized run with three noisy client'
+# desc: 'Fedgradstd client dirichlet split with equal weighting strategy'
+# desc: 'Fedgradstd client with equal weighting strategy'
+# desc: 'Fedgradstd dry runs for analyzing different metrics with three label flipped clients and 25 % data'
+# desc: 'Fedgradstd run with dirichlet split,5 shuffles only'
+desc: 'Fedavg run with bloodmnist iid'
+# desc: 'Centralized run with bloodmnist iid'
+
+# desc: Fedopt with patho split
+# desc: CGSV run with three label fliped clients
+# desc: 'Fedavg run with dirichlet split, alpha 10000, checking dirichlet correctness'
+# desc: 'Fedavg manual run with three noisy clients'
+
+# desc: 'Fedavg manual run with three label flipped client'
+
+
 log_conf: []
 
 ...

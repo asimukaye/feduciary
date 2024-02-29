@@ -134,7 +134,6 @@ class BaseStrategy(ABCStrategy):
             self._client_weights[cid] = float(strat_in.data_size / total_size)
 
         _client_params = {cid: inp.client_params for cid, inp in strategy_ins.items()}
-        # print((list(_client_params.values())[0].keys()))
         
         self._server_params = weighted_parameter_averaging(self._param_keys, _client_params, self._client_weights)
 
@@ -144,3 +143,4 @@ class BaseStrategy(ABCStrategy):
     
 
 FedAvgStrategy = BaseStrategy
+

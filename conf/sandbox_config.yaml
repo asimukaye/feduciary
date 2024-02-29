@@ -3,14 +3,16 @@
 
 # mode: fedgradstd_trials
 # mode: debug
-mode: sgd_variance_trials
+mode: fedgradstd_bloodmnist_trials
+# mode: sgd_variance_trials
 # mode: cgsv
 # desc: 'Centralized run with three label flipped client'
 # desc: 'Centralized run with three noisy client'
-
+desc: 'Fedgradstd central run with bloodmnist, 0% label flip'
 # desc: 'Fedgradstd dry runs for analyzing different metrics with noisy data and 25 % data'
-# desc: 'Fedgradstd dry runs for analyzing different metrics with label flipped data and 25 % data'
-desc: 'sgd_variance dry runs for analyzing different metrics with iid data and 25 % data'
+# desc: 'Fedgradstd dry runs for analyzing different metrics with 75 % label flipped data'
+
+# desc: 'sgd_variance dry runs for analyzing different metrics with iid data and 25 % data'
 
 # desc: 'sgd_variance dry runs for analyzing different metrics with noisy data and 25 % data'
 
@@ -61,7 +63,7 @@ simulator:
 
 train_cfg:
   epochs: 1
-  device: auto
+  device: cuda:5
   batch_size: 128
   eval_batch_size: 256
   lr: 0.01
@@ -83,11 +85,13 @@ train_cfg:
 
 
 dataset:
-  dataset_family: torchvision
-  name: CIFAR10
-  data_path: data/
+  # dataset_family: torchvision
+  dataset_family: medmnist
+  # name: CIFAR10
+  name: bloodmnist
+  data_path: ../data/
   subsample: false
-  subsample_fraction: 0.25 # Fraction of the dataset to use. Only works when subsample is true
+  subsample_fraction: 1.0 # Fraction of the dataset to use. Only works when subsample is true
   federated: true
 
   transforms:
@@ -99,21 +103,22 @@ dataset:
 
   split_conf:
     # split_type: one_label_flipped_client
-    # split_type: n_label_flipped_clients
+    split_type: n_label_flipped_clients
     # split_type: n_noisy_clients
 
     # split_type: one_imbalanced_client
-    split_type: iid
+    # split_type: iid
     # split_type: one_noisy_client
     num_splits: ${simulator.num_clients}
     # Noise parameter is specific to one patho client
     # Obsolete now
-    # test_fraction: 0.1 # Client train-test split
-    num_patho_splits: 3
+    num_class_per_client: 3 # classes per client for patho split type
+    num_patho_clients: 3
+    dirichlet_alpha: 1.0
     noise:
       mu: 0.0
       sigma: 0.5
-      flip_percent: 0.75
+      flip_percent: 0.0
 
 
 model:
