@@ -8,7 +8,7 @@ cfg:
   train_fraction: 1.0
   eval_fraction: 1.0
   delta_normalize: false
-  sparsify_gradients: false
+  sparsify_gradients: true
   num_clients: ${simulator.num_clients}
   beta: 1.5
   alpha: 0.95

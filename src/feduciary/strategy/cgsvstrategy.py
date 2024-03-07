@@ -18,6 +18,7 @@ from feduciary.strategy.fedoptstrategy import compute_server_delta_w_normalize, 
 import numpy as np
 logger = logging.getLogger(__name__)
 
+# NOTE: THIS ALGORITHM HAS STABILITY ISSUES IN CASE THE LEARNING DOES NOT CONVERGE. If the cgsv values stay consistently negative, it would lead to the weights turning negative rendering a lot of subsequent steps invalid. This is a known issue with the algorithm and is not addressed in the paper.
 
 @dataclass
 class CgsvCfgProtocol(t.Protocol):
@@ -48,8 +49,8 @@ def compute_cgsv(server_delta: fed_t.ActorDeltas_t, local_delta: fed_t.ActorDelt
     return cosine_similarity(server_delta_vec, local_delta_vec, dim=0).item()
 
 
-def add_momentum(weight: float, cgsv: float, alpha: float) -> float:
-    return alpha * weight + (1 - alpha)* cgsv
+def add_momentum_and_clip(weight: float, cgsv: float, alpha: float) -> float:
+    return max(1e-5, alpha * weight + (1 - alpha)* cgsv)
 
 
 class CgsvStrategy(ABCStrategy):
@@ -135,16 +136,14 @@ class CgsvStrategy(ABCStrategy):
         delta_vec = parameters_to_vector(list(server_deltas.values()))
         keys = list(server_deltas.keys())
         D = delta_vec.shape[0]
-        ic(D)
-        ic(delta_vec.shape)
 
         cids = list(wts.keys())
 
-        ic(wts)
+        # ic(wts)
         tanh_br = {cid: np.tanh(wt * beta) for cid, wt in wts.items()}
         ic(tanh_br)
-        if tanh_br.values() == float('nan'):
-            return None, None
+        # if tanh_br.values() == float('nan'):
+        #     return None, None
         # tah_br = np.tanh(beta*list(wts.values())) 
         max_tanh_br = max(list(tanh_br.values()))
         q = {cid : int(D*tbr/max_tanh_br) for cid, tbr in tanh_br.items()}
@@ -187,11 +186,11 @@ class CgsvStrategy(ABCStrategy):
         cgsv_vals = {}
         for cid in client_ids:
             cgsv =  compute_cgsv(server_delta, client_deltas[cid])
-            self._client_wts[cid] = add_momentum(self._client_wts[cid], cgsv, self.cfg.alpha)
+            self._client_wts[cid] = add_momentum_and_clip(self._client_wts[cid], cgsv, self.cfg.alpha)
             cgsv_vals[cid] = cgsv
             
         ic(cgsv_vals)
-        
+        self.res_man.log_general_metric(cgsv_vals, phase='post_agg', actor='server', metric_name='cgsv')
         # Normalize the coefficients
         self._client_wts = self.normalize_weights(self._client_wts)
 
@@ -202,12 +201,13 @@ class CgsvStrategy(ABCStrategy):
             client_deltas, q = self._sparsify_gradients(self._client_wts, server_delta, self.cfg.beta)
             self.res_man.log_general_metric(q, phase='post_agg', actor='server', metric_name='q')
             for cid in client_ids:
-                self._client_params[cid] = add_param_deltas(self._client_params[cid], client_deltas[cid])
+                self._client_params[cid] = add_param_deltas(_client_params[cid], client_deltas[cid])
                 self.res_man.log_parameters(self._client_params[cid], phase='post_agg', actor=cid)
 
         else:
             for cid in client_ids:
-                self._client_params[cid] = add_param_deltas(self._client_params[cid], server_delta)
+                # self._client_params[cid] = add_param_deltas(_client_params[cid], server_delta)
+                self._client_params[cid] = deepcopy(self._server_params)
 
         # Debug sparsify gradients
         try:
@@ -217,7 +217,6 @@ class CgsvStrategy(ABCStrategy):
         # Logging code
         self.res_man.log_general_metric(self._client_wts, phase='post_agg', actor='server', metric_name='client_weights')
 
-        self.res_man.log_general_metric(cgsv_vals, phase='post_agg', actor='server', metric_name='cgsv')
 
         self.res_man.log_parameters(self._server_params, phase='post_agg', actor='server')
         

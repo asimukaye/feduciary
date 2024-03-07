@@ -1,19 +1,20 @@
 %YAML 1.2
 ---
-mode: centralized_bloodmnist
+mode: cgsv
 # mode: debug
+desc: "CGSV run with iid data, with sparsify, no delta_normalize"
 
 defaults:
   - base_config
   - hydra: custom
   - server: baseflower
 
-  - strategy: base
+  # - strategy: base
   # - strategy: fedavgmanual
   # - strategy: fedstdev
   # - strategy: fedgradstd
   # - strategy: fedopt
-  # - strategy: cgsv
+  - strategy: cgsv
 
   # - client: fedstdev
   # - client: fedgradstd
@@ -23,8 +24,8 @@ defaults:
 simulator:
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized', 'flower'
   # mode: standalone
-  mode: centralized
-  # mode: federated
+  # mode: centralized
+  mode: federated
   # mode: flower
   seed: 42
   use_tensorboard: false
@@ -63,10 +64,10 @@ train_cfg:
     log_to_file: false
 
 dataset:
-  # dataset_family: torchvision
-  dataset_family: medmnist
-  # name: CIFAR10
-  name: bloodmnist
+  dataset_family: torchvision
+  # dataset_family: medmnist
+  name: CIFAR10
+  # name: bloodmnist
   data_path: data/
   subsample: false
   subsample_fraction: 1.0 # Fraction of the dataset to use. Only works when subsample is true
@@ -139,7 +140,7 @@ model:
 # desc: 'Fedgradstd client with equal weighting strategy'
 # desc: 'Fedgradstd dry runs for analyzing different metrics with three label flipped clients and 25 % data'
 # desc: 'Fedgradstd run with dirichlet split,5 shuffles only'
-desc: 'Fedavg run with bloodmnist iid'
+# desc: 'Fedavg run with bloodmnist iid'
 # desc: 'Centralized run with bloodmnist iid'
 
 # desc: Fedopt with patho split
