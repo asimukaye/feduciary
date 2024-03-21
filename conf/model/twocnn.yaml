@@ -1,0 +1,3 @@
+_target_: feduciary.models.twocnn.TwoCNN
+# _partial_: false
+hidden_size: 200

@@ -1,0 +1,14 @@
+dataset_family: torchvision
+name: CIFAR10
+data_path: data/
+subsample: false
+subsample_fraction: 1.0 # Fraction of the dataset to use. Only works when subsample is true
+federated: true
+test_fraction: null
+seed: null
+transforms:
+  resize:
+    _target_: torchvision.transforms.Resize
+    size: 
+      - 28
+      - 28

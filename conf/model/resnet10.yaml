@@ -1,0 +1,2 @@
+_target_: feduciary.models.resnet.ResNet10
+hidden_size: 64

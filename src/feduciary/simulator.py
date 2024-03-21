@@ -13,7 +13,7 @@ from functools import partial
 import wandb
 from torch.nn import Module
 from torch.backends import cudnn, mps
-from torch.utils.data import DataLoader, Subset, ConcatDataset
+from torch.utils.data import DataLoader, Subset, ConcatDataset, Dataset
 from hydra.utils import instantiate
 import flwr as fl
 
@@ -23,10 +23,10 @@ from feduciary.server.baseflowerserver import BaseFlowerServer
 from feduciary.client.abcclient import simple_evaluator, simple_trainer
 from feduciary.client.baseflowerclient import BaseFlowerClient
 
-from feduciary.data import load_vision_dataset, load_raw_dataset
+from feduciary.data import load_federated_dataset
 from feduciary.split import get_client_datasets, NoisySubset, LabelFlippedSubset
-from feduciary.config import Config, SimConfig, ClientSchema
-from feduciary.common.utils  import log_tqdm, log_instance, generate_client_ids
+from feduciary.config import Config, SimConfig, ClientSchema, DatasetModelSpec
+from feduciary.common.utils  import log_tqdm, log_instance, generate_client_ids, get_time
 from feduciary.results.postprocess import post_process
 from feduciary.models.model import init_model
 from feduciary.results.resultmanager import ResultManager
@@ -114,15 +114,8 @@ def save_checkpoints(server: BaseFlowerServer, clients: dict[str, BaseFlowerClie
             client.save_checkpoint()
 
 
-
-def init_dataset_and_model(cfg: Config) -> tuple[fed_t.ClientDatasets_t, Subset, Module]:
-    '''Initialize the dataset and the model here'''
-    # NOTE: THIS FUNCTION MODIFIES THE RANDOM NUMBER SEEDS
-    # NOTE: This function modifies the config objec insitu
-
-    train_set, test_set, dataset_model_spec  = load_raw_dataset(cfg.dataset)
-    client_sets = get_client_datasets(cfg.dataset.split_conf, train_set, test_set)
-
+def set_model_spec(cfg: Config, dataset_model_spec: DatasetModelSpec):
+    '''Set the model spec based on the dataset'''
     model_spec = cfg.model.model_spec
     if model_spec.in_channels is None:
         model_spec.in_channels = dataset_model_spec.in_channels
@@ -135,18 +128,39 @@ def init_dataset_and_model(cfg: Config) -> tuple[fed_t.ClientDatasets_t, Subset,
         logger.info(f'[MODEL CONFIG] Setting model num classes to {model_spec.num_classes}')
     else:
         logger.info(f'[MODEL CONFIG] Overriding model num classes to {model_spec.num_classes}')
+    return model_spec
 
-    cfg.model.model_spec = model_spec
 
-    # model_instance: Module = instantiate(cfg.model.model_spec)
-    model_instance = init_model(cfg.model)
+def set_global_n_iters(cfg: Config, client_sets: fed_t.ClientDatasets_t):
+    '''Set the value of n_iters for the client'''
+    # Setting the n_iters size 
+    total_size = sum([len(train_set) for train_set, _ in client_sets])
 
-    # Set the value of n_iters for the client
-    per_client_set_size = len(train_set)//cfg.simulator.num_clients
-    cfg.client.cfg.n_iters = per_client_set_size//cfg.client.train_cfg.batch_size + (1 if per_client_set_size%cfg.client.train_cfg.batch_size else 0)
-    logger.debug(f'[DATA_SPLIT] N iters : `{cfg.client.cfg.n_iters}`')
+    per_client_set_size = total_size//cfg.simulator.num_clients
+    cfg.client.cfg.n_iters = per_client_set_size//cfg.client.train_cfg.batch_size \
+        + (1 if per_client_set_size%cfg.client.train_cfg.batch_size else 0)
+    logger.debug(f'[DATA_SPLIT] N iters: `{cfg.client.cfg.n_iters}`')
     logger.debug(f'[DATA_SPLIT] batch size : `{cfg.client.train_cfg.batch_size}`')
+    return cfg
 
+
+def init_dataset_and_model(cfg: Config) -> tuple[fed_t.ClientDatasets_t, Dataset, Module]:
+    '''Initialize the dataset and the model here'''
+    # NOTE: THIS FUNCTION MODIFIES THE RANDOM NUMBER SEEDS
+    # NOTE: This function modifies the config object insitu
+
+    # train_set, test_set, dataset_model_spec  = load_raw_dataset(cfg.dataset)
+    # client_sets = get_client_datasets(cfg.dataset.split_conf, train_set, test_set)
+
+    client_sets, test_set, dataset_model_spec = load_federated_dataset(cfg.dataset)
+    # cfg.model.model_spec = set_model_spec(cfg, dataset_model_spec)
+
+    model_args = asdict(dataset_model_spec)
+    # model_instance: Module = instantiate(cfg.model.model_spec)
+    model_instance = init_model(cfg.model, cfg.model_init, model_args)
+
+    # Required for keeping iterations constant if batch size varies
+    cfg = set_global_n_iters(cfg, client_sets)
 
     return client_sets, test_set, model_instance
 
@@ -210,7 +224,7 @@ def run_flower_simulation(cfg: Config,
     
 def run_federated_simulation(cfg: Config,
                              client_datasets: fed_t.ClientDatasets_t,
-                             server_dataset: Subset,
+                             server_dataset: Dataset,
                              model_instance: Module
                              ):
     '''Runs the simulation in federated mode'''
@@ -288,7 +302,7 @@ def run_centralized_simulation(cfg: Config,
     pooled_test_set = ConcatDataset([test_set for _, test_set in client_datasets])
 
     cfg.train_cfg.criterion = instantiate(cfg.train_cfg.criterion)
-    cfg.train_cfg.optimizer = instantiate(cfg.train_cfg.optimizer)(model.parameters())
+    cfg.train_cfg.optimizer = instantiate(cfg.train_cfg.optimizer)
 
     train_loader = DataLoader(dataset=pooled_train_set,
                               batch_size=cfg.train_cfg.batch_size, shuffle=True)
@@ -308,8 +322,17 @@ def run_centralized_simulation(cfg: Config,
 
         result_manager.log_general_result(train_result, 'post_train', 'sim', 'central_train')
    
-        params = model.state_dict()
-        result_manager.log_parameters(params, 'post_train', 'sim', verbose=True)
+        # with get_time():
+        params = dict(model.named_parameters())
+        # model.
+        # for param_key, param in params.items():
+        #     ic(param_key, param.size())
+        #     ic(param_key, param.type())
+
+        # for param_key, param in model.named_parameters():
+        #     ic(param_key, param.size())
+        #     ic(param_key, param.type())
+        result_manager.log_parameters(params, 'post_train', 'sim', verbose=False)
 
 
         eval_result = simple_evaluator(model, test_loader, cfg.train_cfg, metric_manager, curr_round)
@@ -409,7 +432,6 @@ def run_single_client(cfg: Config,
     return final_result
 
 
-
 def run_flower_standalone_simulation(cfg: Config,
                                      client_datasets: fed_t.ClientDatasets_t,
                                      server_dataset: Subset,
@@ -442,8 +464,6 @@ def run_standalone_simulation(cfg: Config,
     clients = create_clients(all_client_ids, client_datasets, model, base_client_cfg)
 
     central_train_cfg = instantiate(cfg.train_cfg)
-
-    # exit(0)
     
     client_params = {cid: client.model.state_dict() for cid, client in clients.items()}
 

@@ -31,14 +31,14 @@ def extract_root_dataset(subset: Subset) -> Dataset:
         assert isinstance(subset.dataset, Dataset), 'Unknown subset nesting' 
         return subset.dataset
 
-def check_for_mapping(dataset: MappedDataset) -> MappedDataset:
+def check_for_mapping(dataset: Dataset) -> MappedDataset:
     if not hasattr(dataset, 'class_to_idx'):
         raise TypeError(f'Dataset {dataset} does not have class_to_idx')
     if not hasattr(dataset, 'targets'):
         raise TypeError(f'Dataset {dataset} does not have targets')
     if not hasattr(dataset, 'indices'):
         raise TypeError(f'Dataset {dataset} does not have indices')
-    return dataset
+    return dataset # type: ignore
 
 def extract_root_dataset_and_indices(subset: Subset, indices = None) -> tuple[Dataset, np.ndarray] :
     # ic(type(subset.indices))
@@ -111,7 +111,6 @@ class LabelFlippedSubset(Subset):
             # dataset, mapped_ids = extract_root_dataset_and_indices(subset)
         # dataset = check_for_mapping(dataset)
 
-        # ic(total_size, len(mapped_ids))
 
         samples = np.random.choice(total_size, size=int(flip_pct*total_size), replace=False)
         
@@ -485,7 +484,7 @@ def _construct_client_dataset(raw_train: Dataset, raw_test: Dataset, train_indic
     return (train_set, test_set)
 
 
-def get_client_datasets(cfg: SplitConfig, train_dataset: Subset, test_dataset, match_train_distribution=False) -> list[fed_t.DatasetPair_t] :
+def get_client_datasets(cfg: SplitConfig, train_dataset: Dataset, test_dataset, match_train_distribution=False) -> list[fed_t.DatasetPair_t] :
     # logger.info(f'[DATA_SPLIT] dataset split: `{cfg.split_type.upper()}`')   
     split_map = get_split_map(cfg, train_dataset)
     if match_train_distribution:

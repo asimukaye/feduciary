@@ -1,10 +1,10 @@
 import torch
 
-from feduciary.models.model_utils import ResidualBlock, BottleneckBlockLN, ResidualBlockLN
+from feduciary.models.model_utils import BottleneckBlockGN, ResidualBlockGN
 
 
 
-__all__ = ['ResNet10LN', 'ResNet18LN', 'ResNet34LN']
+__all__ = ['ResNet10GN', 'ResNet18GN', 'ResNet34GN']
 
 CONFIGS = {
     'ResNet10': [1, 1, 1, 1],
@@ -13,16 +13,16 @@ CONFIGS = {
     'ResNet50': [3, 4, 6, 3],
 }
 
-class ResNetLN(torch.nn.Module):
-    def __init__(self, config, block, in_channels, hidden_size, num_classes):
-        super(ResNetLN, self).__init__()
+class ResNetGN(torch.nn.Module):
+    def __init__(self, config, block, in_channels, hidden_size, num_classes, num_groups):
+        super(ResNetGN, self).__init__()
         self.in_channels = in_channels
         self.hidden_size = hidden_size
         self.num_classes = num_classes
 
         self.features = torch.nn.Sequential(
             torch.nn.Conv2d(self.in_channels, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            torch.nn.LayerNorm(64),
+            torch.nn.GroupNorm(num_groups, 64),
             torch.nn.ReLU(True),
             self._make_layers(block, 64, config[0], stride=1),
             self._make_layers(block, 128, config[1], stride=2),
@@ -48,18 +48,20 @@ class ResNetLN(torch.nn.Module):
             self.hidden_size = planes
         return torch.nn.Sequential(*layers)
 
-class ResNet10LN(ResNetLN):
-    def __init__(self, in_channels, hidden_size, num_classes):
-        super(ResNet10LN, self).__init__(CONFIGS['ResNet10'], ResidualBlock, in_channels, hidden_size, num_classes)
+class ResNet10GN(ResNetGN):
+    def __init__(self, in_channels, hidden_size, num_classes, num_groups):
+        super(ResNet10GN, self).__init__(CONFIGS['ResNet10'], ResidualBlockGN, in_channels, hidden_size, num_classes, num_groups)
 
-class ResNet18LN(ResNetLN):
-    def __init__(self, in_channels, hidden_size, num_classes):
-        super(ResNet18LN, self).__init__(CONFIGS['ResNet18'], ResidualBlock, in_channels, hidden_size, num_classes)
+class ResNet18GN(ResNetGN):
+    def __init__(self, in_channels, hidden_size, num_classes, num_groups):
+        super(ResNet18GN, self).__init__(CONFIGS['ResNet18'], ResidualBlockGN, in_channels, hidden_size, num_classes, num_groups)
 
-class ResNet34LN(ResNetLN):
-    def __init__(self, in_channels, hidden_size, num_classes):
-        super(ResNet34LN, self).__init__(CONFIGS['ResNet34'], ResidualBlock, in_channels, hidden_size, num_classes)
+class ResNet34GN(ResNetGN):
+    def __init__(self, in_channels, hidden_size, num_classes, num_groups):
+        super(ResNet34GN, self).__init__(CONFIGS['ResNet34'], ResidualBlockGN, in_channels, hidden_size, num_classes, num_groups)
 
-class ResNet50LN(ResNetLN):
-    def __init__(self, in_channels, hidden_size, num_classes):
-        super(ResNet50LN, self).__init__(CONFIGS['ResNet50'], BottleneckBlockLN, in_channels, hidden_size, num_classes)
+
+# FIXME:
+class ResNet50GN(ResNetGN):
+    def __init__(self, in_channels, hidden_size, num_classes, num_groups):
+        super(ResNet50GN, self).__init__(CONFIGS['ResNet50'], BottleneckBlockGN, in_channels, hidden_size, num_classes, num_groups)

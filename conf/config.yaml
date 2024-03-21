@@ -1,31 +1,37 @@
 %YAML 1.2
 ---
-mode: cgsv
+# mode: cgsv
 # mode: debug
-desc: "CGSV run with iid data, with sparsify, no delta_normalize"
+mode: centralized_resnet18gn_fedisic
+# mode: centralized_twocnn_fedisic
+desc: "Centralize run with resnet 18 with Group Norm and fedisic dataset"
+# desc: "Centralize run with twocnn and fedisic dataset"
 
 defaults:
   - base_config
   - hydra: custom
   - server: baseflower
-
-  # - strategy: base
+  - strategy: base
   # - strategy: fedavgmanual
   # - strategy: fedstdev
   # - strategy: fedgradstd
   # - strategy: fedopt
-  - strategy: cgsv
-
+  # - strategy: cgsv
   # - client: fedstdev
   # - client: fedgradstd
   - client: baseflower
+  # - dataset: cifar10
+  - dataset: fedisic
+  - model: resnet18gn
+  # - model: resnet18
+  # - model: twocnn
   - _self_
 
 simulator:
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized', 'flower'
   # mode: standalone
-  # mode: centralized
-  mode: federated
+  mode: centralized
+  # mode: federated
   # mode: flower
   seed: 42
   use_tensorboard: false
@@ -44,8 +50,8 @@ simulator:
 train_cfg:
   epochs: 1
   device: auto
-  batch_size: 128
-  eval_batch_size: 256
+  batch_size: 16
+  eval_batch_size: 16
   lr: 0.01
   lr_decay: 0.977
   optimizer:
@@ -63,23 +69,11 @@ train_cfg:
     file_prefix: ''
     log_to_file: false
 
+# CONFIG OVERRIDES
+
 dataset:
-  dataset_family: torchvision
-  # dataset_family: medmnist
-  name: CIFAR10
-  # name: bloodmnist
-  data_path: data/
   subsample: false
   subsample_fraction: 1.0 # Fraction of the dataset to use. Only works when subsample is true
-  federated: true
-
-  transforms: null
-  #   resize:
-  #     _target_: torchvision.transforms.Resize
-  #     size: 
-  #       - 28
-  #       - 28
-
   split_conf:
     # split_type: n_label_flipped_clients
     # split_type: patho
@@ -97,20 +91,11 @@ dataset:
       sigma: 0.5
       flip_percent: 0.75
 
-model:
-  name: TwoCNN
+model_init:
   init_type: xavier
   init_gain: 1.0
-  dropout: 0.0
-  model_spec:           # Optional model spec provided for quick tuning
-    _target_: feduciary.models.twocnn.TwoCNN
-    _partial_: false
-    hidden_size: 200
-    # Option to override in_channels and num_classes. Otherwise auto set by the dataset
-    in_channels: null
-    num_classes: null 
 
-# CONFIG OVERRIDES
+
 # client:
 #   cfg:
 #     data_shuffle: True

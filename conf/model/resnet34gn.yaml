@@ -1,0 +1,3 @@
+_target_: feduciary.models.resnet.ResNet34GN
+hidden_size: 64
+num_groups: 2

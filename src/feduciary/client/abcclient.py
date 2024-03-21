@@ -11,6 +11,7 @@ from torch import Tensor
 import logging
 from feduciary.metrics.metricmanager import MetricManager
 from feduciary.common.utils import log_tqdm
+from tqdm import tqdm
 from feduciary.config import ClientConfig, TrainConfig
 from feduciary.results.resultmanager import ResultManager
 import feduciary.common.typing as fed_t
@@ -27,7 +28,7 @@ def simple_evaluator(model: Module,
     model.to(cfg.device)
     criterion = cfg.criterion
 
-    for inputs, targets in dataloader:
+    for inputs, targets in tqdm(dataloader):
         inputs, targets = inputs.to(cfg.device), targets.to(cfg.device)
         outputs = model(inputs)
         loss: Tensor = criterion(outputs, targets) #type: ignore
@@ -45,12 +46,14 @@ def simple_trainer(model: Module,
                     round: int) -> fed_t.Result:
 
     mm._round = round
-    model.eval()
+    model.train()
+    # model.float()
     model.to(cfg.device)
     criterion  = cfg.criterion
-    optimizer: Optimizer = cfg.optimizer
+    optim_partial: functools.partial = cfg.optimizer
+    optimizer: Optimizer = optim_partial(model.parameters(), lr=cfg.lr)
 
-    for inputs, targets in dataloader:
+    for inputs, targets in tqdm(dataloader):
         optimizer.zero_grad()
         inputs, targets = inputs.to(cfg.device), targets.to(cfg.device)
         outputs = model(inputs)
@@ -77,7 +80,6 @@ class ABCClient(ABC):
         self._cid = client_id 
         self._model = model
 
-        # self._init_state_dict: dict = model.state_dict()
 
         # #NOTE: IMPORTANT: Make sure to deepcopy the config in every child class
         self.cfg = deepcopy(cfg)

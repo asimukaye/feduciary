@@ -344,23 +344,22 @@ class ResidualBlock(torch.nn.Module):
         x = torch.nn.functional.relu(x)
         return x
 
-
-class ResidualBlockLN(torch.nn.Module):
-    def __init__(self, in_planes, planes, stride=1):
-        super(ResidualBlockLN, self).__init__()
+class ResidualBlockGN(torch.nn.Module):
+    def __init__(self, in_planes, planes, num_groups, stride=1):
+        super(ResidualBlockGN, self).__init__()
         self.features = torch.nn.Sequential(
             torch.nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False),
-            torch.nn.LayerNorm(planes),
+            torch.nn.GroupNorm(num_groups, planes),
             torch.nn.ReLU(True),
             torch.nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False),
-            torch.nn.LayerNorm(planes)
+            torch.nn.GroupNorm(num_groups, planes)
         )
 
         self.shortcut = torch.nn.Identity()
         if stride != 1 or in_planes != planes:
             self.shortcut = torch.nn.Sequential(
                 torch.nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride, bias=False),
-                torch.nn.LayerNorm(planes)
+                torch.nn.GroupNorm(num_groups, planes)
             )
 
     def forward(self, x):
@@ -371,9 +370,32 @@ class ResidualBlockLN(torch.nn.Module):
 ##########
 # ResNet #
 ##########
-class BottleneckBlockLN(torch.nn.Module):
+class BottleneckBlockGN(torch.nn.Module):
+    def __init__(self, in_planes, planes, num_groups, stride=1):
+        super(BottleneckBlockGN, self).__init__()
+        self.features = torch.nn.Sequential(
+            torch.nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride, padding=1, bias=False),
+            torch.nn.GroupNorm(num_groups, planes),
+            torch.nn.ReLU(True),
+            torch.nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False),
+            torch.nn.GroupNorm(num_groups, planes)
+        )
+
+        self.shortcut = torch.nn.Identity()
+        if stride != 1 or in_planes != planes:
+            self.shortcut = torch.nn.Sequential(
+                torch.nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride, bias=False),
+                torch.nn.GroupNorm(num_groups, planes)
+            )
+
+    def forward(self, x):
+        x = self.features(x) + self.shortcut(x) 
+        x = torch.nn.functional.relu(x)
+        return x
+
+class BottleneckBlock(torch.nn.Module):
     def __init__(self, in_planes, planes, stride=1):
-        super(BottleneckBlockLN, self).__init__()
+        super(BottleneckBlock, self).__init__()
         self.features = torch.nn.Sequential(
             torch.nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False),
             torch.nn.BatchNorm2d(planes),
@@ -393,7 +415,7 @@ class BottleneckBlockLN(torch.nn.Module):
         x = self.features(x) + self.shortcut(x) 
         x = torch.nn.functional.relu(x)
         return x
-    
+     
 ################
 # Lambda Layer #
 ################

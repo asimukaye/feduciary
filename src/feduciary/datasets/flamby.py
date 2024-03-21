@@ -1,7 +1,7 @@
 from flamby.datasets.fed_isic2019 import FedIsic2019
 import logging
 from feduciary.config import DatasetModelSpec
-from torch.utils.data import Subset, ConcatDataset
+from torch.utils.data import Subset, ConcatDataset, Dataset
 import feduciary.common.typing as fed_t
 import torch
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ def fetch_flamby_pooled(dataset_name: str, root: str)->tuple[Subset, Subset]:
             raise NotImplementedError(f"Dataset {dataset_name} is not implemented.")
     return train_dataset, test_dataset
 
-def custom_pooled(sharded_sets: fed_t.ClientDatasets_t)->tuple[Subset, Subset]:
+def custom_pooled(sharded_sets: fed_t.ClientDatasets_t)->tuple[Dataset, Dataset]:
     train_sets = []
     test_sets = []
     for train, test in sharded_sets:
@@ -44,6 +44,7 @@ def fetch_flamby_federated(dataset_name: str, root: str, num_splits: int)->tuple
         case _:
             raise NotImplementedError(f"Dataset {dataset_name} is not implemented.")
     return client_datasets, pooled_test
+
 
 def get_flamby_model_spec(dataset_name: str, root: str)-> DatasetModelSpec:
     match dataset_name:

@@ -1,6 +1,6 @@
 import torch
 import logging
-from feduciary.config import ModelSpecConfig, DatasetModelSpec
+from feduciary.config import DatasetModelSpec
 from torch.utils.data import Dataset
 import medmnist
 import numpy as np

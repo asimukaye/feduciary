@@ -122,6 +122,7 @@ def aggregate_model(model_list: list[nn.Module], grad_list: list, resman: Result
         # ic(std_.shape, mean_.shape)
         mean_params[name] = mean_
         std_params[name] = std_
+        # ic(std_)
 
         # gradient average and std dev
         stacked_grad = torch.stack(tmp_grad_list)
@@ -350,7 +351,7 @@ def trainer_mono(model: nn.Module, loader: DataLoader, train_cfg: TrainConfig, m
         optimizer.zero_grad(set_to_none=True)
 
         outputs: Tensor = model(inputs)
-        loss: Tensor = train_cfg.criterion(outputs, targets)
+        loss: Tensor = train_cfg.criterion(outputs, targets) # type: ignore
         loss.backward()
         optimizer.step()
 

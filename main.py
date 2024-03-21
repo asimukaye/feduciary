@@ -22,7 +22,6 @@ def run_feduciary(cfg: Config):
     # logger.debug(cfg_obj.dataset.split_conf.__dict__)
     # logger.debug(cfg_obj.client.cfg.__dict__)
 
-
     sim = Simulator(cfg_obj)
     sim.run_simulation()
     sim.finalize()

@@ -1,7 +1,7 @@
 import torch
 import logging
 import torchvision
-from feduciary.config import ModelSpecConfig, DatasetModelSpec
+from feduciary.config import DatasetModelSpec
 from torch.utils import data
 import numpy as np
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ class VisionClassificationDataset(data.Dataset):
 
 # helper method to fetch dataset from `torchvision.datasets`
 # FIXME: Factorize this for clarity
-def fetch_torchvision_dataset(dataset_name:str, root, transforms)->tuple[data.Subset, data.Subset, DatasetModelSpec]:
+def fetch_torchvision_dataset(dataset_name:str, root, transforms)->tuple[data.Dataset, data.Dataset, DatasetModelSpec]:
     logger.debug(f'[DATA LOAD] Fetching dataset: {dataset_name.upper()}')
     
     # Initialize dataset dependent model spec
@@ -160,19 +160,19 @@ def fetch_torchvision_dataset(dataset_name:str, root, transforms)->tuple[data.Su
         else:
             model_spec.in_channels = 3
             
-    elif dataset_name in ['Caltech256', 'SEMEION', 'SUN397']:
-        # configure arguments for training dataset
-        # NOTE: these datasets do NOT provide pre-defined split
-        # Thus, use all datasets as a training dataset
-        train_args = DEFAULT_ARGS.copy()
-        train_args['transform'] = transforms[0]
+    # elif dataset_name in ['Caltech256', 'SEMEION', 'SUN397']:
+    #     # configure arguments for training dataset
+    #     # NOTE: these datasets do NOT provide pre-defined split
+    #     # Thus, use all datasets as a training dataset
+    #     train_args = DEFAULT_ARGS.copy()
+    #     train_args['transform'] = transforms[0]
         
-        # create training dataset instance
-        raw_train = torchvision.datasets.__dict__[dataset_name](**train_args)
-        raw_train = VisionClassificationDataset(raw_train, dataset_name.upper(), 'CLIENT')
+    #     # create training dataset instance
+    #     raw_train = torchvision.datasets.__dict__[dataset_name](**train_args)
+    #     raw_train = VisionClassificationDataset(raw_train, dataset_name.upper(), 'CLIENT')
 
-        # no holdout set. Wut, why
-        raw_test = None
+    #     # no holdout set. Wut, why
+    #     raw_test = None
             
         # for compatibility, create attribute `targets` 
         if dataset_name == 'Caltech256':

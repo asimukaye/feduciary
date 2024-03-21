@@ -333,6 +333,8 @@ class DatasetConfig:
     data_path: str
     dataset_family: str
     transforms: Optional[TransformsConfig]
+    test_fraction: Optional[float]
+    seed: Optional[int]
     federated: bool
     split_conf: SplitConfig
     subsample: bool = False
@@ -347,12 +349,13 @@ class DatasetConfig:
 
 ########## Model Configurations ##########
 @dataclass
-class ModelSpecConfig:
+class ModelConfig:
     _target_: str
-    _partial_: bool
-    hidden_size: Optional[int]
-    num_classes: Optional[int]
-    in_channels: Optional[int]
+    hidden_size: int
+
+@dataclass
+class ModelConfigGN(ModelConfig):
+    num_groups: int
 
 @dataclass
 class DatasetModelSpec:
@@ -360,12 +363,9 @@ class DatasetModelSpec:
     in_channels: int
 
 @dataclass
-class ModelConfig:
-    name: str
+class ModelInitConfig:
     init_type: str
     init_gain: float
-    dropout: float
-    model_spec: ModelSpecConfig
 
 
 ########## Master Configurations ##########
@@ -381,6 +381,7 @@ class Config():
 
     dataset: DatasetConfig = field()
     model: ModelConfig = field()
+    model_init: ModelInitConfig = field()
     log_conf: list = field(default_factory=list)
 
     # metrics: MetricConfig = field(default=MetricConfig)
@@ -443,6 +444,11 @@ def register_configs():
     cs.store(group='strategy/cfg', name='fedavgmanual', node=FedavgManualConfig)
     cs.store(group='strategy/cfg', name='fedopt', node=FedOptConfig)
     cs.store(group='strategy/cfg', name='cgsv', node=CGSVConfig)
+    cs.store(group='model', name='resnet18gn', node=ModelConfigGN)
+    cs.store(group='model', name='resnet34gn', node=ModelConfigGN)
+    cs.store(group='model', name='resnet10gn', node=ModelConfigGN)
+    # cs.store(group='model', name='resnet18gn', node=ModelConfigGN)
+
 
     cs.store(group='strategy/cfg', name='fedstdev_strategy', node=FedstdevConfig)
     # cs.store(group='server/cfg', name='base_fedavg', node=FedavgConfig)

@@ -136,12 +136,11 @@ class CgsvStrategy(ABCStrategy):
         delta_vec = parameters_to_vector(list(server_deltas.values()))
         keys = list(server_deltas.keys())
         D = delta_vec.shape[0]
-
         cids = list(wts.keys())
 
         # ic(wts)
         tanh_br = {cid: np.tanh(wt * beta) for cid, wt in wts.items()}
-        ic(tanh_br)
+        # ic(tanh_br)
         # if tanh_br.values() == float('nan'):
         #     return None, None
         # tah_br = np.tanh(beta*list(wts.values())) 
@@ -149,7 +148,6 @@ class CgsvStrategy(ABCStrategy):
         q = {cid : int(D*tbr/max_tanh_br) for cid, tbr in tanh_br.items()}
 
         zeroed_deltas = {cid: delta_vec.clone() for cid in cids}
-
         sparsified_deltas = {}
 
         for cid, zero_del in zeroed_deltas.items():
@@ -189,12 +187,12 @@ class CgsvStrategy(ABCStrategy):
             self._client_wts[cid] = add_momentum_and_clip(self._client_wts[cid], cgsv, self.cfg.alpha)
             cgsv_vals[cid] = cgsv
             
-        ic(cgsv_vals)
+        # ic(cgsv_vals)
         self.res_man.log_general_metric(cgsv_vals, phase='post_agg', actor='server', metric_name='cgsv')
         # Normalize the coefficients
         self._client_wts = self.normalize_weights(self._client_wts)
 
-        ic(self._client_wts)
+        # ic(self._client_wts)
         self._server_params = add_param_deltas(self._server_params, server_delta)
 
         if self.cfg.sparsify_gradients:

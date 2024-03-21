@@ -4,7 +4,7 @@ import inspect
 import logging
 import importlib
 from hydra.utils import instantiate
-from feduciary.config import ModelConfig
+from feduciary.config import ModelConfig, ModelInitConfig
 logger = logging.getLogger(__name__)
 
 
@@ -48,14 +48,14 @@ def init_weights(model: Module, init_type, init_gain):
                 torch.nn.init.constant_(m.bias.data, 0.0)
     model.apply(init_func)
 
-def init_model(cfg: ModelConfig) -> Module:
+def init_model(cfg: ModelConfig, init_cfg: ModelInitConfig, model_args= {}) -> Module:
     # initialize the model class 
-    model: Module = instantiate(cfg.model_spec)
+    model: Module = instantiate(cfg, **model_args)
 
-    init_weights(model, cfg.init_type, cfg.init_gain)
+    init_weights(model, init_cfg.init_type, init_cfg.init_gain)
 
 
-    logger.info(f'[MODEL] Initialized model: {cfg.name}; (Initialization type: {cfg.init_type.upper()}))!')
+    logger.info(f'[MODEL] Initialized model: {cfg._target_.split(".")[-1]}; (Initialization type: {init_cfg.init_type.upper()}))!')
     return model
 
 
