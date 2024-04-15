@@ -34,7 +34,7 @@ def histogram_plots(target_dict, title):
 
    
 if __name__=='__main__':
-    dirichlet_alpha = 100.0
+    dirichlet_alpha = 1.0
     num_class_per_client = 3
     num_splits = 6
     split_type = 'dirichlet'
@@ -48,6 +48,8 @@ if __name__=='__main__':
             subsample=False,
             subsample_fraction=1.0,
             federated=True,
+            test_fraction=0.2,
+            seed=42,
             split_conf=SplitConfig(
                 split_type=split_type,
                 num_splits = num_splits,

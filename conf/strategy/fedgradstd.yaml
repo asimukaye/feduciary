@@ -8,13 +8,13 @@ cfg:
   train_fraction: 1.0
   eval_fraction: 1.0
   betas:
+    - 10
     - 1
+    - 10
     - 1
-    - 0.1
+    - 10
     - 1
-    - 0.1
-    - 1
-    - 1
+    - 10
     - 1
   beta_0: 1.0
   alpha: 0.2

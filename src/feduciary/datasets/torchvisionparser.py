@@ -15,6 +15,7 @@ class VisionClassificationDataset(data.Dataset):
         self.suffix = suffix
         self.targets = self.dataset.targets
         self.indices = np.arange(len(self.dataset))
+        self.class_to_idx = dataset.class_to_idx
 
     def __getitem__(self, index):
         inputs, targets = self.dataset[index]

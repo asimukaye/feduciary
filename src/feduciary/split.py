@@ -346,6 +346,28 @@ def get_dirichlet_split_2(dataset: Dataset, num_splits, num_classes, cncntrtn)->
     split_map = {k: assigned_indices[k] for k in range(num_splits)}
     return split_map
 
+def dirichlet_noniid_split_fixed(dataset: Subset, n_clients: int, alpha: float,) -> dict[int, np.ndarray]:
+    target_set = Subset(dataset.dataset.targets, dataset.indices)
+    train_labels = np.array(target_set)
+
+    # train_labels = np.array(dataset.targets)
+    n_classes = train_labels.max()+1
+    label_distribution = np.random.dirichlet([alpha]*n_clients, n_classes)
+
+    class_idcs = [np.argwhere(train_labels == y).flatten()
+                    for y in range(n_classes)]
+    # Indicates the sample indices of each client
+    client_idcs = [np.array([], dtype=int) for _ in range(n_clients)]
+    for c_idcs, fracs in zip(class_idcs, label_distribution):
+        client_order = np.argsort([len(cid) for cid in client_idcs])
+        idcs = np.split(c_idcs, (np.cumsum(fracs)[:-1] * len(c_idcs)).astype(int))
+        idx_order = np.argsort([len(idx) for idx in idcs])[::-1]
+
+        for neediest_client, idx in zip(client_order, idx_order):
+            client_idcs[neediest_client] = np.append(client_idcs[neediest_client], idcs[idx])
+    client_idcs = {k: idcs for k, idcs in zip(range(n_clients), client_idcs)}
+
+    return client_idcs
 
 def dirichlet_noniid_split(dataset: Subset, n_clients: int, alpha: float,) -> dict[int, np.ndarray]:
     """Splits a list of data indices with corresponding labels
@@ -475,7 +497,6 @@ def get_split_map(cfg: SplitConfig, dataset: Subset) -> dict[int, np.ndarray]:
         case _ :
             logger.error('[DATA_SPLIT] Unknown datasplit type')
             raise NotImplementedError
-
 
 
 def _construct_client_dataset(raw_train: Dataset, raw_test: Dataset, train_indices, test_indices) ->tuple[Subset, Subset]:

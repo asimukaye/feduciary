@@ -7,5 +7,5 @@ _target_: feduciary.client.baseflowerclient.BaseFlowerClient
 _partial_: true
 cfg:
   start_epoch: 0
-  data_shuffle: false
+  data_shuffle: true
 train_cfg: ${train_cfg}

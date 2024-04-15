@@ -1,38 +1,43 @@
 %YAML 1.2
 ---
-# mode: cgsv
+mode: cgsv
 # mode: debug
-mode: centralized_resnet18gn_fedisic
+# mode: fedstdev
+# mode: fedavg
+# mode: fedopt
+# mode: fedgradstd
+# mode: fedavgmanual
 # mode: centralized_twocnn_fedisic
-desc: "Centralize run with resnet 18 with Group Norm and fedisic dataset"
-# desc: "Centralize run with twocnn and fedisic dataset"
+# desc: "Fedavgmanual runs on dirichlet cifar "
+desc: "CGSV run with iid clients"
 
 defaults:
   - base_config
   - hydra: custom
   - server: baseflower
-  - strategy: base
+  # - strategy: base
   # - strategy: fedavgmanual
   # - strategy: fedstdev
   # - strategy: fedgradstd
   # - strategy: fedopt
-  # - strategy: cgsv
+  - strategy: cgsv
   # - client: fedstdev
   # - client: fedgradstd
   - client: baseflower
-  # - dataset: cifar10
-  - dataset: fedisic
-  - model: resnet18gn
+  - dataset: cifar10
+  # - dataset: bloodmnist
+  # - dataset: fedisic
+  # - model: resnet18gn
   # - model: resnet18
-  # - model: twocnn
+  - model: twocnn
   - _self_
 
 simulator:
   # Simulator Mode: Takes arguments 'federated', 'standalone' or 'centralized', 'flower'
   # mode: standalone
-  mode: centralized
+  # mode: centralized
   # mode: federated
-  # mode: flower
+  mode: flower 
   seed: 42
   use_tensorboard: false
   use_wandb: true
@@ -50,8 +55,8 @@ simulator:
 train_cfg:
   epochs: 1
   device: auto
-  batch_size: 16
-  eval_batch_size: 16
+  batch_size: 128
+  eval_batch_size: 128
   lr: 0.01
   lr_decay: 0.977
   optimizer:

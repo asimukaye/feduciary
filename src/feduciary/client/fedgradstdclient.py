@@ -215,7 +215,7 @@ class FedgradstdClient(BaseFlowerClient):
                     model.zero_grad(set_to_none=True)
 
                     outputs: Tensor = model(inputs)
-                    loss: Tensor = self.criterion(outputs, targets)
+                    loss: Tensor = self.criterion(outputs, targets) #type: ignore
                     loss.backward()
                     optimizer.step()
 

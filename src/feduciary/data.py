@@ -125,7 +125,7 @@ def load_raw_dataset(cfg: DatasetConfig) -> tuple[data.Dataset, data.Dataset, Da
         raw_train = get_subset(raw_train, cfg.subsample_fraction)
         raw_test = get_subset(raw_test, cfg.subsample_fraction)
 
-    ic(raw_train[0][0].shape)
+    # ic(raw_train[0][0].shape)
     # adjust the number of classes in binary case
     if model_spec.num_classes == 2:
         raise NotImplementedError()

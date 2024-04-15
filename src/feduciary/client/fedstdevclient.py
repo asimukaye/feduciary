@@ -157,24 +157,24 @@ class FedstdevClient(BaseFlowerClient):
                 individual_param = model.get_parameter(name)
                 tmp_param_list.append(individual_param.data)
                 # tmp_grad_list.append(individual_param.grad)
-                tmp_grad_list.append(self._cum_gradients_map[seed][name])
+                # tmp_grad_list.append(self._cum_gradients_map[seed][name])
 
 
             stacked = torch.stack(tmp_param_list)
 
             std_, mean_ = torch.std_mean(stacked, dim=0)
 
-            stacked_grad = torch.stack(tmp_grad_list)
-            std_grad_, mean_grad_ = torch.std_mean(stacked_grad, dim=0)
+            # stacked_grad = torch.stack(tmp_grad_list)
+            # std_grad_, mean_grad_ = torch.std_mean(stacked_grad, dim=0)
 
             param.data.copy_(mean_.data)
             # with get_time():
-            param.grad = mean_grad_.data
+            # param.grad = mean_grad_.data
 
             # STATEFUL FUNCTIONS MAY NOT WORK WITH MULTITHREADING
             self._param_std[name].data = std_.to('cpu')
-            self._grad_mu[name] = mean_grad_.to('cpu')
-            self._grad_std[name] = std_grad_.to('cpu')
+            # self._grad_mu[name] = mean_grad_.to('cpu')
+            # self._grad_std[name] = std_grad_.to('cpu')
 
 
     def aggregate_seed_results(self, seed_results: dict[int, fed_t.Result]) -> fed_t.Result:
@@ -203,9 +203,9 @@ class FedstdevClient(BaseFlowerClient):
             self._optimizer_map[seed] = self.optim_partial(model.parameters())
             # self.metric_mngr.json_dump(self.train_loader_map[seed].dataset.indices.tolist(), 'indices', 'train', f'seed_{seed}')
         # Run an round on the client
-        empty_grads = {p_key: torch.empty_like(param.data, device=self.train_cfg.device) for p_key, param in self._model.named_parameters()}
+        # empty_grads = {p_key: torch.empty_like(param.data, device=self.train_cfg.device) for p_key, param in self._model.named_parameters()}
 
-        self._cum_gradients_map = {seed: deepcopy(empty_grads) for seed in self._model_map.keys()}
+        # self._cum_gradients_map = {seed: deepcopy(empty_grads) for seed in self._model_map.keys()}
 
         self.metric_mngr._round = self._round
         self._model.train()
@@ -234,13 +234,12 @@ class FedstdevClient(BaseFlowerClient):
                     model.zero_grad(set_to_none=True)
 
                     outputs: Tensor = model(inputs)
-                    loss: Tensor = self.criterion(outputs, targets)
+                    loss: Tensor = self.criterion(outputs, targets) # type: ignore
                     loss.backward()
                     optimizer.step()
-                    for p_key, param in model.named_parameters():
-                        add_grad = 0 if param.grad is None else param.grad
-                        self._cum_gradients_map[seed][p_key] = self._cum_gradients_map[seed].get(p_key, 0) + add_grad # type: ignore
-
+                    # for p_key, param in model.named_parameters():
+                    #     add_grad = 0 if param.grad is None else param.grad
+                    #     self._cum_gradients_map[seed][p_key] = self._cum_gradients_map[seed].get(p_key, 0) + add_grad # type: ignore
       
                     self.metric_mngr.track(loss.item(), outputs, targets)
                 else:

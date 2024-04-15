@@ -190,7 +190,6 @@ class FedstdevStrategy(ABCStrategy):
         _client_ids = list(_clients_params.keys())
         # ic(_client_ids)
 
-
         if self.cfg.weighting_strategy == 'tanh':
             for cid in _client_ids:
                 omega = self._compute_scaled_weights(self.beta_dict, _clients_params_std[cid])

@@ -19,7 +19,6 @@ import flwr as fl
 
 # from feduciary.server.baseserver import BaseServer
 from feduciary.server.baseflowerserver import BaseFlowerServer
-# from feduciary.server.fedstdevserver import FedstdevClient, FedstdevOptimizer
 from feduciary.client.abcclient import simple_evaluator, simple_trainer
 from feduciary.client.baseflowerclient import BaseFlowerClient
 
@@ -227,7 +226,17 @@ def run_federated_simulation(cfg: Config,
                              server_dataset: Dataset,
                              model_instance: Module
                              ):
-    '''Runs the simulation in federated mode'''
+    '''Runs the simulation in federated mode
+    
+    Args:
+        cfg (Config): The configuration object containing simulation settings.
+        client_datasets (fed_t.ClientDatasets_t): A dictionary of client datasets.
+        server_dataset (Dataset): The dataset used by the server.
+        model_instance (Module): The instance of the model used in the simulation.
+    
+    Returns:
+        final_result: The final result of the simulation.
+    '''
     
     # model_instance: Module = instantiate(cfg.model.model_spec)
     all_client_ids = generate_client_ids(cfg.simulator.num_clients)
