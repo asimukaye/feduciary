@@ -1,6 +1,7 @@
 import torch
 
 class TwoCNN(torch.nn.Module): # McMahan et al., 2016; 1,663,370 parameters
+    """"""
     def __init__(self, in_channels, hidden_size, num_classes):
         super(TwoCNN, self).__init__()
         self.in_channels = in_channels

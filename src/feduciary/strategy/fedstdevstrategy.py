@@ -211,42 +211,37 @@ class FedstdevStrategy(ABCStrategy):
 
         self._client_wts = self.normalize_scalar_weights(self._client_wts)
 
-        extended_omegas = {}
-        extended_wts = {}
-        ext_mus = {}
-        ext_sigmas = {}
-        # LOGGING CODE
-        for cid in strategy_ins.keys():
-            # logging omega and weight average
-            avg_omegas = get_dict_avg(self._client_omegas[cid], self.param_dims)
-            avg_wts = get_dict_avg(self._client_wts[cid], self.param_dims)
-            lumped_mus = lump_tensors(_clients_params[cid])
-            lumped_sigmas = lump_tensors(_clients_params_std[cid])
-            lumped_mus.update(get_dict_avg(lumped_mus, self.param_dims))
-            lumped_sigmas.update(get_dict_avg(lumped_sigmas, self.param_dims))
-
-            ext_mus[cid] = lumped_mus
-            ext_sigmas[cid] = lumped_sigmas
-
-            # ic(self._client_omegas[cid])
-            # ic(self._client_wts[cid])
-    
-            # ic(avg_omegas)
-            # ic(self._client_omegas[cid].copy())
-            copied_omegas = self._client_omegas[cid].copy()
-            # ic(copied_omegas | avg_omegas)
-            extended_omegas[cid] = copied_omegas | avg_omegas
-
-            # ic(extended_omegas[cid])
-
-            copied_wts = self._client_wts[cid].copy()
-            extended_wts[cid] = copied_wts | avg_wts
-
-            self.res_man.log_general_metric(avg_omegas, f'omegas/{cid}', 'server', 'post_agg')
-
-            self.res_man.log_general_metric(avg_wts, metric_name=f'client_weights/{cid}', phase='post_agg', actor='server')
+        # extended_omegas = {}
+        # extended_wts = {}
+        # ext_mus = {}
+        # ext_sigmas = {}
 
 
+        # # LOGGING CODE
+        # for cid in strategy_ins.keys():
+        #     # logging omega and weight average
+        #     avg_omegas = get_dict_avg(self._client_omegas[cid], self.param_dims)
+        #     avg_wts = get_dict_avg(self._client_wts[cid], self.param_dims)
+        #     lumped_mus = lump_tensors(_clients_params[cid])
+        #     lumped_sigmas = lump_tensors(_clients_params_std[cid])
+        #     lumped_mus.update(get_dict_avg(lumped_mus, self.param_dims))
+        #     lumped_sigmas.update(get_dict_avg(lumped_sigmas, self.param_dims))
+
+        #     ext_mus[cid] = lumped_mus
+        #     ext_sigmas[cid] = lumped_sigmas
+        #     copied_omegas = self._client_omegas[cid].copy()
+        #     extended_omegas[cid] = copied_omegas | avg_omegas
+
+        #     copied_wts = self._client_wts[cid].copy()
+        #     extended_wts[cid] = copied_wts | avg_wts
+
+        #     self.res_man.log_general_metric(avg_omegas, f'omegas/{cid}', 'server', 'post_agg')
+
+        #     self.res_man.log_general_metric(avg_wts, metric_name=f'client_weights/{cid}', phase='post_agg', actor='server')
+
+
+        self.layer_wise_sbm_log(self._client_ids,
+                                        self._client_wts, self._client_omegas, self._clnt_sigma_by_mu)
         # self.res_man.json_dump(extended_omegas, metric_name=f'omegas', actor='server', phase='post_agg')
         # self.res_man.json_dump(ext_mus, metric_name=f'mus', actor='server', phase='post_agg')
         # self.res_man.json_dump(ext_sigmas, metric_name=f'sigmas', actor='server', phase='post_agg')
@@ -256,14 +251,40 @@ class FedstdevStrategy(ABCStrategy):
         # self.res_man.log_general_metric(self._client_omegas, 'omegas', 'server', 'post_agg')
         # self.res_man.log_general_metric(self._client_wts, metric_name='client_weights', phase='post_agg', actor='server')
 
-        ############ LOGGING CODE ENDS ##############
-
         self._server_params, server_deltas = gradient_update_per_param(self._server_params, _clients_params, self._client_wts)
+
+        self._log_grads(_clients_params, _clients_params_std, _client_ids)
+
+        ############ LOGGING CODE ENDS ##############
 
         outs = FedstdevOuts(server_params=self._server_params)
 
         return outs
     
+    def layer_wise_sbm_log(self, client_ids,
+                           client_wts: ClientScalarWeights_t,
+                           client_omegas: ClientScalarWeights_t,
+                           clnt_sigma_by_mu: dict[str, fed_t.ActorDeltas_t]):
+
+        extended_omegas = {}
+        extended_wts = {}
+        ext_grad_sbm = {}
+        for cid in client_ids:
+            # logging omega and weight average
+            avg_omegas = get_dict_avg(client_omegas[cid], self.param_dims)
+            avg_wts = get_dict_avg(client_wts[cid], self.param_dims)
+            lumped_sbm = lump_tensors(clnt_sigma_by_mu[cid])
+            ext_grad_sbm[cid] = lumped_sbm | get_dict_avg(lumped_sbm, self.param_dims)
+
+            copied_omegas = client_omegas[cid].copy()
+            extended_omegas[cid] = copied_omegas | avg_omegas
+
+            copied_wts = client_wts[cid].copy()
+            extended_wts[cid] = copied_wts | avg_wts
+
+        self.res_man.log_general_metric(extended_omegas, f'omegas', 'server', 'post_agg')
+        self.res_man.log_general_metric(extended_wts, metric_name=f'client_weights/', phase='post_agg', actor='server')
+        self.res_man.log_general_metric(ext_grad_sbm, f'grad_sigma_by_mu', 'server', 'post_agg')
 
     @classmethod
     def _compute_sigma_by_mu(cls, sigmas: fed_t.ActorParams_t, mus: fed_t.ActorParams_t) -> fed_t.ActorParams_t:
@@ -307,3 +328,9 @@ class FedstdevStrategy(ABCStrategy):
             weights[key] = tanh_std.mean().item()
         return weights
     
+    def _log_grads(self, client_grad_mus, client_grad_stds, client_ids):
+        for cid in client_ids:
+            self.res_man.log_parameters(client_grad_mus[cid], f'grad_mus/{cid}', 'server', 'post_agg')
+            self.res_man.log_parameters(client_grad_stds[cid], f'grad_stds/{cid}', 'server', 'post_agg')
+    
+   

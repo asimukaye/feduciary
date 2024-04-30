@@ -407,6 +407,7 @@ class FedgradstdStrategy(ABCStrategy):
                 self.layer_wise_sbm_log(self._client_ids,
                                         self._client_wts, self._client_omegas, self._client_sigma_by_mu)
                 self._server_params, server_deltas = gradient_update_per_param(self._server_params, clients_params, self._client_wts)
+                
             case WeightingStrategy.GRAD_SIGMA_DIRECTIONS_TRIAL:
                 self._client_wts, self._client_omegas, self._client_sigma_by_mu = self.layer_wise_custom_aggregate(self._client_wts, client_grad_mus, client_grad_stds, client_ids, self.cfg.alpha, self.beta_dict)
                 self.layer_wise_sbm_log(self._client_ids,

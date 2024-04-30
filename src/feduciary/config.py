@@ -1,6 +1,7 @@
 # Master config file to store config dataclasses and do validation
 from dataclasses import dataclass, field, asdict
 from typing import Optional
+import typing as t
 import os
 import subprocess
 from io import StringIO
@@ -289,9 +290,9 @@ class TransformsConfig:
 
 @dataclass
 class NoiseConfig:
-    mu: float = 0.0
-    sigma: float = 1.0
-    flip_percent: float = 0.5
+    mu: t.Any
+    sigma: t.Any
+    flip_percent: t.Any
     
 @dataclass
 class SplitConfig:
@@ -308,6 +309,8 @@ class SplitConfig:
         # assert self.test_fraction == Range(0.0, 1.0), f'Invalid value {self.test_fraction} for test fraction'
         known_splits =  {'one_noisy_client',
                          'n_noisy_clients',
+                         'n_distinct_noisy_clients',
+                         'n_distinct_label_flipped_clients',
                          'one_label_flipped_client',
                          'n_label_flipped_clients',
                          'iid', 'unbalanced',
@@ -418,6 +421,8 @@ def set_debug_mode(cfg: Config):
 
     cfg.simulator.num_clients = 3
     cfg.dataset.split_conf.num_splits = 3
+    if cfg.dataset.split_conf.split_type in ['n_label_flipped_clients', 'n_noisy_clients', 'n_distinct_noisy_clients', 'n_distinct_label_flipped_clients']:
+        cfg.dataset.split_conf.num_patho_clients = 2
     if hasattr(cfg.strategy.cfg, 'num_clients'):
         cfg.strategy.cfg.num_clients = 3 # type: ignore
     logger.debug(f'[Debug Override] Setting num clients to: {cfg.simulator.num_clients}')

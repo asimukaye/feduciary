@@ -123,7 +123,7 @@ class FedgradstdClient(BaseFlowerClient):
     def _get_gradients_average(self)->dict[str, Tensor]:
         return deepcopy(self._grad_mu)
 
-    def _compute_average_model_and_std(self, model_map: dict[int, Module]):
+    def _compute_average_model_and_std(self, model_map: dict[int, Module]):        
 
         for name, param in self._model.named_parameters():
             tmp_param_list = []
