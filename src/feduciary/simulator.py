@@ -113,22 +113,6 @@ def save_checkpoints(server: BaseFlowerServer, clients: dict[str, BaseFlowerClie
             client.save_checkpoint()
 
 
-def set_model_spec(cfg: Config, dataset_model_spec: DatasetModelSpec):
-    '''Set the model spec based on the dataset'''
-    model_spec = cfg.model.model_spec
-    if model_spec.in_channels is None:
-        model_spec.in_channels = dataset_model_spec.in_channels
-        logger.info(f'[MODEL CONFIG] Setting model in channels to {model_spec.in_channels}')
-    else:
-        logger.info(f'[MODEL CONFIG] Overriding model in channels to {model_spec.in_channels}')
-    
-    if model_spec.num_classes is None:
-        model_spec.num_classes = dataset_model_spec.num_classes
-        logger.info(f'[MODEL CONFIG] Setting model num classes to {model_spec.num_classes}')
-    else:
-        logger.info(f'[MODEL CONFIG] Overriding model num classes to {model_spec.num_classes}')
-    return model_spec
-
 
 def set_global_n_iters(cfg: Config, client_sets: fed_t.ClientDatasets_t):
     '''Set the value of n_iters for the client'''
@@ -146,16 +130,13 @@ def set_global_n_iters(cfg: Config, client_sets: fed_t.ClientDatasets_t):
 def init_dataset_and_model(cfg: Config) -> tuple[fed_t.ClientDatasets_t, Dataset, Module]:
     '''Initialize the dataset and the model here'''
     # NOTE: THIS FUNCTION MODIFIES THE RANDOM NUMBER SEEDS
-    # NOTE: This function modifies the config object insitu
 
     # train_set, test_set, dataset_model_spec  = load_raw_dataset(cfg.dataset)
     # client_sets = get_client_datasets(cfg.dataset.split_conf, train_set, test_set)
 
     client_sets, test_set, dataset_model_spec = load_federated_dataset(cfg.dataset)
-    # cfg.model.model_spec = set_model_spec(cfg, dataset_model_spec)
 
     model_args = asdict(dataset_model_spec)
-    # model_instance: Module = instantiate(cfg.model.model_spec)
     model_instance = init_model(cfg.model, cfg.model_init, model_args)
 
     # Required for keeping iterations constant if batch size varies
@@ -166,7 +147,7 @@ def init_dataset_and_model(cfg: Config) -> tuple[fed_t.ClientDatasets_t, Dataset
 
 def run_flower_simulation(cfg: Config,
                         client_datasets: fed_t.ClientDatasets_t,
-                        server_dataset: Subset,
+                        server_dataset: Dataset,
                         model: Module):
     
     
@@ -179,6 +160,7 @@ def run_flower_simulation(cfg: Config,
         client_datasets_map[cid] = dataset
 
     if torch.cuda.is_available():
+        # Device has to be cuda 0 as flower creates its own device namespace while running
         cfg.client.train_cfg.device = 'cuda:0'
         cfg.server.train_cfg.device = 'cuda:0'
     elif mps.is_available():
@@ -302,7 +284,7 @@ def run_federated_simulation(cfg: Config,
 
 def run_centralized_simulation(cfg: Config,
                              client_datasets: fed_t.ClientDatasets_t,
-                             server_dataset: Subset,
+                             server_dataset: Dataset,
                                model: Module):
 
     # make_checkpoint_dirs(has_server=False, client_ids=['centralized'])
@@ -443,13 +425,13 @@ def run_single_client(cfg: Config,
 
 def run_flower_standalone_simulation(cfg: Config,
                                      client_datasets: fed_t.ClientDatasets_t,
-                                     server_dataset: Subset,
+                                     server_dataset: Dataset,
                                      model: Module):
     pass
     
 def run_standalone_simulation(cfg: Config,
                               client_datasets: fed_t.ClientDatasets_t,
-                              server_dataset: Subset,
+                              server_dataset: Dataset,
                               model: Module):
     
     central_model = deepcopy(model)

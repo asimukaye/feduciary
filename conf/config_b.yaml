@@ -2,15 +2,16 @@
 ---
 # mode: cgsv
 # mode: debug
-# mode: fedstdev
+mode: fedstdev
 # mode: fedavg
 # mode: fedopt
-mode: fedgradstd
+# mode: fedgradstd
 # mode: fedavgmanual
-# mode: centralized_twocnn_fedisic
-# desc: "CGSV run with 3 25% label flip clients"
-# desc: "CGSV run with 4 noisy clients"
-desc: "Fedgradstd. 5 label flip clients , label flip pct: 0.5, cifar run with SGD, 1 E 200 rounds"
+# desc: "FedParamstd run with bloodmnist 2 0.5 feature noise clients"
+desc: "FedParamstd. run with bloodmnist iid clients"
+# desc: "FedParamstd run with bloodmnist 2 25% label noise clients"
+
+# desc: "Fedgradstd. run with epochs 2 rounds 100"
 
 
 defaults:
@@ -19,15 +20,15 @@ defaults:
   - server: baseflower
   # - strategy: base
   # - strategy: fedavgmanual
-  # - strategy: fedstdev
-  - strategy: fedgradstd
+  - strategy: fedstdev
+  # - strategy: fedgradstd
   # - strategy: fedopt
   # - strategy: cgsv
-  # - client: fedstdev
-  - client: fedgradstd
+  - client: fedstdev
+  # - client: fedgradstd
   # - client: baseflower
-  - dataset: cifar10
-  # - dataset: bloodmnist
+  # - dataset: cifar10
+  - dataset: bloodmnist
   # - dataset: fedisic
   # - model: resnet18gn
   # - model: resnet18
@@ -82,24 +83,24 @@ dataset:
   subsample: false
   subsample_fraction: 1.0 # Fraction of the dataset to use. Only works when subsample is true
   split_conf:
-    split_type: n_label_flipped_clients
+    # split_type: n_label_flipped_clients
     # split_type: n_distinct_label_flipped_clients
     # split_type: n_noisy_clients
     # split_type: n_distinct_noisy_clients
     # split_type: patho
     # split_type: dirichlet
     # split_type: one_imbalanced_client
-    # split_type: iid
+    split_type: iid
     # split_type: one_noisy_client
     num_splits: ${simulator.num_clients}
     num_class_per_client: 3 # classes per client for patho split type
     # num_patho_clients: 1
-    num_patho_clients: 5
+    num_patho_clients: 2
     dirichlet_alpha: 1.0
     noise:
       mu: 0.0
       sigma: 0.5
-      flip_percent: 0.5
+      flip_percent: 0.25
       # mu: [0.0, 0.0, 0.0, 0.0, 0.0]
       # sigma: [1.0, 0.75, 0.5, 0.25, 0.1]
       # flip_percent: [0.9, 0.75, 0.5, 0.25, 0.1]

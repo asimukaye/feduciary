@@ -247,10 +247,6 @@ class BaseFlowerServer(ABCServer, fl_strat.Strategy):
         clients_ins = self.strategy.send_strategy(train_ids)
         outcomes = self._broadcast_models(train_ids, clients_ins, fed_t.RequestType.TRAIN)
 
-        # collect_ids = []
-        # for cid, outcome in outcomes:
-        #     if outcome == fed_t.RequestOutcome.COMPLETE:
-        #         collect_ids.append(cid)
 
         collect_ids = [cid for cid, out in outcomes.items() if out==fed_t.RequestOutcome.COMPLETE]
 

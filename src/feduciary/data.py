@@ -54,7 +54,7 @@ def load_vision_dataset(cfg: DatasetConfig) -> tuple[data.Dataset, data.Dataset,
         raw_train = get_subset(raw_train, cfg.subsample_fraction)
         raw_test = get_subset(raw_test, cfg.subsample_fraction)
 
-    # adjust the number of classes in binary case
+    # adjust the number of clas ses in binary case
     if model_spec.num_classes == 2:
         raise NotImplementedError()
 
@@ -87,35 +87,7 @@ def load_raw_dataset(cfg: DatasetConfig) -> tuple[data.Dataset, data.Dataset, Da
 
             raw_train, raw_test = fetch_flamby_pooled(dataset_name=cfg.name, root=cfg.data_path)
             model_spec = get_flamby_model_spec(dataset_name=cfg.name, root=cfg.data_path)
-        
-        # case 'TinyImageNet': # 5) for other public datasets...
-        #     #FIXME:
-        #     raw_train, raw_test, temp_ = fetch_tinyimagenet(args=cfg, root=cfg.data_path, transforms=transforms)
-        
-        # case 'CINIC10':
-        #     #FIXME:
-        #     raw_train, raw_test, temp_ = fetch_cinic10(args=cfg, root=cfg.data_path, transforms=transforms)
-        # case 'BeerReviews':
-        #     aspect_type = {'A': 'aroma', 'L': 'look'}
-        #     parsed_type = cfg.name[-1]
-        #     if parsed_type in ['A', 'L']:
-        #         aspect = aspect_type[parsed_type]
-        #     else:
-        #         err = '[DATA LOAD] Please check dataset name!'
-        #         logger.exception(err)
-        #         raise Exception(err)
-        #     raw_train, raw_test, args = fetch_beerreviews(args=cfg, root=cfg.data_path, aspect=aspect, tokenizer=tokenizer)  
-        # case 'Heart':
-        #     split_map, client_datasets, args = fetch_heart(args=cfg, root=cfg.data_path, seed=cfg.seed, test_fraction=cfg.test_fraction)
     
-        # case 'Adult':
-        #     split_map, client_datasets, args = fetch_adult(args=cfg, root=cfg.data_path, seed=cfg.seed, test_fraction=cfg.test_fraction)
-    
-        # case 'Cover':
-        #     split_map, client_datasets, args = fetch_cover(args=cfg, root=cfg.data_path, seed=cfg.seed, test_fraction=cfg.test_fraction)  
-    
-        # case 'GLEAM':
-            # split_map, client_datasets, args = fetch_gleam(args=cfg, root=cfg.data_path, seed=cfg.seed, test_fraction=cfg.test_fraction, seq_len=cfg.seq_len)
         case _:
             raise NotImplementedError()
 
@@ -170,61 +142,3 @@ def load_federated_dataset(cfg: DatasetConfig) -> tuple[ fed_t.ClientDatasets_t,
 
 def subsample_dataset(dataset: data.Dataset, fraction: float):
     return data.Subset(dataset, np.random.randint(0, len(dataset)-1, int(fraction * len(dataset)))) # type: ignore
-
-
-# def get_text_data_stub(cfg: DatasetConfig):
-#     tokenizer = None
-#     # if cfg.use_model_tokenizer or cfg.use_pt_model:
-#     #     assert cfg.model_name in ['DistilBert', 'SqueezeBert', 'MobileBert'], 'Please specify a proper model!'
-
-#     if cfg.use_model_tokenizer:
-#         assert cfg.model_name.lower() in transformers.models.__dict__.keys(), f'Please check if the model (`{cfg.model_name}`) is supported by `transformers` module!'
-#         module = transformers.models.__dict__[f'{cfg.model_name.lower()}']
-#         tokenizer = getattr(module, f'{cfg.model_name}Tokenizer').from_pretrained(TOKENIZER_STRINGS[cfg.model_name])
-#         tokenizer = getattr(module, f'{cfg.model_name}Tokenizer').from_pretrained(TOKENIZER_STRINGS[cfg.model_name])
-
-#     elif cfg.name in torchtext.datasets.__dict__.keys(): # 4) for downloadable datasets in `torchtext.datasets`...
-#         raw_train, raw_test, args = fetch_torchtext_dataset(args=args, dataset_name=cfg.name, root=cfg.data_path, seq_len=cfg.seq_len,tokenizer=tokenizer) 
-
-#     else: # x) for a dataset with no support yet or incorrectly entered...
-#         err = f'[DATA LOAD] Dataset `{cfg.name}` is not supported or seems incorrectly entered... please check!'
-#         logger.exception(err)
-#         raise Exception(err)     
-#     logger.info(f'[DATA LOAD] ...successfully fetched dataset!')
-    
-#     if cfg.dataset_family == 'torchtext':
-#         raise NotImplementedError
-#     else:
-#         raise NotImplementedError
-
-# def get_leaf_data_stub(cfg: DatasetConfig):
-        
-#     if cfg.name in ['FEMNIST', 'Shakespeare', 'Sent140', 'CelebA', 'Reddit']: # 1) for a special dataset - LEAF benchmark...
-#         # define transform
-#         if cfg.name in ['FEMNIST', 'CelebA']:
-#             # check if `resize` is required
-#             if cfg.resize is None:
-#                 logger.info(f'[DATA LOAD] Dataset `{cfg.name}` may require `resize` argument; (recommended: `FEMNIST` - 28, `CelebA` - 84)!')
-#             transforms = [_get_transform(args, train=True), _get_transform(args, train=False)]
-#         elif cfg.name == 'Reddit':
-#             cfg.rawsmpl = 1.0
-
-#         # construct split hashmap, client datasets
-#         # NOTE: for LEAF benchmark, values of `split_map` hashmap is not indices, but sample counts of tuple (training set, test set)!
-#         split_map, client_datasets, args = fetch_leaf(
-#             args=args,
-#             dataset_name=cfg.name, 
-#             root=cfg.data_path, 
-#             seed=cfg.seed, 
-#             raw_data_fraction=cfg.rawsmpl, 
-#             test_fraction=cfg.test_fraction, 
-#             transforms=transforms
-#         )
-
-#         # no global holdout set for LEAF
-#         raw_test = None  
-#     if cfg.dataset_family == 'leaf':
-#         raise NotImplementedError
-#     else:
-#         raise NotImplementedError
-    
