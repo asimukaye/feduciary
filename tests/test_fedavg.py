@@ -1,26 +1,31 @@
-from feduciary.simulator import run_flower_simulation, run_federated_simulation, init_dataset_and_model, set_seed, ResultManager, get_client_datasets
-from feduciary.config import Config
-from omegaconf import OmegaConf
-from hydra import compose, initialize_config_dir
-from hydra.core.config_store import ConfigStore
 import os
-import logging
 from copy import deepcopy
-logger = logging.getLogger('SIMULATOR')
-import json
+
+from feduciary.config import Config, register_configs
+from omegaconf import OmegaConf
+from hydra import compose, initialize_config_dir, initialize
+from hydra.core.config_store import ConfigStore
+from hydra.core.global_hydra import GlobalHydra
 from test_utils import compose_config
+from feduciary.simulator import set_seed
+from flwr.server.strategy import FedAvg
+from feduciary.data import load_federated_dataset
+from feduciary.strategy import FedAvgStrategy
+from feduciary.simulator import run_flower_simulation, run_federated_simulation, init_dataset_and_model, set_seed, ResultManager, get_client_datasets
+
+
 
 def set_test_params(cfg: Config):
     cfg.simulator.use_wandb = False
     cfg.simulator.use_tensorboard = False
     cfg.simulator.save_csv = False
-    cfg.simulator.num_rounds = 2
+    cfg.simulator.num_rounds = 10
 
     cfg.client.train_cfg.epochs = 1
     cfg.client.train_cfg.metric_cfg.log_to_file = True
 
-    cfg.simulator.num_clients = 2
-    cfg.dataset.split_conf.num_splits = 2
+    cfg.simulator.num_clients = 6
+    cfg.dataset.split_conf.num_splits = 6
 
     cfg.dataset.subsample = True
     cfg.dataset.subsample_fraction = 0.05
@@ -28,14 +33,12 @@ def set_test_params(cfg: Config):
 
     return cfg
 
-
-def test_flower_native_match():
+def test_fedavg():
     cfg = compose_config()
     cfg = set_test_params(cfg)
-    assert isinstance(cfg, Config)
-
-    test, train, model = init_dataset_and_model(cfg)
+    
     set_seed(cfg.simulator.seed)
+
 
     flower_cfg = deepcopy(cfg)
     fed_cfg = deepcopy(cfg)

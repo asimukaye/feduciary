@@ -141,6 +141,6 @@ class BaseStrategy(ABCStrategy):
 
         return outs
     
-
+# alias for the BaseStrategy
 FedAvgStrategy = BaseStrategy
 

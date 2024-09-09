@@ -418,18 +418,6 @@ class ResultManager:
         return self.last_result
 
 
-    # Some valiant effort functions, maybe useful later
-    # def fuse_events(self, metric: str, past_event: str, present_event: str, actor: str, x, x_key:str ,delta_x=0.5, actor_2: str = '', y_key: str =''):
-    #     # TODO: Think of a better way to do this function
-
-    #     if actor_2 is None:
-    #         actor_2 = actor
-    #     y_past = self.metric_event_actor_dict[metric][past_event][actor]
-    #     y_present = self.metric_event_actor_dict[metric][present_event][actor_2]
-
-    #     self.results_history[f'{metric}/{actor}'][x_key].extend([x, x + delta_x])
-    #     self.results_history[f'{metric}/{actor}'][metric].extend([y_past, y_present])
-
     def add_matplotlib_plot(self, input_dict: dict, title: str = ''):
         fig = plt.figure()
         ax = fig.add_subplot()
